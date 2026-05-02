@@ -1,0 +1,155 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 440" font-family="'Segoe UI', Arial, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f0f4ff"/><stop offset="100%" stop-color="#e8edf8"/>
+    </linearGradient>
+    <linearGradient id="g-seller" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#43a047"/><stop offset="100%" stop-color="#2e7d32"/>
+    </linearGradient>
+    <linearGradient id="g-buyer" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1e88e5"/><stop offset="100%" stop-color="#1565c0"/>
+    </linearGradient>
+    <linearGradient id="g-trading" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#8e24aa"/><stop offset="100%" stop-color="#6a1b9a"/>
+    </linearGradient>
+    <linearGradient id="g-bridge" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#d81b60"/><stop offset="100%" stop-color="#880e4f"/>
+    </linearGradient>
+    <linearGradient id="g-solana" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#7b1fa2"/><stop offset="100%" stop-color="#4a148c"/>
+    </linearGradient>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#00000022"/>
+    </filter>
+    <filter id="shadow-sm">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#00000015"/>
+    </filter>
+    <marker id="arr" markerWidth="12" markerHeight="10" refX="10" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 L2.5,4 Z" fill="#546e7a"/>
+    </marker>
+    <marker id="arr-red" markerWidth="12" markerHeight="10" refX="10" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 L2.5,4 Z" fill="#c62828"/>
+    </marker>
+    <marker id="arr-green" markerWidth="12" markerHeight="10" refX="10" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 L2.5,4 Z" fill="#2e7d32"/>
+    </marker>
+    <marker id="arr-dash" markerWidth="12" markerHeight="10" refX="10" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 L2.5,4 Z" fill="#78909c"/>
+    </marker>
+  </defs>
+
+  <rect width="920" height="440" fill="url(#bg)" rx="12"/>
+  <text x="460" y="34" text-anchor="middle" font-size="17" font-weight="700" fill="#1a237e">Settlement Flow — Order to On-Chain Finality</text>
+  <line x1="60" y1="44" x2="860" y2="44" stroke="#c5cae9" stroke-width="1"/>
+
+  <!-- ══ Seller ══ -->
+  <rect x="30" y="70" width="120" height="72" rx="10" fill="#e8f5e9" stroke="#a5d6a7" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <rect x="30" y="70" width="120" height="28" rx="10" fill="url(#g-seller)"/>
+  <rect x="30" y="88" width="120" height="10" fill="url(#g-seller)"/>
+  <text x="90" y="86" text-anchor="middle" font-size="12" font-weight="700" fill="white">Seller</text>
+  <text x="90" y="112" text-anchor="middle" font-size="11" fill="#2e7d32">Places ASK order</text>
+  <text x="90" y="128" text-anchor="middle" font-size="10" fill="#666">Signs with wallet key</text>
+
+  <!-- ══ Buyer ══ -->
+  <rect x="30" y="170" width="120" height="72" rx="10" fill="#e3f2fd" stroke="#90caf9" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <rect x="30" y="170" width="120" height="28" rx="10" fill="url(#g-buyer)"/>
+  <rect x="30" y="188" width="120" height="10" fill="url(#g-buyer)"/>
+  <text x="90" y="186" text-anchor="middle" font-size="12" font-weight="700" fill="white">Buyer</text>
+  <text x="90" y="212" text-anchor="middle" font-size="11" fill="#1565c0">Places BID + escrow</text>
+  <text x="90" y="228" text-anchor="middle" font-size="10" fill="#666">gTHB locked on-chain</text>
+
+  <!-- Arrows to Trading -->
+  <line x1="150" y1="106" x2="188" y2="130" stroke="#546e7a" stroke-width="1.8" marker-end="url(#arr)"/>
+  <line x1="150" y1="206" x2="188" y2="182" stroke="#546e7a" stroke-width="1.8" marker-end="url(#arr)"/>
+
+  <!-- ══ Trading Service ══ -->
+  <rect x="188" y="68" width="170" height="200" rx="10" fill="#f3e5f5" stroke="#ce93d8" stroke-width="1.5" filter="url(#shadow)"/>
+  <rect x="188" y="68" width="170" height="32" rx="10" fill="url(#g-trading)"/>
+  <rect x="188" y="88" width="170" height="12" fill="url(#g-trading)"/>
+  <text x="273" y="88" text-anchor="middle" font-size="12" font-weight="700" fill="white">Trading Service</text>
+  <text x="273" y="100" text-anchor="middle" font-size="10" fill="#e1bee7">Off-chain · Low latency</text>
+
+  <rect x="200" y="112" width="146" height="26" rx="5" fill="white" stroke="#ce93d8" stroke-width="1"/>
+  <text x="273" y="129" text-anchor="middle" font-size="10" fill="#555">CDA order book matching</text>
+  <rect x="200" y="144" width="146" height="26" rx="5" fill="white" stroke="#ce93d8" stroke-width="1"/>
+  <text x="273" y="161" text-anchor="middle" font-size="10" fill="#555">Grid feasibility check</text>
+  <rect x="200" y="176" width="146" height="26" rx="5" fill="white" stroke="#ce93d8" stroke-width="1"/>
+  <text x="273" y="193" text-anchor="middle" font-size="10" fill="#555">Wheeling charge calc</text>
+  <rect x="200" y="208" width="146" height="26" rx="5" fill="white" stroke="#ce93d8" stroke-width="1"/>
+  <text x="273" y="225" text-anchor="middle" font-size="10" fill="#555">Batch → NATS JetStream</text>
+  <text x="273" y="256" text-anchor="middle" font-size="10" font-style="italic" fill="#9c27b0">SettlementIntent</text>
+
+  <!-- Arrow Trading → Bridge -->
+  <line x1="358" y1="168" x2="396" y2="168" stroke="#546e7a" stroke-width="1.8" marker-end="url(#arr)"/>
+  <rect x="360" y="152" width="36" height="14" rx="3" fill="#eceff1"/>
+  <text x="378" y="162" text-anchor="middle" font-size="9" fill="#546e7a">NATS</text>
+
+  <!-- ══ Chain Bridge ══ -->
+  <rect x="396" y="100" width="160" height="136" rx="10" fill="#fce4ec" stroke="#f48fb1" stroke-width="1.5" filter="url(#shadow)"/>
+  <rect x="396" y="100" width="160" height="32" rx="10" fill="url(#g-bridge)"/>
+  <rect x="396" y="120" width="160" height="12" fill="url(#g-bridge)"/>
+  <text x="476" y="120" text-anchor="middle" font-size="12" font-weight="700" fill="white">Chain Bridge</text>
+
+  <rect x="408" y="144" width="136" height="26" rx="5" fill="white" stroke="#f48fb1" stroke-width="1"/>
+  <text x="476" y="161" text-anchor="middle" font-size="10" fill="#555">Build Solana transaction</text>
+  <rect x="408" y="176" width="136" height="26" rx="5" fill="white" stroke="#f48fb1" stroke-width="1"/>
+  <text x="476" y="193" text-anchor="middle" font-size="10" fill="#555">Vault HSM sign (no key export)</text>
+  <rect x="408" y="208" width="136" height="22" rx="5" fill="white" stroke="#f48fb1" stroke-width="1"/>
+  <text x="476" y="223" text-anchor="middle" font-size="10" fill="#555">Preflight simulate</text>
+
+  <!-- Arrow Bridge → Solana -->
+  <line x1="556" y1="168" x2="594" y2="168" stroke="#546e7a" stroke-width="1.8" marker-end="url(#arr)"/>
+  <rect x="558" y="152" width="36" height="14" rx="3" fill="#eceff1"/>
+  <text x="576" y="162" text-anchor="middle" font-size="9" fill="#546e7a">RPC</text>
+
+  <!-- ══ Solana On-Chain ══ -->
+  <rect x="594" y="58" width="296" height="290" rx="10" fill="#ede7f6" stroke="#b39ddb" stroke-width="1.5" filter="url(#shadow)"/>
+  <rect x="594" y="58" width="296" height="36" rx="10" fill="url(#g-solana)"/>
+  <rect x="594" y="82" width="296" height="12" fill="url(#g-solana)"/>
+  <text x="742" y="80" text-anchor="middle" font-size="13" font-weight="700" fill="white">Solana — Trading Program</text>
+  <text x="742" y="92" text-anchor="middle" font-size="10" fill="#d1c4e9">Anchor · Sealevel parallel execution</text>
+
+  <rect x="610" y="106" width="264" height="34" rx="7" fill="white" stroke="#9575cd" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="742" y="120" text-anchor="middle" font-size="11" font-weight="600" fill="#4a148c">① Ed25519 sig verify (instructions sysvar)</text>
+  <text x="742" y="134" text-anchor="middle" font-size="10" fill="#666">Buyer + seller signatures validated</text>
+
+  <rect x="610" y="148" width="264" height="34" rx="7" fill="white" stroke="#9575cd" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="742" y="162" text-anchor="middle" font-size="11" font-weight="600" fill="#4a148c">② Nullifier check — replay protection</text>
+  <text x="742" y="176" text-anchor="middle" font-size="10" fill="#666">Order UUID → Nullifier PDA created</text>
+
+  <rect x="610" y="190" width="264" height="34" rx="7" fill="white" stroke="#9575cd" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="742" y="204" text-anchor="middle" font-size="11" font-weight="600" fill="#4a148c">③ Oracle balance verify</text>
+  <text x="742" y="218" text-anchor="middle" font-size="10" fill="#666">MeterState PDA ≥ trade quantity</text>
+
+  <rect x="610" y="232" width="264" height="34" rx="7" fill="white" stroke="#9575cd" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="742" y="246" text-anchor="middle" font-size="11" font-weight="600" fill="#4a148c">④ GRID transfer: Seller → Buyer</text>
+  <text x="742" y="260" text-anchor="middle" font-size="10" fill="#666">SPL Token-2022 transfer hook</text>
+
+  <rect x="610" y="274" width="264" height="34" rx="7" fill="white" stroke="#9575cd" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="742" y="288" text-anchor="middle" font-size="11" font-weight="600" fill="#4a148c">⑤ gTHB escrow → Seller + fees</text>
+  <text x="742" y="302" text-anchor="middle" font-size="10" fill="#666">Market fee + wheeling charge split</text>
+
+  <!-- Finality badge -->
+  <rect x="630" y="320" width="224" height="26" rx="13" fill="#2e7d32" filter="url(#shadow-sm)"/>
+  <text x="742" y="337" text-anchor="middle" font-size="11" font-weight="700" fill="white">⚡ Finality &lt; 400 ms</text>
+
+  <!-- ══ Confirmation callback ══ -->
+  <path d="M 742 348 Q 742 390 476 390 Q 360 390 360 268" fill="none" stroke="#78909c" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arr-dash)"/>
+  <rect x="490" y="378" width="180" height="18" rx="9" fill="#eceff1"/>
+  <text x="580" y="391" text-anchor="middle" font-size="10" fill="#546e7a">Confirmed / Failed → NATS</text>
+
+  <!-- ══ Error path ══ -->
+  <rect x="396" y="280" width="160" height="44" rx="8" fill="#ffebee" stroke="#ef9a9a" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="476" y="298" text-anchor="middle" font-size="11" font-weight="600" fill="#c62828">CapacityExceeded</text>
+  <text x="476" y="314" text-anchor="middle" font-size="10" fill="#c62828">OrderAlreadySettled</text>
+  <line x1="594" y1="302" x2="558" y2="302" stroke="#c62828" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arr-red)"/>
+
+  <!-- ══ Legend ══ -->
+  <rect x="30" y="400" width="340" height="28" rx="6" fill="#eceff1" stroke="#cfd8dc" stroke-width="1"/>
+  <line x1="46" y1="414" x2="70" y2="414" stroke="#546e7a" stroke-width="1.8"/>
+  <text x="76" y="418" font-size="10" fill="#546e7a">Normal flow</text>
+  <line x1="140" y1="414" x2="164" y2="414" stroke="#78909c" stroke-width="1.5" stroke-dasharray="5,3"/>
+  <text x="170" y="418" font-size="10" fill="#546e7a">Async callback</text>
+  <line x1="250" y1="414" x2="274" y2="414" stroke="#c62828" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <text x="280" y="418" font-size="10" fill="#c62828">Error / reject</text>
+</svg>

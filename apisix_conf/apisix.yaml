@@ -1,0 +1,169 @@
+routes:
+  - id: 1 # IAM REST (Auth & Profile)
+    uris:
+      - /api/v1/auth/*
+      - /api/v1/identity/*
+      - /api/v1/system/*
+      - /api/v1/users/me
+      - /api/v1/users/me/profile
+      - /api/v1/users/me/wallets
+      - /api/v1/users/me/wallets/*
+    plugins:
+      proxy-rewrite:
+        headers:
+          set:
+            x-gridtokenx-role: "api-gateway"
+            x-gridtokenx-gateway-secret: "gridtokenx-gateway-secret-2025"
+      cors: {}
+    upstream:
+      type: roundrobin
+      nodes:
+        "host.docker.internal:4010": 1
+
+  - id: 2 # Trading REST (Orders, Trades, Quotes, Markets)
+    uris:
+      - /api/v1/orders
+      - /api/v1/orders/*
+      - /api/v1/trades
+      - /api/v1/trades/*
+      - /api/v1/quotes
+      - /api/v1/quotes/*
+      - /api/v1/markets/*
+      - /api/v1/users/me/orders
+      - /api/v1/users/me/orders/*
+      - /api/v1/users/me/trades
+      - /api/v1/users/me/trades/*
+      - /api/v1/users/me/futures
+      - /api/v1/users/me/futures/*
+      - /api/v1/users/me/analytics
+      - /api/v1/users/me/analytics/*
+      - /api/v1/users/me/carbon
+      - /api/v1/users/me/carbon/*
+      - /api/v1/users/me/wallets/*/balance
+      - /api/v1/users/me/price-alerts
+      - /api/v1/users/me/price-alerts/*
+    plugins:
+      jwt-auth: {}
+      proxy-rewrite:
+        headers:
+          set:
+            x-gridtokenx-role: "api-gateway"
+            x-gridtokenx-gateway-secret: "gridtokenx-gateway-secret-2025"
+            x-gridtokenx-user-id: "$jwt_claim_sub"
+      cors: {}
+    upstream:
+      type: roundrobin
+      nodes:
+        "host.docker.internal:8081": 1
+
+  - id: 3 # Notification Service REST
+    uris:
+      - /api/v1/users/me/notifications
+      - /api/v1/users/me/notifications/*
+    plugins:
+      jwt-auth: {}
+      proxy-rewrite:
+        headers:
+          set:
+            x-gridtokenx-role: "api-gateway"
+            x-gridtokenx-gateway-secret: "gridtokenx-gateway-secret-2025"
+            x-gridtokenx-user-id: "$jwt_claim_sub"
+      cors: {}
+    upstream:
+      type: roundrobin
+      nodes:
+        "noti-service:8080": 1
+
+  - id: 4 # Oracle Bridge REST
+    uris:
+      - /v1/ingest/*
+      - /v1/query/*
+    plugins:
+      proxy-rewrite:
+        headers:
+          set:
+            x-gridtokenx-role: "api-gateway"
+            x-gridtokenx-gateway-secret: "gridtokenx-gateway-secret-2025"
+      cors: {}
+    upstream:
+      type: roundrobin
+      nodes:
+        "host.docker.internal:4030": 1
+
+  - id: 5 # Public Simulator Proxy (Legacy compatibility)
+    uris:
+      - /api/v1/public/grid-status
+      - /api/v1/public/grid-topology
+      - /api/v1/public/meters
+    plugins:
+      proxy-rewrite:
+        regex_uri:
+          - "^/api/v1/public/grid-status(.*)"
+          - "/api/v1/grid/status$1"
+          - "^/api/v1/public/grid-topology(.*)"
+          - "/api/v1/grid/topology$1"
+          - "^/api/v1/public/meters(.*)"
+          - "/api/v1/meters$1"
+        headers:
+          set:
+            x-gridtokenx-role: "api-gateway"
+            x-gridtokenx-gateway-secret: "gridtokenx-gateway-secret-2025"
+      cors: {}
+    upstream:
+      type: roundrobin
+      nodes:
+        "smartmeter-simulator:8080": 1
+
+  - id: 6 # Internal Simulator REST (Full Access)
+    uris:
+      - /api/v1/grid/*
+      - /api/v1/meters
+      - /api/v1/meters/*
+      - /api/v1/simulation/*
+    plugins:
+      proxy-rewrite:
+        headers:
+          set:
+            x-gridtokenx-role: "api-gateway"
+            x-gridtokenx-gateway-secret: "gridtokenx-gateway-secret-2025"
+      cors: {}
+    upstream:
+      type: roundrobin
+      nodes:
+        "smartmeter-simulator:8080": 1
+
+  - id: 7 # gRPC / ConnectRPC (Unified)
+    uris:
+      - /trading.TradingService/*
+      - /oracle.OracleService/*
+      - /noti.NotificationService/*
+    plugins:
+      proxy-rewrite:
+        headers:
+          set:
+            x-gridtokenx-role: "api-gateway"
+            x-gridtokenx-gateway-secret: "gridtokenx-gateway-secret-2025"
+      cors: {}
+    upstream:
+      type: roundrobin
+      nodes:
+        "host.docker.internal:8092": 1 # Trading gRPC
+        # Note: In a real prod environment, you'd use multiple upstreams or a unified gRPC gateway.
+        # For local dev, we multiplex or use specific ports.
+
+  - id: 8 # Health & Metrics
+    uris:
+      - /health*
+      - /metrics
+    upstream:
+      type: roundrobin
+      nodes:
+        "host.docker.internal:4010": 1
+
+consumers:
+  - username: gridtokenx-user
+    plugins:
+      jwt-auth:
+        key: "gridtokenx-iam-service"
+        secret: "CHANGE_ME_SECURE_JWT_SECRET"
+#END

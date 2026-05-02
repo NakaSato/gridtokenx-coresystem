@@ -40,7 +40,11 @@
       "Bash(wc *)",
       "Bash(head *)",
       "Bash(python3 *)",
-      "Bash(rm *)"
+      "Bash(rm *)",
+      "Bash(rmdir *)",
+      "Bash(true)",
+      "Bash(chmod *)",
+      "Bash(./scripts/migrate-ports.sh *)"
     ]
   },
   "$version": 3

@@ -1,0 +1,147 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 500" font-family="'Segoe UI', Arial, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f0f4ff"/><stop offset="100%" stop-color="#e8edf8"/>
+    </linearGradient>
+    <linearGradient id="g-grid" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#43a047"/><stop offset="100%" stop-color="#2e7d32"/>
+    </linearGradient>
+    <linearGradient id="g-grx" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1e88e5"/><stop offset="100%" stop-color="#1565c0"/>
+    </linearGradient>
+    <linearGradient id="g-gthb" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fb8c00"/><stop offset="100%" stop-color="#e65100"/>
+    </linearGradient>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#00000020"/>
+    </filter>
+    <filter id="shadow-sm">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#00000015"/>
+    </filter>
+    <marker id="arr-g" markerWidth="12" markerHeight="10" refX="10" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 L2.5,4 Z" fill="#2e7d32"/>
+    </marker>
+    <marker id="arr-b" markerWidth="12" markerHeight="10" refX="10" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 L2.5,4 Z" fill="#1565c0"/>
+    </marker>
+    <marker id="arr-o" markerWidth="12" markerHeight="10" refX="10" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 L2.5,4 Z" fill="#e65100"/>
+    </marker>
+    <marker id="arr-gray" markerWidth="12" markerHeight="10" refX="10" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 L2.5,4 Z" fill="#78909c"/>
+    </marker>
+  </defs>
+
+  <rect width="860" height="500" fill="url(#bg)" rx="12"/>
+  <text x="430" y="34" text-anchor="middle" font-size="17" font-weight="700" fill="#1a237e">GridTokenX — Triple-Token Lifecycle</text>
+  <line x1="60" y1="44" x2="800" y2="44" stroke="#c5cae9" stroke-width="1"/>
+
+  <!-- ══ GRID column ══ -->
+  <rect x="40" y="58" width="240" height="400" rx="12" fill="#e8f5e9" stroke="#a5d6a7" stroke-width="1.5" filter="url(#shadow)"/>
+  <!-- Header -->
+  <rect x="40" y="58" width="240" height="44" rx="12" fill="url(#g-grid)"/>
+  <rect x="40" y="90" width="240" height="12" fill="url(#g-grid)"/>
+  <text x="160" y="76" text-anchor="middle" font-size="14" font-weight="700" fill="white">GRID Token</text>
+  <text x="160" y="92" text-anchor="middle" font-size="10" fill="#c8e6c9">1 GRID = 1 kWh verified renewable</text>
+
+  <!-- GRID steps -->
+  <rect x="60" y="116" width="200" height="56" rx="8" fill="white" stroke="#81c784" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="160" y="138" text-anchor="middle" font-size="12" font-weight="600" fill="#2e7d32">① Solar Generation</text>
+  <text x="160" y="154" text-anchor="middle" font-size="10" fill="#555">Oracle Bridge confirms kWh</text>
+  <text x="160" y="167" text-anchor="middle" font-size="10" fill="#888">Ed25519 device signature</text>
+
+  <line x1="160" y1="172" x2="160" y2="192" stroke="#2e7d32" stroke-width="2" marker-end="url(#arr-g)"/>
+
+  <rect x="60" y="196" width="200" height="56" rx="8" fill="white" stroke="#81c784" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="160" y="218" text-anchor="middle" font-size="12" font-weight="600" fill="#2e7d32">② Mint GRID</text>
+  <text x="160" y="234" text-anchor="middle" font-size="10" fill="#555">Oracle Program CPI</text>
+  <text x="160" y="247" text-anchor="middle" font-size="10" fill="#888">REC Validator co-signs</text>
+
+  <line x1="160" y1="252" x2="160" y2="272" stroke="#2e7d32" stroke-width="2" marker-end="url(#arr-g)"/>
+
+  <rect x="60" y="276" width="200" height="56" rx="8" fill="white" stroke="#81c784" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="160" y="298" text-anchor="middle" font-size="12" font-weight="600" fill="#2e7d32">③ Trade (CDA)</text>
+  <text x="160" y="314" text-anchor="middle" font-size="10" fill="#555">Seller → Buyer atomic swap</text>
+  <text x="160" y="327" text-anchor="middle" font-size="10" fill="#888">Wheeling charge deducted</text>
+
+  <line x1="160" y1="332" x2="160" y2="352" stroke="#2e7d32" stroke-width="2" marker-end="url(#arr-g)"/>
+
+  <rect x="60" y="356" width="200" height="56" rx="8" fill="white" stroke="#81c784" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="160" y="378" text-anchor="middle" font-size="12" font-weight="600" fill="#2e7d32">④ Burn GRID</text>
+  <text x="160" y="394" text-anchor="middle" font-size="10" fill="#555">Buyer meter confirms delivery</text>
+  <text x="160" y="407" text-anchor="middle" font-size="10" fill="#888">Closes economic loop</text>
+
+  <!-- ══ GRX column ══ -->
+  <rect x="310" y="58" width="240" height="400" rx="12" fill="#e3f2fd" stroke="#90caf9" stroke-width="1.5" filter="url(#shadow)"/>
+  <rect x="310" y="58" width="240" height="44" rx="12" fill="url(#g-grx)"/>
+  <rect x="310" y="90" width="240" height="12" fill="url(#g-grx)"/>
+  <text x="430" y="76" text-anchor="middle" font-size="14" font-weight="700" fill="white">GRX Token</text>
+  <text x="430" y="92" text-anchor="middle" font-size="10" fill="#bbdefb">Utility · Governance · Staking</text>
+
+  <rect x="330" y="116" width="200" height="56" rx="8" fill="white" stroke="#64b5f6" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="430" y="138" text-anchor="middle" font-size="12" font-weight="600" fill="#1565c0">① Stake GRX</text>
+  <text x="430" y="154" text-anchor="middle" font-size="10" fill="#555">Oracle / Validator / Operator</text>
+  <text x="430" y="167" text-anchor="middle" font-size="10" fill="#888">Min 10k–100k GRX by role</text>
+
+  <line x1="430" y1="172" x2="430" y2="192" stroke="#1565c0" stroke-width="2" marker-end="url(#arr-b)"/>
+
+  <rect x="330" y="196" width="200" height="56" rx="8" fill="white" stroke="#64b5f6" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="430" y="218" text-anchor="middle" font-size="12" font-weight="600" fill="#1565c0">② Earn Rewards</text>
+  <text x="430" y="234" text-anchor="middle" font-size="10" fill="#555">Validation fees + emissions</text>
+  <text x="430" y="247" text-anchor="middle" font-size="10" fill="#888">Slashed for misbehavior</text>
+
+  <line x1="430" y1="252" x2="430" y2="272" stroke="#1565c0" stroke-width="2" marker-end="url(#arr-b)"/>
+
+  <rect x="330" y="276" width="200" height="56" rx="8" fill="white" stroke="#64b5f6" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="430" y="298" text-anchor="middle" font-size="12" font-weight="600" fill="#1565c0">③ Governance Vote</text>
+  <text x="430" y="314" text-anchor="middle" font-size="10" fill="#555">Weighted by staked balance</text>
+  <text x="430" y="327" text-anchor="middle" font-size="10" fill="#888">7-day window · 60% threshold</text>
+
+  <line x1="430" y1="332" x2="430" y2="352" stroke="#1565c0" stroke-width="2" marker-end="url(#arr-b)"/>
+
+  <rect x="330" y="356" width="200" height="56" rx="8" fill="white" stroke="#64b5f6" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="430" y="378" text-anchor="middle" font-size="12" font-weight="600" fill="#1565c0">④ Fee Discount</text>
+  <text x="430" y="394" text-anchor="middle" font-size="10" fill="#555">Up to 60% off market fees</text>
+  <text x="430" y="407" text-anchor="middle" font-size="10" fill="#888">Tiered by staked amount</text>
+
+  <!-- ══ gTHB column ══ -->
+  <rect x="580" y="58" width="240" height="400" rx="12" fill="#fff3e0" stroke="#ffcc80" stroke-width="1.5" filter="url(#shadow)"/>
+  <rect x="580" y="58" width="240" height="44" rx="12" fill="url(#g-gthb)"/>
+  <rect x="580" y="90" width="240" height="12" fill="url(#g-gthb)"/>
+  <text x="700" y="76" text-anchor="middle" font-size="14" font-weight="700" fill="white">gTHB Token</text>
+  <text x="700" y="92" text-anchor="middle" font-size="10" fill="#ffe0b2">1 gTHB = 1 THB · Reserve-backed</text>
+
+  <rect x="600" y="116" width="200" height="56" rx="8" fill="white" stroke="#ffb74d" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="700" y="138" text-anchor="middle" font-size="12" font-weight="600" fill="#e65100">① THB Deposit</text>
+  <text x="700" y="154" text-anchor="middle" font-size="10" fill="#555">KYC + AML verified</text>
+  <text x="700" y="167" text-anchor="middle" font-size="10" fill="#888">Bank transfer confirmed</text>
+
+  <line x1="700" y1="172" x2="700" y2="192" stroke="#e65100" stroke-width="2" marker-end="url(#arr-o)"/>
+
+  <rect x="600" y="196" width="200" height="56" rx="8" fill="white" stroke="#ffb74d" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="700" y="218" text-anchor="middle" font-size="12" font-weight="600" fill="#e65100">② Mint gTHB</text>
+  <text x="700" y="234" text-anchor="middle" font-size="10" fill="#555">5-of-9 multisig + HSM</text>
+  <text x="700" y="247" text-anchor="middle" font-size="10" fill="#888">100% collateralized</text>
+
+  <line x1="700" y1="252" x2="700" y2="272" stroke="#e65100" stroke-width="2" marker-end="url(#arr-o)"/>
+
+  <rect x="600" y="276" width="200" height="56" rx="8" fill="white" stroke="#ffb74d" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="700" y="298" text-anchor="middle" font-size="12" font-weight="600" fill="#e65100">③ Escrow → Settle</text>
+  <text x="700" y="314" text-anchor="middle" font-size="10" fill="#555">Locked on BID order</text>
+  <text x="700" y="327" text-anchor="middle" font-size="10" fill="#888">Released atomically on match</text>
+
+  <line x1="700" y1="332" x2="700" y2="352" stroke="#e65100" stroke-width="2" marker-end="url(#arr-o)"/>
+
+  <rect x="600" y="356" width="200" height="56" rx="8" fill="white" stroke="#ffb74d" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="700" y="378" text-anchor="middle" font-size="12" font-weight="600" fill="#e65100">④ Redeem / Burn</text>
+  <text x="700" y="394" text-anchor="middle" font-size="10" fill="#555">THB wire within 1 business day</text>
+  <text x="700" y="407" text-anchor="middle" font-size="10" fill="#888">Quarterly reserve audit</text>
+
+  <!-- ══ Cross-column atomic swap connector ══ -->
+  <path d="M 260 304 Q 430 460 600 304" fill="none" stroke="#78909c" stroke-width="1.8" stroke-dasharray="6,3" marker-end="url(#arr-gray)"/>
+  <rect x="355" y="448" width="150" height="22" rx="11" fill="#eceff1" stroke="#90a4ae" stroke-width="1"/>
+  <text x="430" y="463" text-anchor="middle" font-size="10" font-weight="600" fill="#546e7a">Atomic swap on settlement</text>
+
+  <!-- Footer -->
+  <text x="430" y="488" text-anchor="middle" font-size="10" fill="#90a4ae">All operations execute on Solana · SPL Token-2022 · Anchor Framework</text>
+</svg>

@@ -1,0 +1,184 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 580" font-family="'Segoe UI', Arial, sans-serif">
+  <defs>
+    <!-- Gradients -->
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f0f4ff"/>
+      <stop offset="100%" stop-color="#e8edf8"/>
+    </linearGradient>
+    <linearGradient id="g-depin" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#43a047"/>
+      <stop offset="100%" stop-color="#2e7d32"/>
+    </linearGradient>
+    <linearGradient id="g-edge" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1e88e5"/>
+      <stop offset="100%" stop-color="#1565c0"/>
+    </linearGradient>
+    <linearGradient id="g-service" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#8e24aa"/>
+      <stop offset="100%" stop-color="#6a1b9a"/>
+    </linearGradient>
+    <linearGradient id="g-chain" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fb8c00"/>
+      <stop offset="100%" stop-color="#e65100"/>
+    </linearGradient>
+    <linearGradient id="g-solana" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#9c27b0"/>
+      <stop offset="100%" stop-color="#6a1b9a"/>
+    </linearGradient>
+    <!-- Drop shadow -->
+    <filter id="shadow" x="-5%" y="-5%" width="115%" height="125%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#00000022"/>
+    </filter>
+    <filter id="shadow-sm" x="-5%" y="-5%" width="115%" height="120%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#00000018"/>
+    </filter>
+    <!-- Arrowhead -->
+    <marker id="arr" markerWidth="12" markerHeight="10" refX="10" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 L2.5,4 Z" fill="#546e7a"/>
+    </marker>
+    <marker id="arr-w" markerWidth="12" markerHeight="10" refX="10" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 L2.5,4 Z" fill="white"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="900" height="580" fill="url(#bg)" rx="12"/>
+
+  <!-- Title -->
+  <text x="450" y="36" text-anchor="middle" font-size="18" font-weight="700" fill="#1a237e" letter-spacing="0.3">GridTokenX — Multi-Layer Architecture</text>
+  <line x1="60" y1="46" x2="840" y2="46" stroke="#c5cae9" stroke-width="1"/>
+
+  <!-- ══ LAYER LABELS (left side) ══ -->
+  <text x="22" y="130" text-anchor="middle" font-size="10" font-weight="600" fill="#78909c" transform="rotate(-90,22,130)">PHYSICAL</text>
+  <text x="22" y="240" text-anchor="middle" font-size="10" font-weight="600" fill="#78909c" transform="rotate(-90,22,240)">EDGE</text>
+  <text x="22" y="370" text-anchor="middle" font-size="10" font-weight="600" fill="#78909c" transform="rotate(-90,22,370)">SERVICE MESH</text>
+  <text x="22" y="500" text-anchor="middle" font-size="10" font-weight="600" fill="#78909c" transform="rotate(-90,22,500)">BLOCKCHAIN</text>
+
+  <!-- ══ LAYER 1: Physical / DePIN ══ -->
+  <rect x="44" y="58" width="812" height="100" rx="10" fill="#e8f5e9" stroke="#a5d6a7" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <rect x="44" y="58" width="812" height="8" rx="10" fill="url(#g-depin)"/>
+  <text x="450" y="80" text-anchor="middle" font-size="12" font-weight="700" fill="#2e7d32">Layer 1 — Physical Infrastructure (DePIN)</text>
+
+  <!-- Device boxes -->
+  <rect x="70" y="88" width="140" height="52" rx="7" fill="white" stroke="#81c784" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="140" y="109" text-anchor="middle" font-size="12" font-weight="600" fill="#2e7d32">Smart Meter</text>
+  <text x="140" y="126" text-anchor="middle" font-size="10" fill="#666">DLMS/COSEM · IEC 62056</text>
+
+  <rect x="240" y="88" width="140" height="52" rx="7" fill="white" stroke="#81c784" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="310" y="109" text-anchor="middle" font-size="12" font-weight="600" fill="#2e7d32">EV Charger</text>
+  <text x="310" y="126" text-anchor="middle" font-size="10" fill="#666">OCPP 2.0.1 · WebSocket</text>
+
+  <rect x="410" y="88" width="140" height="52" rx="7" fill="white" stroke="#81c784" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="480" y="109" text-anchor="middle" font-size="12" font-weight="600" fill="#2e7d32">Solar Inverter</text>
+  <text x="480" y="126" text-anchor="middle" font-size="10" fill="#666">Modbus TCP · SunSpec</text>
+
+  <rect x="580" y="88" width="140" height="52" rx="7" fill="white" stroke="#81c784" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="650" y="109" text-anchor="middle" font-size="12" font-weight="600" fill="#2e7d32">BESS</text>
+  <text x="650" y="126" text-anchor="middle" font-size="10" fill="#666">Modbus TCP · CAN Bus</text>
+
+  <rect x="750" y="88" width="90" height="52" rx="7" fill="white" stroke="#81c784" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="795" y="109" text-anchor="middle" font-size="12" font-weight="600" fill="#2e7d32">VPP Node</text>
+  <text x="795" y="126" text-anchor="middle" font-size="10" fill="#666">Aggregated</text>
+
+  <!-- ══ LAYER 2: Edge ══ -->
+  <rect x="44" y="178" width="812" height="90" rx="10" fill="#e3f2fd" stroke="#90caf9" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <rect x="44" y="178" width="812" height="8" rx="10" fill="url(#g-edge)"/>
+  <text x="450" y="200" text-anchor="middle" font-size="12" font-weight="700" fill="#1565c0">Layer 2 — Edge &amp; Ingestion</text>
+
+  <rect x="70" y="208" width="200" height="48" rx="7" fill="white" stroke="#64b5f6" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="170" y="228" text-anchor="middle" font-size="12" font-weight="600" fill="#1565c0">Edge Gateway</text>
+  <text x="170" y="244" text-anchor="middle" font-size="10" fill="#666">Protocol translate · HSM Ed25519 sign · WAL</text>
+
+  <rect x="300" y="208" width="200" height="48" rx="7" fill="white" stroke="#64b5f6" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="400" y="228" text-anchor="middle" font-size="12" font-weight="600" fill="#1565c0">Envoy Proxy</text>
+  <text x="400" y="244" text-anchor="middle" font-size="10" fill="#666">mTLS termination · Rate limit · DDoS guard</text>
+
+  <rect x="530" y="208" width="200" height="48" rx="7" fill="white" stroke="#64b5f6" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="630" y="228" text-anchor="middle" font-size="12" font-weight="600" fill="#1565c0">Oracle Bridge</text>
+  <text x="630" y="244" text-anchor="middle" font-size="10" fill="#666">Sig verify · Schema validate · Kafka publish</text>
+
+  <!-- ══ LAYER 3: Service Mesh ══ -->
+  <rect x="44" y="288" width="812" height="110" rx="10" fill="#f3e5f5" stroke="#ce93d8" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <rect x="44" y="288" width="812" height="8" rx="10" fill="url(#g-service)"/>
+  <text x="450" y="310" text-anchor="middle" font-size="12" font-weight="700" fill="#6a1b9a">Layer 3 — Service Mesh (Kubernetes)</text>
+
+  <rect x="70" y="318" width="130" height="68" rx="7" fill="white" stroke="#ba68c8" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="135" y="340" text-anchor="middle" font-size="11" font-weight="600" fill="#6a1b9a">IAM Service</text>
+  <text x="135" y="356" text-anchor="middle" font-size="10" fill="#666">KYC · RBAC</text>
+  <text x="135" y="370" text-anchor="middle" font-size="10" fill="#666">ConnectRPC</text>
+
+  <rect x="220" y="318" width="130" height="68" rx="7" fill="white" stroke="#ba68c8" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="285" y="340" text-anchor="middle" font-size="11" font-weight="600" fill="#6a1b9a">Trading Service</text>
+  <text x="285" y="356" text-anchor="middle" font-size="10" fill="#666">CDA Engine</text>
+  <text x="285" y="370" text-anchor="middle" font-size="10" fill="#666">Order Book</text>
+
+  <rect x="370" y="318" width="130" height="68" rx="7" fill="white" stroke="#ba68c8" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="435" y="340" text-anchor="middle" font-size="11" font-weight="600" fill="#6a1b9a">Chain Bridge</text>
+  <text x="435" y="356" text-anchor="middle" font-size="10" fill="#666">Vault signing</text>
+  <text x="435" y="370" text-anchor="middle" font-size="10" fill="#666">NATS JetStream</text>
+
+  <rect x="520" y="318" width="130" height="68" rx="7" fill="white" stroke="#ba68c8" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="585" y="340" text-anchor="middle" font-size="11" font-weight="600" fill="#6a1b9a">gTHB Issuer</text>
+  <text x="585" y="356" text-anchor="middle" font-size="10" fill="#666">Reserve mgmt</text>
+  <text x="585" y="370" text-anchor="middle" font-size="10" fill="#666">5-of-9 multisig</text>
+
+  <rect x="670" y="318" width="170" height="68" rx="7" fill="white" stroke="#ba68c8" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="755" y="340" text-anchor="middle" font-size="11" font-weight="600" fill="#6a1b9a">Data Stores</text>
+  <text x="755" y="356" text-anchor="middle" font-size="10" fill="#666">Kafka · PostgreSQL · Redis</text>
+  <text x="755" y="370" text-anchor="middle" font-size="10" fill="#666">ClickHouse · Vault</text>
+
+  <!-- ══ LAYER 4: Blockchain ══ -->
+  <rect x="44" y="418" width="812" height="130" rx="10" fill="#ede7f6" stroke="#b39ddb" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <rect x="44" y="418" width="812" height="8" rx="10" fill="url(#g-solana)"/>
+  <text x="450" y="440" text-anchor="middle" font-size="12" font-weight="700" fill="#4a148c">Layer 4 — Solana Blockchain Settlement</text>
+
+  <rect x="70" y="450" width="130" height="82" rx="7" fill="white" stroke="#9575cd" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="135" y="472" text-anchor="middle" font-size="11" font-weight="600" fill="#4a148c">Registry</text>
+  <text x="135" y="488" text-anchor="middle" font-size="10" fill="#666">DID · KYC status</text>
+  <text x="135" y="502" text-anchor="middle" font-size="10" fill="#666">Device pubkeys</text>
+  <text x="135" y="516" text-anchor="middle" font-size="10" fill="#888">16-shard PDA</text>
+
+  <rect x="220" y="450" width="130" height="82" rx="7" fill="white" stroke="#9575cd" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="285" y="472" text-anchor="middle" font-size="11" font-weight="600" fill="#4a148c">Oracle Program</text>
+  <text x="285" y="488" text-anchor="middle" font-size="10" fill="#666">Meter readings</text>
+  <text x="285" y="502" text-anchor="middle" font-size="10" fill="#666">MeterState PDA</text>
+  <text x="285" y="516" text-anchor="middle" font-size="10" fill="#888">Ed25519 verify</text>
+
+  <rect x="370" y="450" width="130" height="82" rx="7" fill="white" stroke="#9575cd" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="435" y="472" text-anchor="middle" font-size="11" font-weight="600" fill="#4a148c">Trading Program</text>
+  <text x="435" y="488" text-anchor="middle" font-size="10" fill="#666">CDA settlement</text>
+  <text x="435" y="502" text-anchor="middle" font-size="10" fill="#666">Atomic swap</text>
+  <text x="435" y="516" text-anchor="middle" font-size="10" fill="#888">32-shard market</text>
+
+  <rect x="520" y="450" width="130" height="82" rx="7" fill="white" stroke="#9575cd" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="585" y="472" text-anchor="middle" font-size="11" font-weight="600" fill="#4a148c">Token Program</text>
+  <text x="585" y="488" text-anchor="middle" font-size="10" fill="#666">GRID · GRX · gTHB</text>
+  <text x="585" y="502" text-anchor="middle" font-size="10" fill="#666">SPL Token-2022</text>
+  <text x="585" y="516" text-anchor="middle" font-size="10" fill="#888">Lazy supply sync</text>
+
+  <rect x="670" y="450" width="170" height="82" rx="7" fill="white" stroke="#9575cd" stroke-width="1.5" filter="url(#shadow-sm)"/>
+  <text x="755" y="472" text-anchor="middle" font-size="11" font-weight="600" fill="#4a148c">Governance Program</text>
+  <text x="755" y="488" text-anchor="middle" font-size="10" fill="#666">GRX-weighted voting</text>
+  <text x="755" y="502" text-anchor="middle" font-size="10" fill="#666">REC issuance</text>
+  <text x="755" y="516" text-anchor="middle" font-size="10" fill="#888">48h timelock</text>
+
+  <!-- ══ VERTICAL FLOW ARROWS ══ -->
+  <!-- L1 → L2 -->
+  <line x1="450" y1="158" x2="450" y2="176" stroke="#546e7a" stroke-width="2" marker-end="url(#arr)"/>
+  <!-- L2 → L3 -->
+  <line x1="450" y1="268" x2="450" y2="286" stroke="#546e7a" stroke-width="2" marker-end="url(#arr)"/>
+  <!-- L3 → L4 -->
+  <line x1="450" y1="398" x2="450" y2="416" stroke="#546e7a" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- Flow labels -->
+  <rect x="460" y="160" width="80" height="14" rx="3" fill="#eceff1"/>
+  <text x="500" y="171" text-anchor="middle" font-size="9" fill="#546e7a">signed telemetry</text>
+  <rect x="460" y="270" width="80" height="14" rx="3" fill="#eceff1"/>
+  <text x="500" y="281" text-anchor="middle" font-size="9" fill="#546e7a">Kafka events</text>
+  <rect x="460" y="400" width="80" height="14" rx="3" fill="#eceff1"/>
+  <text x="500" y="411" text-anchor="middle" font-size="9" fill="#546e7a">NATS intents</text>
+
+  <!-- Finality badge -->
+  <rect x="760" y="400" width="96" height="16" rx="8" fill="#2e7d32"/>
+  <text x="808" y="412" text-anchor="middle" font-size="10" font-weight="700" fill="white">Finality &lt; 400ms</text>
+</svg>

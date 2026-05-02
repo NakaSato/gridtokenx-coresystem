@@ -5,53 +5,42 @@ set shell := ["nu", "-c"]
 # Default command - show help
 default:
     @echo "Available commands:"
-    @echo "  just check              - Run cargo check on api-services"
-    @echo "  just build              - Build api-services"
-    @echo "  just test               - Run tests"
-    @echo "  just migrate            - Run sqlx migrations"
+    @echo "  just check-all          - Run cargo check on all microservices"
+    @echo "  just build-all          - Build all microservice binaries"
+    @echo "  just test               - Run all tests"
+    @echo "  just migrate            - Run sqlx migrations (IAM)"
     @echo "  just db-up              - Start PostgreSQL container (OrbStack)"
     @echo "  just db-down            - Stop PostgreSQL container"
-    @echo "  just prepare            - Prepare sqlx offline queries"
-    @echo "  just dev                - Start full development environment"
     @echo "  just orb-up             - Start all OrbStack services"
     @echo "  just orb-down           - Stop all OrbStack services"
-    @echo "  just signoz-up          - Start SigNoz observability"
-    @echo "  just signoz-down        - Stop SigNoz"
-    @echo "  just tempo-up           - Start Grafana Tempo (tracing)"
-    @echo "  just tempo-down         - Stop Tempo"
-    @echo "  just observability-up   - Start Tempo + SigNoz"
-    @echo "  just clean              - Clean build artifacts"
-    @echo "  just fmt                - Format code"
-    @echo "  just clippy             - Run clippy lints"
-
-# Check the api-services code
-check:
-    (cd gridtokenx-api; cargo check)
-
-# Build the api-services
-build:
-    (cd gridtokenx-api; cargo build)
+    @echo "  just fmt                - Format all code"
+    @echo "  just clippy             - Run clippy lints on all services"
 
 # Check all codebases
 check-all:
-    (cd gridtokenx-api; cargo check)
     (cd gridtokenx-iam-service; cargo check)
     (cd gridtokenx-trading-service; cargo check)
     (cd gridtokenx-oracle-bridge; cargo check)
+    (cd gridtokenx-chain-bridge; cargo check)
+    (cd gridtokenx-edge-gateway; cargo check)
+    (cd gridtokenx-noti-service; cargo check)
 
 # Build all binaries
 build-all:
-    (cd gridtokenx-api; cargo build)
     (cd gridtokenx-iam-service; cargo build)
     (cd gridtokenx-trading-service; cargo build)
     (cd gridtokenx-oracle-bridge; cargo build)
+    (cd gridtokenx-chain-bridge; cargo build)
+    (cd gridtokenx-edge-gateway; cargo build)
+    (cd gridtokenx-noti-service; cargo build)
 
 # Run all microservice tests
 test:
-    (cd gridtokenx-api; cargo test)
     (cd gridtokenx-iam-service; cargo test)
     (cd gridtokenx-trading-service; cargo test)
     (cd gridtokenx-oracle-bridge; cargo test)
+    (cd gridtokenx-chain-bridge; cargo test)
+    (cd gridtokenx-noti-service; cargo test)
 
 # Run all tests including integration tests requiring solana validator
 test-all:
@@ -62,17 +51,25 @@ test-edge:
     chmod +x scripts/test_edge_protocol.sh
     ./scripts/test_edge_protocol.sh
 
-# Run migrations (Primary Gateway)
+# Run migrations (IAM Service)
 migrate:
-    (cd gridtokenx-api; sqlx migrate run)
+    (cd gridtokenx-iam-service; sqlx migrate run)
 
-# Create a new migration
+# Create a new IAM migration
 migrate-new name:
-    (cd gridtokenx-api; sqlx migrate add {{name}})
+    (cd gridtokenx-iam-service; sqlx migrate add {{name}})
 
-# Revert last migration
+# Revert last IAM migration
 migrate-revert:
-    (cd gridtokenx-api; sqlx migrate revert)
+    (cd gridtokenx-iam-service; sqlx migrate revert)
+
+# Run migrations (Notification Service)
+noti-migrate:
+    (cd gridtokenx-noti-service; sqlx migrate run)
+
+# Create a new Notification migration
+noti-migrate-new name:
+    (cd gridtokenx-noti-service; sqlx migrate add {{name}})
 
 # Start PostgreSQL (OrbStack)
 db-up:
@@ -82,16 +79,6 @@ db-up:
 db-down:
     docker compose down postgres
 
-# Prepare sqlx offline queries
-prepare:
-    (cd gridtokenx-api; cargo sqlx prepare)
-
-# Start full development environment (db + api)
-dev:
-    docker compose up -d postgres redis
-    sleep 5
-    (cd gridtokenx-api; cargo run)
-
 # Start all OrbStack services
 orb-up:
     docker compose up -d
@@ -99,11 +86,6 @@ orb-up:
 # Stop all OrbStack services
 orb-down:
     docker compose down
-
-# Clean build artifacts
-clean:
-    (cd gridtokenx-api; cargo clean)
-    rm -rf target
 
 # Clean all build artifacts
 clean-all:
@@ -115,68 +97,42 @@ clean-all:
 fmt:
     cargo fmt
 
-# Run clippy lints
+# Run clippy lints on all services
 clippy:
-    (cd gridtokenx-api; cargo clippy -- -D warnings)
+    (cd gridtokenx-iam-service; cargo clippy -- -D warnings)
+    (cd gridtokenx-trading-service; cargo clippy -- -D warnings)
+    (cd gridtokenx-oracle-bridge; cargo clippy -- -D warnings)
+    (cd gridtokenx-chain-bridge; cargo clippy -- -D warnings)
+    (cd gridtokenx-noti-service; cargo clippy -- -D warnings)
 
-# Check database migration status
+# Check database migration status (IAM)
 migrate-info:
-    (cd gridtokenx-api; sqlx migrate info)
-
-# Run api-services locally (requires db to be running)
-run:
-    (cd gridtokenx-api; cargo run --bin api-services)
-
-# Run in release mode
-run-release:
-    (cd gridtokenx-api; cargo run --release)
+    (cd gridtokenx-iam-service; sqlx migrate info)
 
 # Run oracle-bridge locally
 run-oracle:
     (cd gridtokenx-oracle-bridge; cargo run)
 
-# Watch for changes and rebuild
-watch:
-    (cd gridtokenx-api; cargo watch -x check)
-
 # Run trading engine performance benchmarks
 benchmark:
     (cd gridtokenx-trading-service; cargo test --test trading_engine_bench -- --nocapture)
 
-# OrbStack rebuild (All Services)
-orb-rebuild:
-    docker compose down
-    docker compose build --no-cache
-    docker compose up -d
+# --- Solana Mainnet Simulation (Surfpool) ---
 
-# Start SigNoz observability platform
-signoz-up:
-    docker compose up -d signoz
+# Start mainnet simulation with Studio and hot-reload
+simnet:
+    NO_DNA=1 surfpool start --network mainnet --watch
 
-# Stop SigNoz observability platform
-signoz-down:
-    docker compose stop signoz
+# Start mainnet simulation in CI mode (no UI, fast startup)
+simnet-ci:
+    NO_DNA=1 surfpool start --network mainnet --ci
 
-# View SigNoz logs
-signoz-logs:
-    docker compose logs -f signoz
+# Stop any running Surfpool instances
+simnet-down:
+    pkill -f surfpool || true
 
-# Start Grafana Tempo (distributed tracing)
-tempo-up:
-    docker compose up -d tempo
+# --- OrbStack rebuild (All Services) ---
 
-# Stop Grafana Tempo
-tempo-down:
-    docker compose stop tempo
 
-# View Tempo logs
-tempo-logs:
-    docker compose logs -f tempo
 
-# Start all observability (Tempo + SigNoz)
-observability-up:
-    docker compose up -d tempo signoz
 
-# Stop all observability
-observability-down:
-    docker compose stop tempo signoz

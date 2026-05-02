@@ -31,6 +31,18 @@
 [submodule "gridtokenx-edge-meter"]
 	path = gridtokenx-edge-meter
 	url = https://github.com/NakaSato/gridtokenx-edge-meter.git
-[submodule "gridtokenx-edge-meter-gateway"]
-	path = gridtokenx-edge-meter-gateway
-	url = https://github.com/NakaSato/gridtokenx-edge-meter-gateway.git
+[submodule "gridtokenx-edge-gateway"]
+	path = gridtokenx-edge-gateway
+	url = https://github.com/NakaSato/gridtokenx-edge-gateway.git
+[submodule "gridtokenx-noti-service"]
+	path = gridtokenx-noti-service
+	url = https://github.com/NakaSato/gridtokenx-noti-service.git
+[submodule "gridtokenx-blockchain-core"]
+	path = gridtokenx-blockchain-core
+	url = https://github.com/NakaSato/gridtokenx-blockchain-core.git
+[submodule "gridtokenx-chain-bridge"]
+	path = gridtokenx-chain-bridge
+	url = https://github.com/NakaSato/gridtokenx-chain-bridge.git
+[submodule "gridtokenx-agent-trade"]
+	path = gridtokenx-agent-trade
+	url = https://github.com/NakaSato/gridtokenx-agent-trade.git

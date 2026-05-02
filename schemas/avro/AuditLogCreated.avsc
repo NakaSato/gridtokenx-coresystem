@@ -1,0 +1,16 @@
+{
+  "namespace": "gridtokenx.audit.v1",
+  "type": "record",
+  "name": "AuditLogCreated",
+  "doc": "High-retention regulatory audit log",
+  "fields": [
+    { "name": "log_id", "type": "string" },
+    { "name": "timestamp", "type": "long", "logicalType": "timestamp-millis" },
+    { "name": "service_origin", "type": "string" },
+    { "name": "action_type", "type": "string" },
+    { "name": "actor_id", "type": ["null", "string"], "default": null },
+    { "name": "resource_id", "type": ["null", "string"], "default": null },
+    { "name": "details_json", "type": "string" },
+    { "name": "tx_signature", "type": ["null", "string"], "default": null }
+  ]
+}

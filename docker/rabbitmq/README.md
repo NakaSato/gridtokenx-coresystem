@@ -23,7 +23,7 @@ docker-compose up -d rabbitmq
 
 ### 2. Access Management UI
 
-- **URL**: http://localhost:15672
+- **URL**: http://localhost:9031
 - **Username**: `gridtokenx`
 - **Password**: `rabbitmq_secret_2025`
 
@@ -87,11 +87,11 @@ docker/rabbitmq/
 
 ```bash
 # RabbitMQ Configuration
-RABBITMQ_PORT=5672                    # AMQP port
-RABBITMQ_MGMT_PORT=15672              # Management UI port
+RABBITMQ_PORT=9030                    # AMQP port
+RABBITMQ_MGMT_PORT=9031              # Management UI port
 RABBITMQ_DEFAULT_USER=gridtokenx      # Admin username
 RABBITMQ_DEFAULT_PASS=rabbitmq_secret_2025  # Admin password
-RABBITMQ_URL=amqp://gridtokenx:rabbitmq_secret_2025@localhost:5672
+RABBITMQ_URL=amqp://gridtokenx:rabbitmq_secret_2025@localhost:9030
 RABBITMQ_ENABLED=true
 ```
 
@@ -119,7 +119,7 @@ use lapin::{
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let addr = "amqp://gridtokenx:rabbitmq_secret_2025@localhost:5672";
+    let addr = "amqp://gridtokenx:rabbitmq_secret_2025@localhost:9030";
     let conn = Connection::connect(addr, ConnectionProperties::default()).await?;
     let channel = conn.create_channel().await?;
 
@@ -156,7 +156,7 @@ use lapin::{
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let addr = "amqp://gridtokenx:rabbitmq_secret_2025@localhost:5672";
+    let addr = "amqp://gridtokenx:rabbitmq_secret_2025@localhost:9030";
     let conn = Connection::connect(addr, ConnectionProperties::default()).await?;
     let channel = conn.create_channel().await?;
 
@@ -189,7 +189,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ### Management UI
 
-Access at http://localhost:15672 to monitor:
+Access at http://localhost:9031 to monitor:
 - Queue depths
 - Message rates
 - Consumer connections
@@ -199,7 +199,7 @@ Access at http://localhost:15672 to monitor:
 
 RabbitMQ exposes metrics at:
 ```
-http://localhost:15672/api/metrics
+http://localhost:9031/api/metrics
 ```
 
 Add to `prometheus.yml`:
@@ -207,7 +207,7 @@ Add to `prometheus.yml`:
 scrape_configs:
   - job_name: 'rabbitmq'
     static_configs:
-      - targets: ['rabbitmq:15672']
+      - targets: ['rabbitmq:9031']
     metrics_path: '/api/metrics'
     basic_auth:
       username: 'gridtokenx'

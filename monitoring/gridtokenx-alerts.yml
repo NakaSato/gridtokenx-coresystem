@@ -179,7 +179,7 @@ groups:
   - name: gridtokenx.oracle_bridge.alerts
     rules:
     - alert: OracleRelayQueueSaturation
-      expr: oracle_relay_queue_depth > 800
+      expr: oracle_queue_depth > 8000
       for: 5m
       labels:
         severity: critical
@@ -190,7 +190,7 @@ groups:
         description: "Queue depth is {{ $value }} (limit 1024) for more than 5 minutes. Downstream blockchain submission is likely bottlenecked."
 
     - alert: OracleHighSubmissionLatency
-      expr: histogram_quantile(0.95, sum(rate(oracle_relay_submission_duration_seconds_bucket[5m])) by (le)) > 30
+      expr: histogram_quantile(0.95, sum(rate(oracle_blockchain_submission_duration_ms_bucket[5m])) by (le)) > 30000
       for: 10m
       labels:
         severity: warning
@@ -201,7 +201,7 @@ groups:
         description: "The 95th percentile for Solana settlements is {{ $value | humanizeDuration }}. This exceeds the 30s threshold."
 
     - alert: OracleSubmissionFailureSpike
-      expr: sum(rate(oracle_relay_submissions_total{status="failure"}[5m])) / sum(rate(oracle_relay_submissions_total[5m])) > 0.05
+      expr: sum(rate(oracle_blockchain_submissions_total{success="false"}[5m])) / sum(rate(oracle_blockchain_submissions_total[5m])) > 0.05
       for: 2m
       labels:
         severity: critical
@@ -212,7 +212,7 @@ groups:
         description: "More than 5% of attestation batches are failing to settle on-chain in the last 2 minutes."
 
     - alert: OracleNoIngestionActivity
-      expr: rate(oracle_relay_ingestion_total[5m]) == 0
+      expr: rate(oracle_ingestion_requests_total[5m]) == 0
       for: 5m
       labels:
         severity: critical
@@ -221,6 +221,17 @@ groups:
       annotations:
         summary: "Zero ingestion activity from Oracle Bridge"
         description: "No new attestation batches have been received in the last 5 minutes. Check Oracle Bridge health."
+
+    - alert: SubmarineCableBottleneckCritical
+      expr: oracle_island_utilization_pct > 0.85
+      for: 1m
+      labels:
+        severity: critical
+        team: grid-ops
+        component: oracle-bridge
+      annotations:
+        summary: "CRITICAL: Island Submarine Cable Bottleneck Detected!"
+        description: "The submarine cable for {{ $labels.island }} is at {{ $value | humanizePercentage }} capacity. Autonomous VPP mitigation triggered."
 
     - alert: SmartMeterNoReadings
       expr: rate(signoz_spans_total{name=~".*meter.*reading.*"}[5m]) == 0

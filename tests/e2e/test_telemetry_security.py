@@ -16,8 +16,8 @@ import oracle_pb2_grpc
 
 # Configuration
 METER_ID = "0xTEST"
-ORACLE_BRIDGE_GRPC = os.getenv("ORACLE_BRIDGE_GRPC", "localhost:50051")
-ORACLE_BRIDGE_REST = os.getenv("ORACLE_BRIDGE_REST", "http://localhost:4010")
+ORACLE_BRIDGE_GRPC = os.getenv("ORACLE_BRIDGE_GRPC", "localhost:5030")
+ORACLE_BRIDGE_REST = os.getenv("ORACLE_BRIDGE_REST", "http://localhost:4030")
 
 def sign_telemetry(private_key, meter_id, kwh, timestamp_ms):
     """

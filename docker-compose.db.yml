@@ -37,7 +37,7 @@ services:
       - "-c"
       - "shared_preload_libraries=pg_stat_statements"
     ports:
-      - "5434:5432"
+      - "${POSTGRES_PRIMARY_PORT:-7001}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -61,7 +61,7 @@ services:
     environment:
       TZ: ${TZ:-UTC}
     ports:
-      - "6379:6379"
+      - "${REDIS_PRIMARY_PORT:-7010}:6379"
     volumes:
       - redis_data:/data
     networks:
@@ -77,7 +77,7 @@ services:
     image: influxdb:2.7-alpine
     container_name: gridtokenx-influxdb
     ports:
-      - "${INFLUXDB_PORT:-8086}:8086"
+      - "${INFLUXDB_PORT:-7020}:8086"
     environment:
       DOCKER_INFLUXDB_INIT_MODE: setup
       DOCKER_INFLUXDB_INIT_USERNAME: ${INFLUXDB_USER:-gridtokenx_user}
@@ -106,3 +106,4 @@ volumes:
   redis_data:
   influxdb_data:
   influxdb_config:
+  clickhouse_data:

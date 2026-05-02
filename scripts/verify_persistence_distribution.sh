@@ -2,7 +2,7 @@
 # Verify the distribution of events across Redis zone streams
 
 REDIS_HOST=${REDIS_HOST:-localhost}
-REDIS_PORT=${REDIS_PORT:-6379}
+REDIS_PORT=${REDIS_PORT:-7010}
 ZONE_COUNT=10
 
 echo "========================================================================"

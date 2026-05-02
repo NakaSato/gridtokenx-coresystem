@@ -1,4 +1,6 @@
 #!/bin/bash
+# GridTokenX - Unified Manager Script
+export PATH="$HOME/.cargo/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
 # GridTokenX Application Manager
 # Unified script for starting, stopping, and managing the GridTokenX platform
 #
@@ -41,15 +43,13 @@ NC='\033[0m' # No Color
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 ANCHOR_DIR="$PROJECT_ROOT/gridtokenx-anchor"
-SERVICES_DIR="$PROJECT_ROOT/gridtokenx-api"
-GATEWAY_DIR="$PROJECT_ROOT/gridtokenx-api"
-DEV_WALLET="$GATEWAY_DIR/dev-wallet.json"
+DEV_WALLET="$PROJECT_ROOT/infra/solana/dev-wallet.json"
 PID_FILE="$PROJECT_ROOT/.gridtokenx.pid"
 
 # Service ports
-API_URL="http://localhost:4000"
+API_URL="http://localhost:4001"
 RPC_URL="http://localhost:8899"
-WS_URL="ws://localhost:8900"
+WS_URL="ws://localhost:8002"
 
 # ============================================================================
 # Helper Functions
@@ -65,6 +65,15 @@ check_dependencies() {
             missing+=("$dep")
         fi
     done
+
+    # Check for rustup and toolchain
+    if command -v rustup &> /dev/null; then
+        local required_toolchain="1.89.0-sbpf-solana-v1.52"
+        if ! rustup toolchain list | grep -q "$required_toolchain"; then
+            log_warn "Required toolchain $required_toolchain not found. Attempting to install..."
+            rustup toolchain install "$required_toolchain" || log_error "Failed to install toolchain $required_toolchain"
+        fi
+    fi
 
     if [ ${#missing[@]} -ne 0 ]; then
         log_warn "Missing dependencies: ${missing[*]}"
@@ -95,12 +104,12 @@ detect_docker_runtime() {
 }
 
 check_orbstack() {
-    if ! detect_docker_runtime; then
+    detect_docker_runtime || {
         if [ "$DOCKER_RUNTIME" = "not-running" ]; then
-            log_error "OrbStack is not running. Please start OrbStack first."
-            log_info "Install: brew install --cask orbstack"
-            log_info "Start: open -a OrbStack"
-        elif [ "$DOCKER_RUNTIME" = "docker-desktop" ]; then
+            log_warn "OrbStack is not running."
+            return 1
+        fi
+        if [ "$DOCKER_RUNTIME" = "docker-desktop" ]; then
             log_error "Docker Desktop detected. GridTokenX now requires OrbStack."
             log_warn "Please migrate to OrbStack for better performance:"
             log_warn "1. Quit Docker Desktop"
@@ -112,7 +121,7 @@ check_orbstack() {
             log_info "Install: brew install --cask orbstack"
         fi
         return 1
-    fi
+    }
     log_success "OrbStack runtime detected ✓"
     return 0
 }
@@ -357,23 +366,22 @@ propagate_program_ids() {
     [ -n "$trading_market_pda" ] && update_env_file "$root_env" "TRADING_MARKET_PDA" "$trading_market_pda"
     update_env_file "$root_env" "SOLANA_RPC_URL" "$RPC_URL"
 
-    # API Gateway
-    local gateway_env="$GATEWAY_DIR/.env"
-    update_env_file "$gateway_env" "SOLANA_REGISTRY_PROGRAM_ID" "$registry_id"
-    update_env_file "$gateway_env" "SOLANA_ENERGY_TOKEN_PROGRAM_ID" "$energy_token_id"
-    update_env_file "$gateway_env" "SOLANA_TRADING_PROGRAM_ID" "$trading_id"
-    update_env_file "$gateway_env" "SOLANA_ORACLE_PROGRAM_ID" "$oracle_id"
-    update_env_file "$gateway_env" "SOLANA_GOVERNANCE_PROGRAM_ID" "$governance_id"
-    update_env_file "$gateway_env" "ENERGY_TOKEN_MINT" "$energy_mint"
-    [ -n "$currency_mint" ] && update_env_file "$gateway_env" "CURRENCY_TOKEN_MINT" "$currency_mint"
-    [ -n "$registry_pda" ] && update_env_file "$gateway_env" "REGISTRY_PDA" "$registry_pda"
-    [ -n "$trading_market_pda" ] && update_env_file "$gateway_env" "TRADING_MARKET_PDA" "$trading_market_pda"
-    update_env_file "$gateway_env" "SOLANA_RPC_URL" "$RPC_URL"
+    # IAM Service
+    local iam_service_env="$PROJECT_ROOT/gridtokenx-iam-service/.env"
+    update_env_file "$iam_service_env" "SOLANA_REGISTRY_PROGRAM_ID" "$registry_id"
+    update_env_file "$iam_service_env" "SOLANA_ENERGY_TOKEN_PROGRAM_ID" "$energy_token_id"
+    update_env_file "$iam_service_env" "SOLANA_TRADING_PROGRAM_ID" "$trading_id"
+    update_env_file "$iam_service_env" "SOLANA_ORACLE_PROGRAM_ID" "$oracle_id"
+    update_env_file "$iam_service_env" "SOLANA_GOVERNANCE_PROGRAM_ID" "$governance_id"
+    update_env_file "$iam_service_env" "ENERGY_TOKEN_MINT" "$energy_mint"
+    [ -n "$currency_mint" ] && update_env_file "$iam_service_env" "CURRENCY_TOKEN_MINT" "$currency_mint"
+    [ -n "$registry_pda" ] && update_env_file "$iam_service_env" "REGISTRY_PDA" "$registry_pda"
+    update_env_file "$iam_service_env" "SOLANA_RPC_URL" "$RPC_URL"
     
-    # Settlement Collectors
-    [ -n "$fee_col" ] && update_env_file "$gateway_env" "FEE_COLLECTOR_WALLET" "$fee_col"
-    [ -n "$wheel_col" ] && update_env_file "$gateway_env" "WHEELING_COLLECTOR_WALLET" "$wheel_col"
-    [ -n "$loss_col" ] && update_env_file "$gateway_env" "LOSS_COLLECTOR_WALLET" "$loss_col"
+    # Oracle Bridge
+    local oracle_bridge_env="$PROJECT_ROOT/gridtokenx-oracle-bridge/.env"
+    update_env_file "$oracle_bridge_env" "SOLANA_REGISTRY_PROGRAM_ID" "$registry_id"
+    update_env_file "$oracle_bridge_env" "SOLANA_ORACLE_PROGRAM_ID" "$oracle_id"
     
     # Trading Service
     local trading_service_env="$PROJECT_ROOT/gridtokenx-trading-service/.env"
@@ -395,11 +403,13 @@ propagate_program_ids() {
     update_env_file "$explorer_env" "NEXT_PUBLIC_SOLANA_RPC_HTTP" "$RPC_URL"
     update_env_file "$explorer_env" "NEXT_PUBLIC_SOLANA_RPC_WS" "$WS_URL"
 
-    # Portal
-    local portal_env="$PROJECT_ROOT/gridtokenx-portal/.env"
-    update_env_file "$portal_env" "NEXT_PUBLIC_TRADING_PROGRAM_ID" "$trading_id"
-    update_env_file "$portal_env" "NEXT_PUBLIC_ENERGY_TOKEN_MINT" "$energy_mint"
-    update_env_file "$portal_env" "NEXT_PUBLIC_SOLANA_RPC_URL" "$RPC_URL"
+    # Portal (if it exists)
+    if [ -d "$PROJECT_ROOT/gridtokenx-portal" ]; then
+        local portal_env="$PROJECT_ROOT/gridtokenx-portal/.env"
+        update_env_file "$portal_env" "NEXT_PUBLIC_TRADING_PROGRAM_ID" "$trading_id"
+        update_env_file "$portal_env" "NEXT_PUBLIC_ENERGY_TOKEN_MINT" "$energy_mint"
+        update_env_file "$portal_env" "NEXT_PUBLIC_SOLANA_RPC_URL" "$RPC_URL"
+    fi
 
     # Trading
     local trading_env="$PROJECT_ROOT/gridtokenx-trading/.env"
@@ -446,10 +456,11 @@ cmd_stop() {
     show_banner
     echo -e "${YELLOW}Stopping GridTokenX services...${NC}"
     echo ""
-    
-    # Stop Kong Gateway
-    docker stop gridtokenx-kong 2>/dev/null && log_success "Kong Gateway stopped" || log_warn "Kong Gateway was not running"
-    
+
+    # Stop APISIX + Envoy Gateways
+    docker stop gridtokenx-apisix 2>/dev/null && log_success "APISIX stopped" || log_warn "APISIX was not running"
+    docker stop gridtokenx-envoy 2>/dev/null && log_success "Envoy stopped" || log_warn "Envoy was not running"
+
     # Stop IAM Service
     pkill -f "gridtokenx-iam-service" 2>/dev/null && log_success "IAM Service stopped" || log_warn "IAM Service was not running"
     
@@ -499,7 +510,7 @@ cmd_status() {
     show_banner
     
     # Detect and display Docker runtime
-    detect_docker_runtime
+    detect_docker_runtime || true
     if [ "$DOCKER_RUNTIME" = "orbstack" ]; then
         echo -e "${GREEN}⚡️ OrbStack Runtime (primary)${NC}"
     elif [ "$DOCKER_RUNTIME" = "docker-desktop" ]; then
@@ -516,21 +527,25 @@ cmd_status() {
     local services=(
         "PostgreSQL:docker:gridtokenx-postgres"
         "Redis:docker:gridtokenx-redis"
-        "Kong Gateway:docker:gridtokenx-kong"
+        "APISIX:docker:gridtokenx-apisix"
+        "Envoy:docker:gridtokenx-envoy"
         "Prometheus:docker:gridtokenx-prometheus"
         "Grafana:docker:gridtokenx-grafana"
         "Loki:docker:gridtokenx-loki"
         "Tempo:docker:gridtokenx-tempo"
         "OTEL Collector:docker:gridtokenx-otel-collector"
-        "API Services:process:api-services"
-        "Trading Service:process:gridtokenx-trading-service|target/debug/gridtokenx-trading-service"
-        "Oracle Bridge:process:gridtokenx-oracle-bridge"
+        "IAM Service:process:gridtokenx-iam-service"
+        "Trading Service:process:trading-service"
+        "Oracle Bridge:process:oracle-service"
+        "Noti Service:process:noti-server"
+        "Chain Bridge:process:gridtokenx-chain-bridge"
         "Solana Validator:process:solana-test-validator"
         "Simulator API:process:uv.run.start"
         "Trading UI:process:bun.*gridtokenx-trading"
         "Explorer UI:process:bun.*gridtokenx-explorer"
         "App Portal:process:bun.*gridtokenx-portal"
-        "Simulator UI:process:bun.*dev.*8085"
+        "Simulator UI:process:bun.*dev.*12011"
+        "Agent Trade:docker:gridtokenx-agent-trade"
     )
     
     printf "%-25s %-15s %-10s\n" "Service" "Type" "Status"
@@ -569,29 +584,29 @@ cmd_status() {
         echo -e "Solana RPC ($RPC_URL): ${RED}✗ Unreachable${NC}"
     fi
     
-    local http_code=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/health" 2>/dev/null || echo "000")
+    local http_code=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/metrics" 2>/dev/null || echo "000")
     if [ "$http_code" == "200" ]; then
-        echo -e "API Services ($API_URL): ${GREEN}✓ Ready${NC}"
+        echo -e "Platform Gateway ($API_URL): ${GREEN}✓ Ready${NC}"
     else
-        echo -e "API Services ($API_URL): ${RED}✗ Unreachable${NC} (HTTP $http_code)"
+        echo -e "Platform Gateway ($API_URL): ${RED}✗ Unreachable${NC} (HTTP $http_code)"
     fi
 
-    if curl -s "http://localhost:3001/api/health" > /dev/null 2>&1; then
-        echo -e "Grafana (http://localhost:3001): ${GREEN}✓ Ready${NC}"
+    if curl -s "http://localhost:6002/api/health" > /dev/null 2>&1; then
+        echo -e "Grafana (http://localhost:6002): ${GREEN}✓ Ready${NC}"
     else
-        echo -e "Grafana (http://localhost:3001): ${RED}✗ Unreachable${NC}"
+        echo -e "Grafana (http://localhost:6002): ${RED}✗ Unreachable${NC}"
     fi
 
-    if curl -s "http://localhost:3100/ready" > /dev/null 2>&1; then
-        echo -e "Loki (http://localhost:3100): ${GREEN}✓ Ready${NC}"
+    if curl -s "http://localhost:6003/ready" > /dev/null 2>&1; then
+        echo -e "Loki (http://localhost:6003): ${GREEN}✓ Ready${NC}"
     else
-        echo -e "Loki (http://localhost:3100): ${RED}✗ Unreachable${NC}"
+        echo -e "Loki (http://localhost:6003): ${RED}✗ Unreachable${NC}"
     fi
 
-    if curl -s "http://localhost:9090/-/healthy" > /dev/null 2>&1; then
-        echo -e "Prometheus (http://localhost:9090): ${GREEN}✓ Ready${NC}"
+    if curl -s "http://localhost:6001/-/healthy" > /dev/null 2>&1; then
+        echo -e "Prometheus (http://localhost:6001): ${GREEN}✓ Ready${NC}"
     else
-        echo -e "Prometheus (http://localhost:9090): ${RED}✗ Unreachable${NC}"
+        echo -e "Prometheus (http://localhost:6001): ${RED}✗ Unreachable${NC}"
     fi
 
     echo ""
@@ -618,6 +633,7 @@ cmd_init() {
     # Build programs
     log_info "Building Anchor Programs..."
     cd "$ANCHOR_DIR"
+    export PATH="$HOME/.cargo/bin:$PATH"
     anchor build
     
     # Check validator
@@ -645,7 +661,7 @@ cmd_init() {
     }
     
     # Program IDs from Anchor.toml
-    local REGISTRY_ID="FmvDiFUWPrwXsqo7z7XnVniKbZDcz32U5HSDVwPug89c"
+    local REGISTRY_ID="C8RT8L5pZCVDrf9v94CNNk3XPBKZU5p4o4aPnAVQGiTu"
     local ENERGY_TOKEN_ID="n52aKuZwUeZAocpWqRZAJR4xFhQqAvaRE7Xepy2JBGk"
     local TRADING_ID="69dGpKu9a8EZiZ7orgfTH6CoGj9DeQHHkHBF2exSr8na"
     local ORACLE_ID="JDUVXMkeGi4oxLp8njBaGScAFaVBBg7iGoiqcY1LxKop"
@@ -661,7 +677,7 @@ cmd_init() {
     log_info "Bootstrapping on-chain accounts..."
     cd "$ANCHOR_DIR"
     export ANCHOR_PROVIDER_URL="$RPC_URL"
-    export ANCHOR_WALLET="$ANCHOR_DIR/target/deploy/registry-keypair.json"
+    export ANCHOR_WALLET="$DEV_WALLET"
     
     # Wait for validator
     sleep 5
@@ -693,9 +709,9 @@ cmd_init() {
         "$currency_mint" \
         "$registry_pda" \
         "$trading_market_pda" \
-        "BT9ESAZoNGnvPswpeHNLgt582GTQrAUv21ZLkk4H6Bad" \
-        "BT9ESAZoNGnvPswpeHNLgt582GTQrAUv21ZLkk4H6Bad" \
-        "BT9ESAZoNGnvPswpeHNLgt582GTQrAUv21ZLkk4H6Bad"
+        "C8RT8L5pZCVDrf9v94CNNk3XPBKZU5p4o4aPnAVQGiTu" \
+        "C8RT8L5pZCVDrf9v94CNNk3XPBKZU5p4o4aPnAVQGiTu" \
+        "C8RT8L5pZCVDrf9v94CNNk3XPBKZU5p4o4aPnAVQGiTu"
 
     log_success "Blockchain initialization complete!"
 }
@@ -813,11 +829,9 @@ start_core_services() {
     fi
 
     cd "$PROJECT_ROOT"
-    docker-compose up -d postgres redis mailpit kong
+    docker-compose up -d postgres redis mailpit apisix envoy rabbitmq kafka-cmd
     # Ensure Docker versions of application services are stopped to prevent port conflicts (native execution preferred)
     docker stop gridtokenx-trading-service gridtokenx-api-services gridtokenx-iam-service gridtokenx-oracle-bridge >/dev/null 2>&1 || true
-    # Force Kong to reload configuration in case kong.yml changed
-    docker restart gridtokenx-kong >/dev/null 2>&1 || true
     wait_for_postgres
     wait_for_redis
     log_success "Core services ready"
@@ -862,58 +876,93 @@ start_application_services() {
     if [ -f "$PROJECT_ROOT/.env" ]; then
         log_info "Loading environment from $PROJECT_ROOT/.env"
         set -a; source "$PROJECT_ROOT/.env"; set +a
-    elif [ -f "$GATEWAY_DIR/.env" ]; then
-        log_info "Loading environment from $GATEWAY_DIR/.env"
-        set -a; source "$GATEWAY_DIR/.env"; set +a
+    elif [ -f "$PROJECT_ROOT/gridtokenx-iam-service/.env" ]; then
+        log_info "Loading environment from IAM service"
+        set -a; source "$PROJECT_ROOT/gridtokenx-iam-service/.env"; set +a
     fi
 
     # Ensure native services use localhost for OTEL Collector (instead of container name)
     export OTEL_EXPORTER_OTLP_ENDPOINT="http://127.0.0.1:4317"
     export OTEL_ENABLED="true"
 
+    # Default Environment Variables for Native Execution (if not set in .env)
+    export IAM_DATABASE_URL=${IAM_DATABASE_URL:-"postgresql://gridtokenx_user:gridtokenx_password@localhost:7001/gridtokenx"}
+    export IAM_GRPC_PORT=${IAM_GRPC_PORT:-"5010"}
+    export TRADING_DATABASE_URL=${TRADING_DATABASE_URL:-"postgresql://gridtokenx_user:gridtokenx_password@localhost:7001/gridtokenx_trading"}
+    export NOTI_DATABASE_URL=${NOTI_DATABASE_URL:-"postgresql://gridtokenx_user:gridtokenx_password@localhost:7001/gridtokenx_noti"}
+    export REDIS_URL=${REDIS_URL:-"redis://localhost:7010"}
+    export SOLANA_RPC_URL=${SOLANA_RPC_URL:-"http://localhost:8899"}
+    export SOLANA_WS_URL=${SOLANA_WS_URL:-"ws://localhost:8900"}
+    export KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-"localhost:29001"}
+    export KAFKA_BROKERS=${KAFKA_BROKERS:-"localhost:29001"}
+    export CHAIN_BRIDGE_URL=${CHAIN_BRIDGE_URL:-"http://localhost:5040"}
+    export ENCRYPTION_SECRET=${ENCRYPTION_SECRET:-"supersecretencryptionkey"}
+    export RABBITMQ_URL=${RABBITMQ_URL:-"amqp://gridtokenx:rabbitmq_secret_2025@localhost:9030"}
+    
+    # Trading specific
+    export ENERGY_TOKEN_MINT=${ENERGY_TOKEN_MINT:-"GpGDVgksF2ivMv3XXR4VZDXRmW9G6agA2AGkKUBQRzk6"}
+    export CURRENCY_TOKEN_MINT=${CURRENCY_TOKEN_MINT:-"8BGFtQLRaY9Nh5BGUwjJvdeXEsscCgJAi5zTgALk1Vg5"}
+    export FEE_COLLECTOR_WALLET=${FEE_COLLECTOR_WALLET:-"$PROJECT_ROOT/infra/solana/dev-wallet.json"}
+
+    # Noti specific (uses APP prefix)
+    export APP__PORT=${APP__PORT:-"5050"}
+    export APP__DATABASE_URL=${APP__DATABASE_URL:-"postgresql://gridtokenx_user:gridtokenx_password@localhost:7001/gridtokenx_noti"}
+    export APP__KAFKA_BROKERS=${APP__KAFKA_BROKERS:-"localhost:29001"}
+    export APP__REDIS_URL=${APP__REDIS_URL:-"redis://localhost:7010"}
+    export APP__RABBITMQ_URL=${APP__RABBITMQ_URL:-"amqp://gridtokenx:rabbitmq_secret_2025@localhost:9030"}
+    export APP__LOG_LEVEL=${APP__LOG_LEVEL:-"info"}
+
     if [ "$native_mode" = true ]; then
         # Native background mode with proper logging
         log_info "Starting services as native background processes..."
 
+        # 0. Chain Bridge (Blockchain Connector)
+        run_in_background "Chain Bridge" \
+            "SOLANA_RPC_URL=$SOLANA_RPC_URL $PROJECT_ROOT/gridtokenx-chain-bridge/target/debug/gridtokenx-chain-bridge" \
+            "$PROJECT_ROOT" \
+            "$PROJECT_ROOT/scripts/logs/chain-bridge.log"
+        wait_for_port "Chain Bridge" 5040 30
+
         # 1. IAM Service (Identity & Access Management) - Required by everything
         run_in_background "IAM Service" \
-            "DATABASE_URL=$IAM_DATABASE_URL PORT=8080 $PROJECT_ROOT/target/debug/gridtokenx-iam-service" \
+            "DATABASE_URL=$IAM_DATABASE_URL REDIS_URL=$REDIS_URL IAM_PORT=4010 $PROJECT_ROOT/gridtokenx-iam-service/target/debug/gridtokenx-iam-service" \
             "$PROJECT_ROOT" \
             "$PROJECT_ROOT/scripts/logs/iam.log"
-        wait_for_port "IAM gRPC" 8090 30
+        wait_for_port "IAM gRPC" 5010 30
 
         # 2. Trading Service (Matching & Settlement) - Required by API Gateway for order submission
         run_in_background "Trading Service" \
-            "DATABASE_URL=$TRADING_DATABASE_URL RUST_LOG=info ENABLE_SETTLEMENT_PROCESSOR=true $PROJECT_ROOT/target/debug/gridtokenx-trading-service" \
+            "DATABASE_URL=$TRADING_DATABASE_URL REDIS_URL=$REDIS_URL SOLANA_RPC_URL=$SOLANA_RPC_URL SOLANA_WS_URL=$SOLANA_WS_URL RUST_LOG=info ENABLE_SETTLEMENT_PROCESSOR=true $PROJECT_ROOT/gridtokenx-trading-service/target/debug/trading-service" \
             "$PROJECT_ROOT" \
             "$PROJECT_ROOT/scripts/logs/trading.log"
-        wait_for_port "Trading gRPC" 8092 60
-
-        # 3. API Services Node
-        run_in_background "API Services" \
-            "DATABASE_URL=$DATABASE_URL PORT=4000 ENABLE_SETTLEMENT_PROCESSOR=false IAM_SERVICE_URL=http://127.0.0.1:8080 IAM_GRPC_URL=http://127.0.0.1:8090 $PROJECT_ROOT/target/debug/api-services" \
-            "$PROJECT_ROOT" \
-            "$PROJECT_ROOT/scripts/logs/api-services.log"
-        wait_for_port "API Services" 4000 60
-
-        # 4. Oracle Bridge (Smart Meter to Solana Synchronization)
+        # wait_for_port "Trading gRPC" 5020 60
+        
+        # 3. Oracle Bridge (Smart Meter to Solana Synchronization)
         run_in_background "Oracle Bridge" \
-            "IAM_SERVICE_URL=http://127.0.0.1:8090 API_GATEWAY_GRPC_URL=http://127.0.0.1:4015 GRIDTOKENX_API_KEYS=\"engineering-department-api-key-2025\" RUST_LOG=info $PROJECT_ROOT/target/debug/gridtokenx-oracle-bridge" \
+            "IAM_SERVICE_URL=http://127.0.0.1:4010 GRIDTOKENX_API_KEYS=\"engineering-department-api-key-2025\" RUST_LOG=info $PROJECT_ROOT/gridtokenx-oracle-bridge/target/debug/oracle-service" \
             "$PROJECT_ROOT" \
             "$PROJECT_ROOT/scripts/logs/oracle-bridge.log"
+        wait_for_port "Oracle Bridge" 4030 30
 
-        # Wait for Kong proxy (now on 4001)
-        wait_for_service "Kong Gateway" "http://localhost:4001/health" 60 2
+        # 4. Noti Service (Notifications & Events)
+        run_in_background "Noti Service" \
+            "DATABASE_URL=$NOTI_DATABASE_URL REDIS_URL=$REDIS_URL RUST_LOG=info $PROJECT_ROOT/gridtokenx-noti-service/target/debug/noti-server" \
+            "$PROJECT_ROOT" \
+            "$PROJECT_ROOT/scripts/logs/noti.log"
+        wait_for_port "Noti gRPC" 5050 30
+
+        # Wait for APISIX proxy
+        wait_for_service "APISIX" "http://localhost:4001/health" 60 2
 
         if [ "$skip_ui" = false ]; then
             echo ""
             log_info "Starting frontend UIs as background processes..."
 
             # Simulator
-            if [ -f "$PROJECT_ROOT/gridtokenx-smartmeter-simulator/pyproject.toml" ]; then
+            if [ -f "$PROJECT_ROOT/gridtokenx-smartmeter-simulator/backend/pyproject.toml" ]; then
                 run_in_background "Simulator API" \
-                    "PORT=8082 uv run start" \
-                    "$PROJECT_ROOT/gridtokenx-smartmeter-simulator" \
+                    "PORT=12010 uv run start" \
+                    "$PROJECT_ROOT/gridtokenx-smartmeter-simulator/backend" \
                     "$PROJECT_ROOT/scripts/logs/simulator-api.log"
             fi
 
@@ -928,7 +977,7 @@ start_application_services() {
             # Explorer UI
             if [ -d "$PROJECT_ROOT/gridtokenx-explorer/node_modules" ]; then
                 run_in_background "Explorer UI" \
-                    "bun run dev --port 3001" \
+                    "bun run dev --port 11002" \
                     "$PROJECT_ROOT/gridtokenx-explorer" \
                     "$PROJECT_ROOT/scripts/logs/explorer-ui.log"
             fi
@@ -936,16 +985,16 @@ start_application_services() {
             # App Portal
             if [ -d "$PROJECT_ROOT/gridtokenx-portal/node_modules" ]; then
                 run_in_background "App Portal" \
-                    "bun run dev --port 3002" \
+                    "bun run dev --port 11003" \
                     "$PROJECT_ROOT/gridtokenx-portal" \
                     "$PROJECT_ROOT/scripts/logs/portal.log"
             fi
 
             # Simulator UI
-            if [ -d "$PROJECT_ROOT/gridtokenx-smartmeter-simulator/ui/node_modules" ]; then
+            if [ -d "$PROJECT_ROOT/gridtokenx-smartmeter-simulator/frontend/node_modules" ]; then
                 run_in_background "Simulator UI" \
-                    "bun run dev --port 8085" \
-                    "$PROJECT_ROOT/gridtokenx-smartmeter-simulator/ui" \
+                    "bun run dev --port 12011" \
+                    "$PROJECT_ROOT/gridtokenx-smartmeter-simulator/frontend" \
                     "$PROJECT_ROOT/scripts/logs/simulator-ui.log"
             fi
 
@@ -960,34 +1009,30 @@ start_application_services() {
     else
         # Original terminal mode (for backward compatibility)
         # 1. IAM Service (Identity & Access Management) - Required by everything
-        run_in_terminal "IAM Service" "PORT=8080 $PROJECT_ROOT/target/debug/gridtokenx-iam-service > $PROJECT_ROOT/scripts/logs/iam.log 2>&1" "$PROJECT_ROOT"
-        wait_for_port "IAM gRPC" 8090 30
+        run_in_terminal "IAM Service" "IAM_PORT=4010 $PROJECT_ROOT/target/debug/gridtokenx-iam-service > $PROJECT_ROOT/scripts/logs/iam.log 2>&1" "$PROJECT_ROOT"
+        wait_for_port "IAM gRPC" 5010 30
 
         # 2. Trading Service (Matching & Settlement) - Required by API Gateway for order submission
         run_in_terminal "Trading Service" "RUST_LOG=info ENABLE_SETTLEMENT_PROCESSOR=true $PROJECT_ROOT/target/debug/gridtokenx-trading-service > $PROJECT_ROOT/scripts/logs/trading.log 2>&1" "$PROJECT_ROOT"
-        wait_for_port "Trading gRPC" 8092 60
+        wait_for_port "Trading gRPC" 5020 60
 
         # 3. Oracle Bridge (Smart Meter to Solana Synchronization)
-        run_in_terminal "Oracle Bridge" "IAM_SERVICE_URL=http://127.0.0.1:8090 GRIDTOKENX_API_KEYS=\"engineering-department-api-key-2025\" RUST_LOG=info $PROJECT_ROOT/target/debug/gridtokenx-oracle-bridge > $PROJECT_ROOT/scripts/logs/oracle-bridge.log 2>&1" "$PROJECT_ROOT"
+        run_in_terminal "Oracle Bridge" "IAM_SERVICE_URL=http://127.0.0.1:4010 GRIDTOKENX_API_KEYS=\"engineering-department-api-key-2025\" RUST_LOG=info $PROJECT_ROOT/target/debug/gridtokenx-oracle-bridge > $PROJECT_ROOT/scripts/logs/oracle-bridge.log 2>&1" "$PROJECT_ROOT"
 
-        # 4. API Services Nodes
-        # IAM_SERVICE_URL: REST (8080), IAM_GRPC_URL: gRPC (8090)
-        run_in_terminal "API Services Node 1" "PORT=4000 ENABLE_SETTLEMENT_PROCESSOR=false IAM_SERVICE_URL=http://127.0.0.1:8080 IAM_GRPC_URL=http://127.0.0.1:8090 $PROJECT_ROOT/target/debug/api-services > $PROJECT_ROOT/scripts/logs/api-node-1.log 2>&1" "$PROJECT_ROOT"
-
-        # Wait for the Kong proxy (now on 4001)
-        wait_for_service "Kong Gateway" "http://localhost:4001/health" 60 2
+        # Wait for the APISIX proxy (now on 4001)
+        wait_for_service "APISIX" "http://localhost:4001/health" 60 2
 
         if [ "$skip_ui" = false ]; then
             echo ""
             log_info "Starting frontend UIs..."
 
             # Simulator
-            if [ -d "$PROJECT_ROOT/gridtokenx-smartmeter-simulator/ui/node_modules" ]; then
-                run_in_terminal "Simulator UI" "bun run dev --port 8085" "$PROJECT_ROOT/gridtokenx-smartmeter-simulator/ui"
+            if [ -d "$PROJECT_ROOT/gridtokenx-smartmeter-simulator/frontend/node_modules" ]; then
+                run_in_terminal "Simulator UI" "bun run dev --port 12011" "$PROJECT_ROOT/gridtokenx-smartmeter-simulator/frontend"
             fi
 
-            if [ -f "$PROJECT_ROOT/gridtokenx-smartmeter-simulator/pyproject.toml" ]; then
-                run_in_terminal "Simulator API" "PORT=8082 uv run start" "$PROJECT_ROOT/gridtokenx-smartmeter-simulator"
+            if [ -f "$PROJECT_ROOT/gridtokenx-smartmeter-simulator/backend/pyproject.toml" ]; then
+                run_in_terminal "Simulator API" "PORT=12010 uv run start" "$PROJECT_ROOT/gridtokenx-smartmeter-simulator/backend"
             fi
 
             # Trading UI
@@ -997,12 +1042,12 @@ start_application_services() {
 
             # Explorer UI
             if [ -d "$PROJECT_ROOT/gridtokenx-explorer/node_modules" ]; then
-                run_in_terminal "Explorer UI" "bun run dev --port 3001" "$PROJECT_ROOT/gridtokenx-explorer"
+                run_in_terminal "Explorer UI" "bun run dev --port 11002" "$PROJECT_ROOT/gridtokenx-explorer"
             fi
 
             # App Portal
             if [ -d "$PROJECT_ROOT/gridtokenx-portal/node_modules" ]; then
-                run_in_terminal "App Portal" "bun run dev --port 3002" "$PROJECT_ROOT/gridtokenx-portal"
+                run_in_terminal "App Portal" "bun run dev --port 11003" "$PROJECT_ROOT/gridtokenx-portal"
             fi
 
             # Admin UI
@@ -1014,7 +1059,7 @@ start_application_services() {
 }
 
 kill_ports() {
-    local ports=(4000 4001 4003 4010 4015 8080 8082 8085 8090 8092 8093 8899 8900 3000 3001 3002)
+    local ports=(4000 4001 4002 4010 4020 4030 5010 5020 5030 5040 6001 6002 6003 6004 6005 6006 7001 7002 7010 7011 7020 7030 8001 8002 9001 9002 9003 9030 9031 10010 10020 10030 10040 10100 10110 10120 10130 10200 10210 10220 10230 11001 11002 11003 12010 12011 13001 13060)
     log_info "Clearing ports: ${ports[*]}..."
     for port in "${ports[@]}"; do
         local pids=$(lsof -ti:"$port" 2>/dev/null)
@@ -1094,6 +1139,7 @@ cmd_start() {
     pkill -f "uvicorn" 2>/dev/null || true
     pkill -f "uv run start" 2>/dev/null || true
     pkill -f "bun run dev" 2>/dev/null || true
+    pkill -f "agent-trade" 2>/dev/null || true
     sleep 2
 
     # Step 2: Core Docker Services
@@ -1121,7 +1167,7 @@ cmd_start() {
         local trading_market_pda=$(echo "$pda_config" | grep "TRADING_MARKET_PDA=" | cut -d'=' -f2)
 
         # Program IDs from Anchor.toml
-        local REGISTRY_ID="FmvDiFUWPrwXsqo7z7XnVniKbZDcz32U5HSDVwPug89c"
+        local REGISTRY_ID="C8RT8L5pZCVDrf9v94CNNk3XPBKZU5p4o4aPnAVQGiTu"
         local ENERGY_TOKEN_ID="n52aKuZwUeZAocpWqRZAJR4xFhQqAvaRE7Xepy2JBGk"
         local TRADING_ID="69dGpKu9a8EZiZ7orgfTH6CoGj9DeQHHkHBF2exSr8na"
         local ORACLE_ID="JDUVXMkeGi4oxLp8njBaGScAFaVBBg7iGoiqcY1LxKop"
@@ -1137,9 +1183,9 @@ cmd_start() {
             "$currency_mint" \
             "$registry_pda" \
             "$trading_market_pda" \
-            "BT9ESAZoNGnvPswpeHNLgt582GTQrAUv21ZLkk4H6Bad" \
-            "BT9ESAZoNGnvPswpeHNLgt582GTQrAUv21ZLkk4H6Bad" \
-            "BT9ESAZoNGnvPswpeHNLgt582GTQrAUv21ZLkk4H6Bad"
+            "C8RT8L5pZCVDrf9v94CNNk3XPBKZU5p4o4aPnAVQGiTu" \
+            "C8RT8L5pZCVDrf9v94CNNk3XPBKZU5p4o4aPnAVQGiTu" \
+            "C8RT8L5pZCVDrf9v94CNNk3XPBKZU5p4o4aPnAVQGiTu"
 
         log_success "Environment configured and propagated"
     fi
@@ -1174,10 +1220,10 @@ cmd_start() {
     echo "  • Health:        http://localhost:4000/health"
     echo ""
     echo -e "${CYAN}Frontend UIs:${NC}"
-    echo "  • Trading UI:    http://localhost:3000"
-    echo "  • Explorer UI:   http://localhost:3001"
-    echo "  • App Portal:    http://localhost:3002"
-    echo "  • Simulator UI:  http://localhost:8085"
+    echo "  • Trading UI:    http://localhost:11001"
+    echo "  • Explorer UI:   http://localhost:11002"
+    echo "  • App Portal:    http://localhost:11003"
+    echo "  • Simulator UI:  http://localhost:12011"
     echo ""
     echo -e "${CYAN}Service Logs:${NC}"
     echo "  • API Services:   $PROJECT_ROOT/scripts/logs/api-services.log"

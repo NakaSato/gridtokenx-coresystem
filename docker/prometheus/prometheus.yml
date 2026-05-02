@@ -1,42 +1,32 @@
-# Prometheus configuration for GridTokenX
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
+  external_labels:
+    monitor: 'gridtokenx-monitor'
+    origin: 'prometheus-primary'
+
+# Remote write to long-term storage (e.g., Thanos/Mimir)
+remote_write:
+  - url: "http://mimir:8080/api/v1/push" # Placeholder for future scalable backend
+    queue_config:
+      capacity: 10000
+      max_shards: 100
+      min_shards: 1
+      max_samples_per_send: 500
+      batch_send_deadline: 5s
 
 scrape_configs:
-  # App metrics via OTEL remote write (no direct scrape needed)
-
-  # PostgreSQL Metrics
-  - job_name: 'postgres'
+  - job_name: 'prometheus'
     static_configs:
-      - targets: ['postgres-exporter:9187']
-        labels:
-          service: 'postgresql'
+      - targets: ['localhost:9090']
 
-  # Redis Metrics
-  - job_name: 'redis'
+  - job_name: 'otel-collector'
     static_configs:
-      - targets: ['redis-exporter:9121']
-        labels:
-          service: 'redis'
+      - targets: ['otel-gateway:8888']
 
-  # Kafka Metrics
-  - job_name: 'kafka'
+  - job_name: 'infrastructure'
     static_configs:
-      - targets: ['kafka-exporter:9308']
-        labels:
-          service: 'kafka'
+      - targets: ['postgres-exporter:9187', 'redis-exporter:9121', 'kafka-exporter:9308', 'node-exporter:9100', 'cadvisor:8080']
 
-  # Node Exporter (System Metrics)
-  - job_name: 'node'
-    static_configs:
-      - targets: ['node-exporter:9100']
-        labels:
-          service: 'node'
-
-  # cAdvisor (Container Metrics)
-  - job_name: 'cadvisor'
-    static_configs:
-      - targets: ['cadvisor:8080']
-        labels:
-          service: 'cadvisor'
+  # Note: Application metrics are now pushed via OTEL Remote Write,
+  # so direct scraping of microservices is minimized to reduce load.

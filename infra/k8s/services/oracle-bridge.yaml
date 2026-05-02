@@ -1,0 +1,153 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oracle-bridge
+  namespace: gridtokenx
+  labels:
+    app: oracle-bridge
+    version: v1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: oracle-bridge
+  template:
+    metadata:
+      labels:
+        app: oracle-bridge
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "4030"
+        prometheus.io/path: /metrics
+    spec:
+      serviceAccountName: oracle-bridge
+      initContainers:
+        - name: wait-for-influxdb
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z influxdb.gridtokenx-infra.svc.cluster.local 8086; do
+                echo "Waiting for InfluxDB..."; sleep 2
+              done
+        - name: wait-for-kafka
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z kafka-market.gridtokenx-infra.svc.cluster.local 9092; do
+                echo "Waiting for Kafka MARKET..."; sleep 3
+              done
+      containers:
+        - name: oracle-bridge
+          image: gridtokenx/oracle-bridge:latest   # Replace with your registry
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 4030
+              name: http
+            - containerPort: 5030
+              name: grpc
+          envFrom:
+            - configMapRef:
+                name: platform-config
+          env:
+            - name: SERVICE_NAME
+              value: oracle-bridge
+            - name: HTTP_PORT
+              value: "4030"
+            - name: GRPC_PORT
+              value: "5030"
+            - name: OTEL_SERVICE_NAME
+              value: gridtokenx-oracle-bridge
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: platform-secrets
+                  key: POSTGRES_PASSWORD
+            - name: INFLUXDB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: platform-secrets
+                  key: INFLUXDB_TOKEN
+            - name: HMAC_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: platform-secrets
+                  key: HMAC_SECRET
+            - name: SOLANA_ORACLE_PROGRAM_ID
+              valueFrom:
+                secretKeyRef:
+                  name: solana-secrets
+                  key: SOLANA_ORACLE_PROGRAM_ID
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 4030
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 4030
+            initialDelaySeconds: 10
+            periodSeconds: 5
+      terminationGracePeriodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oracle-bridge
+  namespace: gridtokenx
+  labels:
+    app: oracle-bridge
+spec:
+  selector:
+    app: oracle-bridge
+  ports:
+    - port: 4030
+      targetPort: 4030
+      name: http
+    - port: 5030
+      targetPort: 5030
+      name: grpc
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: oracle-bridge
+  namespace: gridtokenx
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: oracle-bridge
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: oracle-bridge
+  namespace: gridtokenx
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: oracle-bridge

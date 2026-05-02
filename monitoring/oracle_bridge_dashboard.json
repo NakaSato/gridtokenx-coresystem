@@ -1,54 +1,224 @@
 {
-  "title": "GridTokenX - Oracle Bridge Overview",
-  "uid": "oracle-bridge-overview",
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "datasource",
+          "uid": "grafana"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
   "panels": [
     {
-      "type": "graph",
-      "title": "Ingestion Rate (Requests/sec)",
-      "targets": [
-        { "expr": "rate(oracle_relay_ingestion_total[1m])", "legendFormat": "Ingest Rate" }
-      ],
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 }
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "Ingestion & Processing",
+      "type": "row"
     },
     {
-      "type": "gauge",
-      "title": "Current Queue Depth",
-      "targets": [
-        { "expr": "oracle_relay_queue_depth" }
-      ],
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": {
-          "min": 0,
-          "max": 1024,
+          "color": { "mode": "thresholds" },
+          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               { "color": "green", "value": null },
-              { "color": "yellow", "value": 700 },
-              { "color": "red", "value": 900 }
+              { "color": "red", "value": 80 }
             ]
+          },
+          "unit": "reqps"
+        }
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 1 },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": [ "lastNotNull" ], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        { "expr": "sum(rate(oracle_ingestion_requests_total[1m]))", "refId": "A" }
+      ],
+      "title": "Current Ingest Rate",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 5000 },
+              { "color": "red", "value": 8000 }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 1 },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": { "calcs": [ "lastNotNull" ] }
+      },
+      "targets": [
+        { "expr": "oracle_queue_depth", "refId": "A" }
+      ],
+      "title": "Batcher Queue Depth",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisPlacement": "auto",
+            "fillOpacity": 20,
+            "gradientMode": "opacity",
+            "lineWidth": 2,
+            "showPoints": "never"
+          },
+          "unit": "reqps"
+        }
+      },
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 1 },
+      "id": 3,
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi" }
+      },
+      "targets": [
+        { "expr": "sum(rate(oracle_ingestion_requests_total{success='true'}[1m]))", "legendFormat": "Success", "refId": "A" },
+        { "expr": "sum(rate(oracle_ingestion_requests_total{success='false'}[1m]))", "legendFormat": "Failure", "refId": "B" }
+      ],
+      "title": "Ingestion Success vs Failure",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "ms"
+        }
+      },
+      "gridPos": { "h": 5, "w": 12, "x": 0, "y": 6 },
+      "id": 4,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum(rate(oracle_ingestion_request_duration_ms_bucket[5m])) by (le, device_type))", "legendFormat": "{{device_type}} p95", "refId": "A" }
+      ],
+      "title": "Ingestion Latency by Device",
+      "type": "timeseries"
+    },
+    {
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 11 },
+      "id": 200,
+      "title": "Blockchain Settlement",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 30 }
+            ]
+          },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 12 },
+      "id": 5,
+      "options": {
+        "orientation": "horizontal"
+      },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum(rate(oracle_blockchain_submission_duration_ms_bucket[5m])) by (le)) / 1000", "refId": "A" }
+      ],
+      "title": "p95 Settlement Latency",
+      "type": "gauge"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisPlacement": "auto",
+            "drawStyle": "bars",
+            "fillOpacity": 80
           }
         }
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 }
+      "gridPos": { "h": 8, "w": 10, "x": 6, "y": 12 },
+      "id": 6,
+      "targets": [
+        { "expr": "sum(rate(oracle_blockchain_submissions_total{success='true'}[1m]))", "legendFormat": "Success", "refId": "A" },
+        { "expr": "sum(rate(oracle_blockchain_submissions_total{success='false'}[1m]))", "legendFormat": "Failure", "refId": "B" }
+      ],
+      "title": "On-chain Settlement Outcomes",
+      "type": "timeseries"
     },
     {
-      "type": "graph",
-      "title": "P99/P95 Blockchain Latency",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 12 },
+      "id": 7,
       "targets": [
-        { "expr": "histogram_quantile(0.99, sum(rate(oracle_relay_submission_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p99" },
-        { "expr": "histogram_quantile(0.95, sum(rate(oracle_relay_submission_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p95" }
+        { "expr": "oracle_batch_size", "legendFormat": "Batch Size", "refId": "A" }
       ],
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 }
-    },
-    {
-      "type": "graph",
-      "title": "Submission Outcomes (Success vs Failure)",
-      "targets": [
-        { "expr": "rate(oracle_relay_submissions_total{status='success'}[1m])", "legendFormat": "Success" },
-        { "expr": "rate(oracle_relay_submissions_total{status='failure'}[1m])", "legendFormat": "Failure" }
-      ],
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 }
+      "title": "Batch Size Distribution",
+      "type": "histogram"
     }
-  ]
+  ],
+  "refresh": "5s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": [ "gridtokenx", "oracle" ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "GridTokenX - Oracle Bridge Overview",
+  "uid": "oracle-bridge-overview",
+  "version": 2
 }

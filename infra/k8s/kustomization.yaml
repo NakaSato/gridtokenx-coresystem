@@ -1,0 +1,47 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  # Foundation
+  - 00-namespaces.yaml
+  - 01-storage-classes.yaml
+  - 02-configmaps.yaml
+  - 03-secrets.yaml
+  - 04-rbac.yaml
+
+  # Infrastructure (deploy first — services depend on these)
+  - infrastructure/postgresql.yaml
+  - infrastructure/redis.yaml
+  - infrastructure/influxdb.yaml
+  - infrastructure/clickhouse.yaml
+  - infrastructure/kafka.yaml
+  - infrastructure/rabbitmq.yaml
+  - infrastructure/vault.yaml
+
+  # Core microservices
+  - services/db-migrations.yaml
+  - services/iam-service.yaml
+  - services/trading-service.yaml
+  - services/oracle-bridge.yaml
+  - services/chain-bridge.yaml
+
+  # API gateways
+  - gateways/apisix.yaml
+  - gateways/envoy.yaml
+
+  # Frontend applications
+  - frontends/frontends.yaml
+
+  # Observability stack
+  - observability/observability.yaml
+
+  # Network policies (apply last)
+  - network-policies/network-policies.yaml
+
+  # Istio policies (already in infra/istio — listed here for reference)
+  # - ../istio/policies/peer-authentication.yaml
+  # - ../istio/policies/global-deny.yaml
+  # - ../istio/policies/trading-policies.yaml
+  # - ../istio/policies/iam-reporting-policies.yaml
+  # - ../istio/policies/oracle-telemetry-policies.yaml
+  # - ../istio/policies/chain-issuer-policies.yaml

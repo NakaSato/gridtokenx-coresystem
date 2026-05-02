@@ -1,0 +1,28 @@
+# Storage classes for GridTokenX platform
+# Adjust provisioner to match your cloud provider:
+#   AWS: ebs.csi.aws.com
+#   GCP: pd.csi.storage.gke.io
+#   Azure: disk.csi.azure.com
+#   Local/OrbStack dev: rancher.io/local-path or hostpath
+
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: gridtokenx-fast
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "false"
+provisioner: rancher.io/local-path
+reclaimPolicy: Delete
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: false
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: gridtokenx-standard
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "false"
+provisioner: rancher.io/local-path
+reclaimPolicy: Delete
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: false

@@ -13,7 +13,6 @@ New to GridTokenX? Follow these core steps:
 1. [Environment Setup](./environment-setup.md) - Install dependencies (OrbStack focus)
 2. [Project Overview](./project-overview.md) - Understand the decentralized architecture
 3. [Start Development](./start-dev.md) - Launch the platform with `./scripts/app.sh start`
-4. [Admin Registration](./admin-register.md) - Create your first admin user
 
 ## Workflow Categories
 
@@ -26,17 +25,15 @@ New to GridTokenX? Follow these core steps:
 | [Start Development](./start-dev.md) | Launch all services (native or Docker) |
 | [Stop Development](./stop-dev.md) | Graceful shutdown of the platform |
 
-### 🏗️ Microservice Development
+### 🏗️ Domain Service Operations
 
 | Workflow | Description |
 |----------|-------------|
-| [API Development](./api-development.md) | Building the Orchestration Gateway (ConnectRPC) |
-| [IAM Service](./iam-service-development.md) | Identity, Wallets, and Blockchain Registry |
-| [Trading Service](./trading-service-development.md) | Matching Engine and On-chain Settlement |
-| [Oracle Bridge](./oracle-bridge-development.md) | IoT Data Validation and Kafka Publishing |
-| [Anchor Development](./anchor-development.md) | Smart contract development (Solana/Anchor) |
 | [Database Migrations](./database-migrations.md) | Schema management with SQLx |
 | [Smart Meter Simulator](./smart-meter-simulator.md) | Simulate prosumer and consumer IoT devices |
+| [Oracle Bridge](./oracle-bridge.md) | Ingestion, signature verification, and batching |
+| [Energy Trading Agent](./agent-operations.md) | AI DCA accumulation & Grid Stability |
+| [Anchor Development](./anchor-development.md) | Smart contract development (Solana/Anchor) |
 
 ### 📊 Observability & Quality
 
@@ -45,7 +42,6 @@ New to GridTokenX? Follow these core steps:
 | [Monitoring](./monitoring.md) | Metrics, Logs (Loki), and OpenTelemetry |
 | [Grafana Stack](./grafana-stack.md) | Custom dashboards and alert rules |
 | [Testing](./testing.md) | Unit, integration, and e2e test suites |
-| [Build & Deploy](./build-deploy.md) | Docker builds and deployment pipelines |
 
 ### 🔧 system Operations
 
@@ -53,8 +49,8 @@ New to GridTokenX? Follow these core steps:
 |----------|-------------|
 | [Docker Services](./docker-services.md) | Manage infrastructure (Redis, Kafka, Postgres) |
 | [Database Management](./db-manage.md) | Direct PostgreSQL operations |
-| [Blockchain Init](./blockchain-init.md) | Deploy and bootstrap Anchor programs |
 | [Debugging](./debugging.md) | Troubleshooting common service issues |
+
 
 ## Management Tools
 

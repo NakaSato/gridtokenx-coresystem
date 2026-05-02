@@ -1,0 +1,24 @@
+graph TD
+    subgraph "Physical Layer (DePIN)"
+        M1[Smart Meter A] --- G1[Edge Gateway A]
+        M2[Smart Meter B] --- G2[Edge Gateway B]
+    end
+
+    subgraph "Oracle Bridge Layer"
+        G1 & G2 --> OB[Oracle Bridge]
+        OB --> |Signed Energy Proofs| SC
+    end
+
+    subgraph "Blockchain Layer (Solana)"
+        SC[Anchor Smart Contracts]
+        ME[Matching Engine]
+        SE[Settlement Engine]
+        SC --- ME
+        SC --- SE
+    end
+
+    subgraph "Economic Layer"
+        GRX[GRX Token - Staking/Utility]
+        gTHB[gTHB Token - Stable Settlement]
+        SE --> |Transfer gTHB| M1 & M2
+    end

@@ -1,0 +1,159 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: envoy-config
+  namespace: gridtokenx
+data:
+  envoy.yaml: |
+    static_resources:
+      listeners:
+        - name: iot_listener
+          address:
+            socket_address:
+              address: 0.0.0.0
+              port_value: 8080
+          filter_chains:
+            - transport_socket:
+                name: envoy.transport_sockets.tls
+                typed_config:
+                  "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
+                  require_client_certificate: true
+                  common_tls_context:
+                    tls_certificates:
+                      - certificate_chain:
+                          filename: /etc/certs/tls.crt
+                        private_key:
+                          filename: /etc/certs/tls.key
+                    validation_context:
+                      trusted_ca:
+                        filename: /etc/certs/ca.crt
+              filters:
+                - name: envoy.filters.network.http_connection_manager
+                  typed_config:
+                    "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                    stat_prefix: ingress_iot
+                    access_log:
+                      - name: envoy.access_loggers.stdout
+                        typed_config:
+                          "@type": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
+                    http_filters:
+                      - name: envoy.filters.http.router
+                        typed_config:
+                          "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+                    route_config:
+                      name: local_route
+                      virtual_hosts:
+                        - name: oracle_bridge
+                          domains: ["*"]
+                          routes:
+                            - match:
+                                prefix: /api/v1/telemetry
+                              route:
+                                cluster: oracle_bridge
+                            - match:
+                                prefix: /
+                              route:
+                                cluster: oracle_bridge
+
+      clusters:
+        - name: oracle_bridge
+          connect_timeout: 5s
+          type: STRICT_DNS
+          load_assignment:
+            cluster_name: oracle_bridge
+            endpoints:
+              - lb_endpoints:
+                  - endpoint:
+                      address:
+                        socket_address:
+                          address: oracle-bridge.gridtokenx.svc.cluster.local
+                          port_value: 4030
+
+    admin:
+      address:
+        socket_address:
+          address: 0.0.0.0
+          port_value: 9901
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: envoy-gateway
+  namespace: gridtokenx
+  labels:
+    app: envoy-gateway
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: envoy-gateway
+  template:
+    metadata:
+      labels:
+        app: envoy-gateway
+    spec:
+      containers:
+        - name: envoy
+          image: envoyproxy/envoy:v1.29-latest
+          args:
+            - -c
+            - /etc/envoy/envoy.yaml
+            - --log-level
+            - info
+          ports:
+            - containerPort: 8080
+              name: https-iot
+            - containerPort: 9901
+              name: admin
+          volumeMounts:
+            - name: config
+              mountPath: /etc/envoy/envoy.yaml
+              subPath: envoy.yaml
+            - name: certs
+              mountPath: /etc/certs
+              readOnly: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: 9901
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 9901
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: config
+          configMap:
+            name: envoy-config
+        - name: certs
+          secret:
+            secretName: envoy-tls-certs   # Create with cert-manager or manually
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: envoy-gateway
+  namespace: gridtokenx
+  labels:
+    app: envoy-gateway
+spec:
+  type: LoadBalancer
+  selector:
+    app: envoy-gateway
+  ports:
+    - port: 443
+      targetPort: 8080
+      name: https-iot
+    - port: 9901
+      targetPort: 9901
+      name: admin

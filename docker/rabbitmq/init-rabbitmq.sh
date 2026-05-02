@@ -4,7 +4,7 @@
 
 set -e
 
-RABBITMQ_URL="${RABBITMQ_URL:-amqp://gridtokenx:rabbitmq_secret_2025@localhost:15672}"
+RABBITMQ_URL="${RABBITMQ_URL:-amqp://gridtokenx:rabbitmq_secret_2025@localhost:9031}"
 RABBITMQ_USER="${RABBITMQ_DEFAULT_USER:-gridtokenx}"
 RABBITMQ_PASS="${RABBITMQ_DEFAULT_PASS:-rabbitmq_secret_2025}"
 
@@ -43,6 +43,6 @@ rabbitmqadmin declare binding source=scheduler destination=batch.jobs routing_ke
 rabbitmqadmin declare binding source=integrations destination=webhook.deliveries routing_key="webhook.*"
 
 echo "✅ RabbitMQ setup complete!"
-echo "📊 Management UI: http://localhost:15672"
+echo "📊 Management UI: http://localhost:9031"
 echo "🔑 Username: $RABBITMQ_USER"
 echo "🔑 Password: $RABBITMQ_PASS"

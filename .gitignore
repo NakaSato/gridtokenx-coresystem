@@ -1,16 +1,43 @@
 
 /test-ladger-oracle/
+/solana-ladger/*
 *.pem
 .sqlx/*
 .vendor/*
 *.pid
 *.snapshot
 # Environment Variables
+# Root
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+# Subdirectory live env files (examples are safe to commit; live .env files are not)
+gridtokenx-edge-gateway/.env
+gridtokenx-edge-gateway/.env.local
+gridtokenx-wasm/.env
+gridtokenx-wasm/.env.local
+gridtokenx-explorer/.env
+gridtokenx-explorer/.env.local
+gridtokenx-iam-service/.env
+gridtokenx-iam-service/.env.local
+gridtokenx-trading-service/.env
+gridtokenx-trading-service/.env.local
+gridtokenx-oracle-bridge/.env
+gridtokenx-oracle-bridge/.env.local
+gridtokenx-chain-bridge/.env
+gridtokenx-chain-bridge/.env.local
+gridtokenx-api/.env
+gridtokenx-api/.env.local
+gridtokenx-anchor/.env
+gridtokenx-anchor/.env.local
+gridtokenx-smartmeter-simulator/**/.env
+gridtokenx-smartmeter-simulator/**/.env.local
+gridtokenx-trading/.env
+gridtokenx-trading/.env.local
+gridtokenx-portal/.env
+gridtokenx-portal/.env.local
 
 # Operating System
 .DS_Store

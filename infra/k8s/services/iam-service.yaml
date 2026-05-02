@@ -1,0 +1,171 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: iam-service
+  namespace: gridtokenx
+  labels:
+    app: iam-service
+    version: v1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: iam-service
+  template:
+    metadata:
+      labels:
+        app: iam-service
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "4010"
+        prometheus.io/path: /metrics
+    spec:
+      serviceAccountName: iam-service
+      initContainers:
+        - name: wait-for-db
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z postgresql-primary.gridtokenx-infra.svc.cluster.local 5432; do
+                echo "Waiting for PostgreSQL..."; sleep 2
+              done
+      containers:
+        - name: iam-service
+          image: gridtokenx/iam-service:latest   # Replace with your registry
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 4010
+              name: http
+            - containerPort: 5010
+              name: grpc
+          envFrom:
+            - configMapRef:
+                name: platform-config
+          env:
+            - name: SERVICE_NAME
+              value: iam-service
+            - name: HTTP_PORT
+              value: "4010"
+            - name: GRPC_PORT
+              value: "5010"
+            - name: OTEL_SERVICE_NAME
+              value: gridtokenx-iam-service
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: platform-secrets
+                  key: POSTGRES_PASSWORD
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: platform-secrets
+                  key: REDIS_PASSWORD
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: platform-secrets
+                  key: JWT_SECRET
+            - name: API_KEY_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: platform-secrets
+                  key: API_KEY_SECRET
+            - name: HMAC_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: platform-secrets
+                  key: HMAC_SECRET
+            - name: ENCRYPTION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: platform-secrets
+                  key: ENCRYPTION_SECRET
+            - name: RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: platform-secrets
+                  key: RABBITMQ_PASSWORD
+            - name: ENGINEERING_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: platform-secrets
+                  key: ENGINEERING_API_KEY
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 4010
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 4010
+            initialDelaySeconds: 10
+            periodSeconds: 5
+      terminationGracePeriodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: iam-service
+  namespace: gridtokenx
+  labels:
+    app: iam-service
+spec:
+  selector:
+    app: iam-service
+  ports:
+    - port: 4010
+      targetPort: 4010
+      name: http
+    - port: 5010
+      targetPort: 5010
+      name: grpc
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: iam-service
+  namespace: gridtokenx
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: iam-service
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: iam-service
+  namespace: gridtokenx
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: iam-service

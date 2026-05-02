@@ -10,6 +10,20 @@ distributor:
 
 storage:
   trace:
-    backend: local
+    backend: s3
+    s3:
+      bucket: tempo-data
+      endpoint: minio:9000
+      access_key: minioadmin
+      secret_key: minio_secret_2025
+      insecure: true
+      forcepathstyle: true
+    wal:
+      path: /var/tempo/wal
     local:
       path: /var/tempo/blocks
+
+compactor:
+  compaction:
+    block_retention: 8760h # 1 year for compliance
+    compacted_block_retention: 1h

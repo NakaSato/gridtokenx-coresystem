@@ -24,7 +24,7 @@ All dashboards have been **automatically generated** and are **pre-configured** 
 ## 🎯 Access Your Dashboards
 
 ### 1. Open Grafana
-**URL:** http://localhost:3001  
+**URL:** http://localhost:6002  
 **Login:** admin / admin
 
 ### 2. View Dashboards
@@ -33,12 +33,12 @@ All dashboards have been **automatically generated** and are **pre-configured** 
 - Click any dashboard to view it
 
 ### 3. Direct Links
-- [Platform Overview](http://localhost:3001/d/grafana-platform-overview/gridtokenx-platform-overview)
-- [API Performance](http://localhost:3001/d/grafana-api-performance/gridtokenx-api-performance)
-- [Trading Operations](http://localhost:3001/d/grafana-trading-operations/gridtokenx-trading-operations)
-- [Infrastructure](http://localhost:3001/d/grafana-infrastructure/gridtokenx-infrastructure)
-- [Blockchain Monitor](http://localhost:3001/d/grafana-blockchain-monitor/gridtokenx-blockchain-monitor)
-- [IAM Service](http://localhost:3001/d/grafana-iam-service-monitor/gridtokenx-iam-service-monitor)
+- [Platform Overview](http://localhost:6002/d/grafana-platform-overview/gridtokenx-platform-overview)
+- [API Performance](http://localhost:6002/d/grafana-api-performance/gridtokenx-api-performance)
+- [Trading Operations](http://localhost:6002/d/grafana-trading-operations/gridtokenx-trading-operations)
+- [Infrastructure](http://localhost:6002/d/grafana-infrastructure/gridtokenx-infrastructure)
+- [Blockchain Monitor](http://localhost:6002/d/grafana-blockchain-monitor/gridtokenx-blockchain-monitor)
+- [IAM Service](http://localhost:6002/d/grafana-iam-service-monitor/gridtokenx-iam-service-monitor)
 
 ---
 
@@ -235,8 +235,8 @@ Dashboards pull metrics from:
 | Source | Endpoint | Metrics |
 |--------|----------|---------|
 | API Gateway | `:4001/metrics` | HTTP requests, latency, errors |
-| IAM Service | `:8090/metrics` | Auth requests, sessions |
-| Trading Service | `:8093/metrics` | Orders, matching, settlements |
+| IAM Service | `:5010/metrics` | Auth requests, sessions |
+| Trading Service | `:4020/metrics` | Orders, matching, settlements |
 | PostgreSQL Exporter | `:9187` | Connections, queries, cache |
 | Redis Exporter | `:9121` | Memory, operations, clients |
 | Kafka Exporter | `:9308` | Messages, topics, consumer lag |
@@ -279,5 +279,5 @@ Your Grafana instance is now running with **6 comprehensive dashboards** that mi
 
 ---
 
-**Open Grafana now:** http://localhost:3001  
+**Open Grafana now:** http://localhost:6002  
 **Navigate to:** Dashboards → GridTokenX folder

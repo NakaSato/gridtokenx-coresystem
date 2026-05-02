@@ -1,0 +1,30 @@
+name: Istio Security Analysis
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+  workflow_dispatch:
+
+jobs:
+  istio-analyze:
+    name: Analyze Istio Policies
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install istioctl
+        run: |
+          ISTIO_VERSION=$(curl -sL https://api.github.com/repos/istio/istio/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+          curl -L https://istio.io/downloadIstio | ISTIO_VERSION=$ISTIO_VERSION sh -
+          echo "Downloaded Istio $ISTIO_VERSION"
+          cp istio-${ISTIO_VERSION}/bin/istioctl /usr/local/bin/
+          istioctl version --remote=false
+
+      - name: Validate Istio Policies
+        run: |
+          # Analyze all policies in the infra directory
+          # We use --all-namespaces since our policies are namespaced to gridtokenx-prod
+          istioctl analyze infra/istio/policies/ --recursive

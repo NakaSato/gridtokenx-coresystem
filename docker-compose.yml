@@ -137,6 +137,28 @@ services:
       timeout: 3s
       retries: 5
 
+  # MinIO - Local S3 Simulation for Long-Term Retention
+  minio:
+    image: minio/minio:latest
+    container_name: gridtokenx-minio
+    ports:
+      - "9005:9000" # API
+      - "9006:9001" # Console
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minio_secret_2025
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - gridtokenx-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
   # InfluxDB Time Series Database
   influxdb:
     image: influxdb:2.7-alpine
@@ -277,16 +299,22 @@ services:
   clickhouse:
     image: clickhouse/clickhouse-server:24.3-alpine
     container_name: gridtokenx-clickhouse
+    environment:
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-gridtokenx}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-clickhouse_secret_2025}
+      CLICKHOUSE_DB: ${CLICKHOUSE_DB:-gridtokenx}
+      CLICKHOUSE_LISTEN_HOST: 0.0.0.0
     ports:
       - "${CLICKHOUSE_PORT:-7030}:8123"
       - "7031:9000"
     volumes:
       - clickhouse_data:/var/lib/clickhouse
+      - ./docker/clickhouse/listen_host.xml:/etc/clickhouse-server/config.d/listen_host.xml
     networks:
       - gridtokenx-network
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8123/ping" ]
+      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8123/ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -312,6 +340,7 @@ services:
       - rabbitmq_data:/var/lib/rabbitmq
       - ./docker/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
       - ./docker/rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
+      - ./docker/rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
     networks:
       - gridtokenx-network
     restart: unless-stopped
@@ -371,15 +400,17 @@ services:
       - "${IAM_HTTP_PORT:-4010}:8080"
       - "${IAM_GRPC_PORT:-5010}:8090"
     environment:
-      DATABASE_URL: ${IAM_DATABASE_URL}
+      DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@postgres:5432/gridtokenx
       REDIS_URL: redis://redis:6379
       KAFKA_CMD_BROKERS: kafka-cmd:9001
       KAFKA_MARKET_BROKERS: kafka-market:9002
       KAFKA_AUDIT_BROKERS: kafka-audit:9003
-      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_URL: http://${CLICKHOUSE_USER:-gridtokenx}:${CLICKHOUSE_PASSWORD:-clickhouse_secret_2025}@clickhouse:8123/${CLICKHOUSE_DB:-gridtokenx}
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-gridtokenx}:${RABBITMQ_DEFAULT_PASS:-rabbitmq_secret_2025}@rabbitmq:5672
+      IAM_PORT: 8080
+      IAM_GRPC_PORT: 8090
       PORT: 8080
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://gridtokenx-otel-gateway:4317
       OTEL_SERVICE_NAME: gridtokenx-iam-service
       OTEL_ENABLED: ${OTEL_ENABLED:-true}
       OTEL_RESOURCE_ATTRIBUTES: deployment.environment=${ENVIRONMENT:-development}
@@ -388,6 +419,12 @@ services:
       RUST_LOG: ${RUST_LOG:-info}
       ENCRYPTION_SECRET: ${ENCRYPTION_SECRET}
       API_KEY_SECRET: ${API_KEY_SECRET}
+      CHAIN_BRIDGE_URL: ${CHAIN_BRIDGE_URL:-http://host.orbstack.local:5040}
+      CHAIN_BRIDGE_INSECURE: "true"
+      SOLANA_CLUSTER: ${SOLANA_CLUSTER:-localnet}
+      AUTHORITY_WALLET_PATH: /app/dev-wallet.json
+    volumes:
+      - ./infra/solana/dev-wallet.json:/app/dev-wallet.json
     depends_on:
       postgres:
         condition: service_healthy
@@ -415,21 +452,24 @@ services:
     volumes:
       - ./infra/solana/dev-wallet.json:/app/dev-wallet.json
     environment:
-      DATABASE_URL: ${TRADING_DATABASE_URL}
+      DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@postgres:5432/gridtokenx
       REDIS_URL: redis://redis:6379
       KAFKA_CMD_BROKERS: kafka-cmd:9001
       KAFKA_MARKET_BROKERS: kafka-market:9002
       KAFKA_AUDIT_BROKERS: kafka-audit:9003
-      CLICKHOUSE_URL: http://clickhouse:8123
+      KAFKA_BROKERS: kafka-cmd:9001
+      CLICKHOUSE_URL: http://${CLICKHOUSE_USER:-gridtokenx}:${CLICKHOUSE_PASSWORD:-clickhouse_secret_2025}@clickhouse:8123/${CLICKHOUSE_DB:-gridtokenx}
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-gridtokenx}:${RABBITMQ_DEFAULT_PASS:-rabbitmq_secret_2025}@rabbitmq:5672
       RUST_LOG: ${RUST_LOG:-info}
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://gridtokenx-otel-gateway:4317
       OTEL_SERVICE_NAME: gridtokenx-trading-service
       OTEL_ENABLED: ${OTEL_ENABLED:-true}
       OTEL_RESOURCE_ATTRIBUTES: deployment.environment=${ENVIRONMENT:-development}
       JWT_SECRET: ${JWT_SECRET}
       ENCRYPTION_SECRET: ${ENCRYPTION_SECRET}
       SOLANA_RPC_URL: ${SOLANA_RPC_URL:-http://host.orbstack.local:8001}
+      CHAIN_BRIDGE_URL: ${CHAIN_BRIDGE_URL:-http://host.orbstack.local:5040}
+      CHAIN_BRIDGE_INSECURE: "true"
       SOLANA_WS_URL: ${SOLANA_WS_URL:-ws://host.orbstack.local:8002}
       SOLANA_CLUSTER: ${SOLANA_CLUSTER:-localnet}
       SOLANA_REGISTRY_PROGRAM_ID: ${SOLANA_REGISTRY_PROGRAM_ID}
@@ -438,6 +478,7 @@ services:
       SOLANA_GOVERNANCE_PROGRAM_ID: ${SOLANA_GOVERNANCE_PROGRAM_ID}
       SOLANA_ENERGY_TOKEN_PROGRAM_ID: ${SOLANA_ENERGY_TOKEN_PROGRAM_ID}
       ENERGY_TOKEN_MINT: ${ENERGY_TOKEN_MINT}
+      AUTHORITY_WALLET_PATH: /app/dev-wallet.json
       AES_KEY_BASE64: ${AES_KEY_BASE64}
       PAYER_PRIVATE_KEY: ${PAYER_PRIVATE_KEY}
     depends_on:
@@ -465,13 +506,15 @@ services:
       KAFKA_CMD_BROKERS: kafka-cmd:9001
       KAFKA_MARKET_BROKERS: kafka-market:9002
       KAFKA_AUDIT_BROKERS: kafka-audit:9003
-      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_URL: http://${CLICKHOUSE_USER:-gridtokenx}:${CLICKHOUSE_PASSWORD:-clickhouse_secret_2025}@clickhouse:8123/${CLICKHOUSE_DB:-gridtokenx}
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-gridtokenx}:${RABBITMQ_DEFAULT_PASS:-rabbitmq_secret_2025}@rabbitmq:5672
-      API_SERVICES_URL: http://apisix:4001
-      IOT_GATEWAY_PORT: 4010
-      IAM_SERVICE_URL: http://iam-service:8080
-      GRIDTOKENX_API_KEYS: ${ENGINEERING_API_KEY:-engineering-department-api-key-2025}
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@postgres:5432/gridtokenx
+      TRADING_DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@postgres:5432/gridtokenx
+      API_GATEWAY_URL: http://apisix:9080
+      IAM_GRPC_URL: http://iam-service:8090
+      TRADING_GRPC_URL: http://trading-service:8092
+      GRIDTOKENX_API_KEYS: ${ENGINEERING_API_KEY:-engineering-department-api-key-2025},e2e-test-key
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://gridtokenx-otel-gateway:4317
       OTEL_SERVICE_NAME: gridtokenx-oracle-bridge
       OTEL_ENABLED: ${OTEL_ENABLED:-true}
       OTEL_RESOURCE_ATTRIBUTES: deployment.environment=${ENVIRONMENT:-development}
@@ -495,14 +538,17 @@ services:
       - "${NOTI_GRPC_PORT:-5060}:8090"
       - "${NOTI_GRPC_PORT:-5060}:8090/udp"
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-gridtokenx}:${POSTGRES_PASSWORD:-postgres_secret_2025}@postgres:5432/gridtokenx_noti
+      DATABASE_URL: postgres://gridtokenx_user:gridtokenx_password@postgres:5432/gridtokenx_noti
       REDIS_URL: redis://redis:6379
       KAFKA_BROKERS: kafka-cmd:9001
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-gridtokenx}:${RABBITMQ_DEFAULT_PASS:-rabbitmq_secret_2025}@rabbitmq:5672
       PORT: 8080
       RUST_LOG: debug
-      CERT_FILE: infra/certs/server.crt
-      KEY_FILE: infra/certs/server.key
+      CERT_FILE: /app/infra/certs/server.crt
+      KEY_FILE: /app/infra/certs/server.key
+    volumes:
+      - ./infra/certs/server.crt:/app/infra/certs/server.crt:ro
+      - ./infra/certs/server.key:/app/infra/certs/server.key:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -519,6 +565,33 @@ services:
       timeout: 10s
       retries: 3
       start_period: 15s
+
+  # Agent Trade Service (Algorithmic Trading)
+  agent-trade:
+    build:
+      context: ./
+      dockerfile: gridtokenx-agent-trade/Dockerfile
+    container_name: gridtokenx-agent-trade
+    environment:
+      DATABASE_URL: sqlite:///app/data/agent.db
+      RUST_LOG: ${RUST_LOG:-info}
+      KAFKA_MARKET_BROKERS: kafka-market:9002
+      KAFKA_CMD_BROKERS: kafka-cmd:9001
+      IAM_GRPC_URL: http://iam-service:8090
+      TRADING_GRPC_URL: http://trading-service:8092
+      BINANCE_API_KEY: ${BINANCE_API_KEY}
+      BINANCE_SECRET_KEY: ${BINANCE_SECRET_KEY}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://gridtokenx-otel-gateway:4317
+      OTEL_SERVICE_NAME: gridtokenx-agent-trade
+    volumes:
+      - agent_trade_data:/app/data
+    depends_on:
+      - kafka-market
+      - iam-service
+      - trading-service
+    networks:
+      - gridtokenx-network
+    restart: unless-stopped
 
   # Trading Platform (Next.js)
   trading-ui:
@@ -573,18 +646,20 @@ services:
     environment:
       TZ: ${TZ}
       PORT: 8080 # Internally 8080, externally mapped to ${SMARTMETER_PORT} (12010)
-      LOG_LEVEL: ${LOG_LEVEL}
+      LOG_LEVEL: DEBUG
+      PYTHONPATH: /app:/app/src
+      AUTOSTART_SIMULATION: "true"
       KAFKA_CMD_BROKERS: kafka-cmd:9001
       KAFKA_MARKET_BROKERS: kafka-market:9002
       KAFKA_AUDIT_BROKERS: kafka-audit:9003
-      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_URL: http://${CLICKHOUSE_USER:-gridtokenx}:${CLICKHOUSE_PASSWORD:-clickhouse_secret_2025}@clickhouse:8123/${CLICKHOUSE_DB:-gridtokenx}
       INFLUXDB_URL: http://influxdb:8086
-      INFLUXDB_TOKEN: ${INFLUXDB_TOKEN}
+      INFLUXDB_TOKEN: your-influxdb-token
       INFLUXDB_ORG: ${INFLUXDB_ORG}
       INFLUXDB_BUCKET: ${INFLUXDB_BUCKET}
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@postgres:5432/gridtokenx
       API_SERVICES_URL: ${API_SERVICES_URL}
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://gridtokenx-otel-gateway:4317
       OTEL_SERVICE_NAME: gridtokenx-smartmeter-simulator
       OTEL_ENABLED: ${OTEL_ENABLED:-true}
       OTEL_RESOURCE_ATTRIBUTES: deployment.environment=${ENVIRONMENT:-development}
@@ -610,7 +685,7 @@ services:
   # Smart Meter Simulator UI (React/Vite)
   smartmeter-ui:
     build:
-      context: ./gridtokenx-smartmeter-simulator/ui
+      context: ./gridtokenx-smartmeter-simulator/frontend
       dockerfile: Dockerfile
     container_name: gridtokenx-smartmeter-ui
     ports:
@@ -797,21 +872,34 @@ services:
       retries: 3
       start_period: 30s
 
-  # OTEL Collector (Ingestion Agent)
-  otel-collector:
+  # OTEL Collector - Agent (Node-level collection)
+  otel-agent:
     image: otel/opentelemetry-collector-contrib:0.100.0
-    container_name: gridtokenx-otel-collector
-    command: [ "--config", "/etc/otel-collector-config.yaml" ]
+    container_name: gridtokenx-otel-agent
+    user: "0:0"
+    command: [ "--config", "/etc/otel-agent-config.yaml" ]
     volumes:
-      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+      - ./otel-agent-config.yaml:/etc/otel-agent-config.yaml:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /:/hostfs:ro
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    networks:
+      - gridtokenx-network
+    depends_on:
+      - otel-gateway
+    restart: unless-stopped
+
+  # OTEL Collector - Gateway (Central processing & routing)
+  otel-gateway:
+    image: otel/opentelemetry-collector-contrib:0.100.0
+    container_name: gridtokenx-otel-gateway
+    command: [ "--config", "/etc/otel-gateway-config.yaml" ]
+    volumes:
+      - ./otel-gateway-config.yaml:/etc/otel-gateway-config.yaml:ro
     ports:
-      - "${OTEL_COLLECTOR_GRPC_PORT:-6006}:4317" # OTLP gRPC receiver
-      - "${OTEL_COLLECTOR_HTTP_PORT:-6007}:4318" # OTLP HTTP receiver
-      - "8888:8888" # Monitoring metrics
-      - "13133:13133" # Health check
+      - "4317:4317" # OTLP gRPC
+      - "4318:4318" # OTLP HTTP
+      - "8888:8888" # Metrics
     networks:
       - gridtokenx-network
     depends_on:
@@ -880,5 +968,7 @@ volumes:
   rabbitmq_data:
   loki_data:
   tempo_data:
+  minio_data:
   prometheus_data:
   grafana_data:
+  agent_trade_data:

@@ -1,52 +1,88 @@
 #!/usr/bin/env nu
-# GridTokenX Development Helper Script
+# GridTokenX Development Helper Script (Nushell)
+
+const PROJECT_ROOT = "/Users/chanthawat/Developments/gridtokenx-coresystem"
+
+# --- Core Commands ---
 
 def "grx check" [] {
-    cd /Users/chanthawat/Developments/gridtokenx-platform-infa/gridtokenx-api
-    cargo check
+    print "🔍 Checking all microservices..."
+    cd $PROJECT_ROOT
+    just check-all
 }
 
 def "grx build" [] {
-    cd /Users/chanthawat/Developments/gridtokenx-platform-infa/gridtokenx-api
-    cargo build
+    print "🔨 Building all binaries..."
+    cd $PROJECT_ROOT
+    just build-all
 }
 
 def "grx test" [] {
-    cd /Users/chanthawat/Developments/gridtokenx-platform-infa/gridtokenx-api
-    cargo test
+    print "🧪 Running all tests..."
+    cd $PROJECT_ROOT
+    just test
 }
 
 def "grx migrate" [] {
-    cd /Users/chanthawat/Developments/gridtokenx-platform-infa/gridtokenx-api
-    sqlx migrate run
+    print "🗄️ Running database migrations..."
+    cd $PROJECT_ROOT
+    just migrate
+    just noti-migrate
 }
 
+# --- Infrastructure Commands ---
+
 def "grx db-up" [] {
-    cd /Users/chanthawat/Developments/gridtokenx-platform-infa
-    docker compose up -d postgres
+    print "🐳 Starting PostgreSQL..."
+    cd $PROJECT_ROOT
+    just db-up
 }
 
 def "grx db-down" [] {
-    cd /Users/chanthawat/Developments/gridtokenx-platform-infa
-    docker compose down postgres
+    print "🛑 Stopping PostgreSQL..."
+    cd $PROJECT_ROOT
+    just db-down
 }
 
 def "grx orb-up" [] {
-    cd /Users/chanthawat/Developments/gridtokenx-platform-infa
-    docker compose up -d
+    print "🌩️ Starting all OrbStack services..."
+    cd $PROJECT_ROOT
+    just orb-up
 }
 
 def "grx orb-down" [] {
-    cd /Users/chanthawat/Developments/gridtokenx-platform-infa
-    docker compose down
+    print "🛑 Stopping all OrbStack services..."
+    cd $PROJECT_ROOT
+    just orb-down
 }
 
-def "grx prepare" [] {
-    cd /Users/chanthawat/Developments/gridtokenx-platform-infa/gridtokenx-api
-    cargo sqlx prepare
+# --- Execution Commands ---
+
+def "grx run-native" [] {
+    print "🚀 Starting all services natively (background)..."
+    cd $PROJECT_ROOT
+    bash ./scripts/app.sh start --native-apps
 }
 
-# Main entry point
+def "grx stop" [] {
+    print "🛑 Stopping all services..."
+    cd $PROJECT_ROOT
+    bash ./scripts/app.sh stop
+}
+
+def "grx status" [] {
+    cd $PROJECT_ROOT
+    bash ./scripts/app.sh status
+}
+
+def "grx verify-reg" [] {
+    print "🏆 Verifying Registration E2E Flow..."
+    cd $PROJECT_ROOT
+    bash ./scripts/test-registration-e2e.sh
+}
+
+# --- Main Entry Point ---
+
 def main [cmd?: string] {
     match $cmd {
         "check" => { grx check }
@@ -57,20 +93,26 @@ def main [cmd?: string] {
         "db-down" => { grx db-down }
         "orb-up" => { grx orb-up }
         "orb-down" => { grx orb-down }
-        "prepare" => { grx prepare }
+        "run-native" => { grx run-native }
+        "stop" => { grx stop }
+        "status" => { grx status }
+        "verify-reg" => { grx verify-reg }
         _ => {
-            echo "Usage: grx <command>"
-            echo ""
-            echo "Commands:"
-            echo "  check    - Run cargo check"
-            echo "  build    - Run cargo build"
-            echo "  test     - Run cargo test"
-            echo "  migrate  - Run sqlx migrate"
-            echo "  db-up    - Start PostgreSQL (OrbStack)"
-            echo "  db-down  - Stop PostgreSQL"
-            echo "  orb-up   - Start all OrbStack services"
-            echo "  orb-down - Stop all OrbStack services"
-            echo "  prepare  - Prepare sqlx offline queries"
+            print "Usage: grx <command>"
+            print ""
+            print "Commands:"
+            print "  check       - Run cargo check on all services"
+            print "  build       - Build all binaries"
+            print "  test        - Run all tests"
+            print "  migrate     - Run database migrations"
+            print "  db-up       - Start PostgreSQL (OrbStack)"
+            print "  db-down     - Stop PostgreSQL"
+            print "  orb-up      - Start all OrbStack services"
+            print "  orb-down    - Stop all OrbStack services"
+            print "  run-native  - Start services natively (background)"
+            print "  stop        - Stop all services"
+            print "  status      - Check service status"
+            print "  verify-reg  - Run Registration E2E verification"
         }
     }
 }

@@ -1,9 +1,0 @@
-{
-  "test_name": "HFT Throughput",
-  "timestamp": "2026-04-04T15:47:48Z",
-  "tps": 14.12,
-  "duration": 35.403728000,
-  "total_orders": 500,
-  "success": 500,
-  "failed": 0
-}

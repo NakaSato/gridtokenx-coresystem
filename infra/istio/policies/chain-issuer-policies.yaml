@@ -1,0 +1,46 @@
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: chain-bridge-allow
+  namespace: gridtokenx-prod
+spec:
+  selector:
+    matchLabels:
+      app: chain-bridge
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        # Enumerate all services allowed to initiate on-chain actions
+        principals: 
+        - "spiffe://gridtokenx.th/prod/trading-service/api"
+        - "spiffe://gridtokenx.th/prod/trading-service/matcher"
+        - "spiffe://gridtokenx.th/prod/oracle-bridge"
+        - "spiffe://gridtokenx.th/prod/mint-service"
+        - "spiffe://gridtokenx.th/prod/burn-service"
+        - "spiffe://gridtokenx.th/prod/reserve-service"
+        - "spiffe://gridtokenx.th/prod/reporting-service"
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: gthb-issuer-domain-allow
+  namespace: gridtokenx-prod
+spec:
+  selector:
+    matchLabels:
+      domain: issuer
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        # Mint Service inbound triggers
+        principals: ["spiffe://gridtokenx.th/prod/apisix", "spiffe://gridtokenx.th/prod/treasury-service"]
+    to:
+    - operation:
+        methods: ["POST"]
+        paths: ["/v1/mint/*"]
+  - from:
+    - source:
+        # Treasury Service inbound
+        principals: ["spiffe://gridtokenx.th/prod/mint-service", "spiffe://gridtokenx.th/prod/burn-service", "spiffe://gridtokenx.th/prod/reconciliation-service"]

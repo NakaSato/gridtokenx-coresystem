@@ -1,0 +1,54 @@
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: iam-service-read-allow
+  namespace: gridtokenx-prod
+spec:
+  selector:
+    matchLabels:
+      app: iam-service
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        # Broad read access for user context resolution
+        principals: ["*"] 
+    to:
+    - operation:
+        methods: ["GET", "POST"]
+        paths: ["/v1/users/lookup*", "/v1/auth/validate*"]
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: iam-service-write-allow
+  namespace: gridtokenx-prod
+spec:
+  selector:
+    matchLabels:
+      app: iam-service
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        # Restricted write operations
+        principals: ["spiffe://gridtokenx.th/prod/apisix", "spiffe://gridtokenx.th/prod/compliance-service"]
+    to:
+    - operation:
+        methods: ["PUT", "PATCH", "POST"]
+        paths: ["/v1/users/*", "/v1/account/*"]
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: compliance-service-allow
+  namespace: gridtokenx-prod
+spec:
+  selector:
+    matchLabels:
+      app: compliance-service
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        principals: ["spiffe://gridtokenx.th/prod/mint-service", "spiffe://gridtokenx.th/prod/burn-service", "spiffe://gridtokenx.th/prod/apisix"]

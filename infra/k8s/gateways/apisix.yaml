@@ -1,0 +1,205 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: apisix-config
+  namespace: gridtokenx
+data:
+  config.yaml: |
+    apisix:
+      node_listen: 9080
+      enable_heartbeat: true
+      enable_admin: true
+      enable_admin_cors: true
+      admin_key:
+        - name: admin
+          key: CHANGE_ME_apisix_admin_key
+          role: admin
+      allow_admin:
+        - 0.0.0.0/0   # Restrict in production
+
+    deployment:
+      admin:
+        admin_listen:
+          ip: 0.0.0.0
+          port: 9180
+      role: traditional
+      role_traditional:
+        config_provider: yaml
+      etcd:
+        host:
+          - "http://apisix-etcd.gridtokenx.svc.cluster.local:2379"
+        prefix: /apisix
+
+    nginx_config:
+      error_log_level: warn
+      http:
+        enable_access_log: true
+        keepalive_timeout: 60s
+        client_header_timeout: 60s
+        client_body_timeout: 60s
+
+    plugin_attr:
+      prometheus:
+        export_uri: /apisix/prometheus/metrics
+        enable_export_server: false
+
+  routes.yaml: |
+    routes:
+      # IAM routes
+      - uri: /api/v1/auth/*
+        name: iam-auth
+        methods: [GET, POST, PUT, DELETE, OPTIONS]
+        upstream_id: iam-upstream
+        plugins:
+          cors: {}
+          prometheus: {}
+
+      - uri: /api/v1/users/*
+        name: iam-users
+        methods: [GET, POST, PUT, DELETE, OPTIONS]
+        upstream_id: iam-upstream
+        plugins:
+          cors: {}
+          jwt-auth: {}
+          prometheus: {}
+
+      # Trading routes
+      - uri: /api/v1/orders/*
+        name: trading-orders
+        methods: [GET, POST, PUT, DELETE, OPTIONS]
+        upstream_id: trading-upstream
+        plugins:
+          cors: {}
+          jwt-auth: {}
+          prometheus: {}
+          limit-req:
+            rate: 100
+            burst: 50
+            key: consumer_name
+
+      - uri: /api/v1/trades/*
+        name: trading-trades
+        methods: [GET, OPTIONS]
+        upstream_id: trading-upstream
+        plugins:
+          cors: {}
+          jwt-auth: {}
+          prometheus: {}
+
+      - uri: /api/v1/market/*
+        name: trading-market
+        methods: [GET, OPTIONS]
+        upstream_id: trading-upstream
+        plugins:
+          cors: {}
+          prometheus: {}
+
+      - uri: /api/v1/settlements/*
+        name: trading-settlements
+        methods: [GET, POST, OPTIONS]
+        upstream_id: trading-upstream
+        plugins:
+          cors: {}
+          jwt-auth: {}
+          prometheus: {}
+
+    upstreams:
+      - id: iam-upstream
+        name: iam-service
+        type: roundrobin
+        nodes:
+          "iam-service.gridtokenx.svc.cluster.local:4010": 1
+
+      - id: trading-upstream
+        name: trading-service
+        type: roundrobin
+        nodes:
+          "trading-service.gridtokenx.svc.cluster.local:4020": 1
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: apisix
+  namespace: gridtokenx
+  labels:
+    app: apisix
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: apisix
+  template:
+    metadata:
+      labels:
+        app: apisix
+    spec:
+      containers:
+        - name: apisix
+          image: apache/apisix:3.9.0-debian
+          ports:
+            - containerPort: 9080
+              name: http
+            - containerPort: 9443
+              name: https
+            - containerPort: 9180
+              name: admin
+          volumeMounts:
+            - name: config
+              mountPath: /usr/local/apisix/conf/config.yaml
+              subPath: config.yaml
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /apisix/status
+              port: 9080
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /apisix/status
+              port: 9080
+            initialDelaySeconds: 10
+            periodSeconds: 5
+      volumes:
+        - name: config
+          configMap:
+            name: apisix-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: apisix
+  namespace: gridtokenx
+  labels:
+    app: apisix
+spec:
+  type: LoadBalancer
+  selector:
+    app: apisix
+  ports:
+    - port: 80
+      targetPort: 9080
+      name: http
+    - port: 443
+      targetPort: 9443
+      name: https
+    - port: 9180
+      targetPort: 9180
+      name: admin
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: apisix
+  namespace: gridtokenx
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: apisix
