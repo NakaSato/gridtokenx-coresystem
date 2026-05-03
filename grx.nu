@@ -30,6 +30,12 @@ def "grx migrate" [] {
     just noti-migrate
 }
 
+def "grx noti-migrate" [] {
+    print "🗄️ Running Noti Service database migrations..."
+    cd $PROJECT_ROOT
+    just noti-migrate
+}
+
 # --- Infrastructure Commands ---
 
 def "grx db-up" [] {
@@ -89,6 +95,7 @@ def main [cmd?: string] {
         "build" => { grx build }
         "test" => { grx test }
         "migrate" => { grx migrate }
+        "noti-migrate" => { grx noti-migrate }
         "db-up" => { grx db-up }
         "db-down" => { grx db-down }
         "orb-up" => { grx orb-up }
@@ -101,18 +108,19 @@ def main [cmd?: string] {
             print "Usage: grx <command>"
             print ""
             print "Commands:"
-            print "  check       - Run cargo check on all services"
-            print "  build       - Build all binaries"
-            print "  test        - Run all tests"
-            print "  migrate     - Run database migrations"
-            print "  db-up       - Start PostgreSQL (OrbStack)"
-            print "  db-down     - Stop PostgreSQL"
-            print "  orb-up      - Start all OrbStack services"
-            print "  orb-down    - Stop all OrbStack services"
-            print "  run-native  - Start services natively (background)"
-            print "  stop        - Stop all services"
-            print "  status      - Check service status"
-            print "  verify-reg  - Run Registration E2E verification"
+            print "  check         - Run cargo check on all services"
+            print "  build         - Build all binaries"
+            print "  test          - Run all tests"
+            print "  migrate       - Run all database migrations (IAM + Noti)"
+            print "  noti-migrate  - Run only Notification Service migrations"
+            print "  db-up         - Start PostgreSQL (OrbStack)"
+            print "  db-down       - Stop PostgreSQL"
+            print "  orb-up        - Start all OrbStack services"
+            print "  orb-down      - Stop all OrbStack services"
+            print "  run-native    - Start services natively (background)"
+            print "  stop          - Stop all services"
+            print "  status        - Check service status"
+            print "  verify-reg    - Run Registration E2E verification"
         }
     }
 }

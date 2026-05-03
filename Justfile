@@ -71,6 +71,14 @@ noti-migrate:
 noti-migrate-new name:
     (cd gridtokenx-noti-service; sqlx migrate add {{name}})
 
+# Revert last Notification migration
+noti-migrate-revert:
+    (cd gridtokenx-noti-service; sqlx migrate revert)
+
+# Check database migration status (Notification)
+noti-migrate-info:
+    (cd gridtokenx-noti-service; sqlx migrate info)
+
 # Start PostgreSQL (OrbStack)
 db-up:
     docker compose up -d postgres
