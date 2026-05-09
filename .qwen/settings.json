@@ -44,8 +44,20 @@
       "Bash(rmdir *)",
       "Bash(true)",
       "Bash(chmod *)",
-      "Bash(./scripts/migrate-ports.sh *)"
+      "Bash(./scripts/migrate-ports.sh *)",
+      "Bash(just *)",
+      "Bash(sqlx *)",
+      "Bash(cargo test)",
+      "Bash(cargo clippy *)",
+      "Monitor(do *)",
+      "Monitor(break)",
+      "Monitor(sleep *)",
+      "Monitor(done)",
+      "Bash(tr *)",
+      "Bash(./test-iam-apisix.sh)",
+      "Bash(bash *)",
+      "Bash(file *)"
     ]
   },
-  "$version": 3
+  "$version": 4
 }

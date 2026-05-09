@@ -381,16 +381,12 @@ gridtokenx-coresystem/
 
 Detailed specifications are located in the `/docs` directory:
 
--   [Platform Design (Full Specification)](docs/PLATFORM_DESIGN.md)
+-   [National Control Plane Design](docs/National.md)
 -   [System Architecture & Diagrams](docs/architecture/specs/system-architecture.md)
--   [Codebase Architecture](docs/architecture/CODEBASE_ARCHITECTURE.md)
--   [API Services Architecture](docs/architecture/services/API_SERVICES_ARCHITECTURE.md)
--   [IAM & Security Model](docs/architecture/services/IAM_SERVICE_ARCHITECTURE.md)
--   [Trading Service Deep Dive](docs/architecture/services/TRADING_SERVICE_ARCHITECTURE.md)
--   [Oracle Bridge & IoT Pipeline](docs/architecture/services/ORACLE_BRIDGE_ARCHITECTURE.md)
--   [Oracle Bridge Grid Protocol](docs/architecture/services/ORACLE_BRIDGE_GRID_PROTOCOL.md)
+-   [gTHB Issuer Service Spec](docs/gTHB_ISSUER_SERVICE.md)
+-   [Surfpool Node Specification](docs/SURFPOOL.md)
+-   [Platform Documentation Overview](docs/Overview.md)
 -   [Academic Documentation (Thesis & Research)](docs/academic/README.md)
--   [Messaging Architecture (Hybrid)](docs/architecture/messaging/HYBRID_MESSAGING_ARCHITECTURE.md)
 -   [OrbStack Migration Guide](docs/ORBSTACK_MIGRATION.md)
 
 ---

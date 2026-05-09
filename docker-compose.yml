@@ -60,7 +60,7 @@ services:
         reservations:
           memory: 1G
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER}" ]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -75,7 +75,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       PRIMARY_HOST: postgres
       TZ: ${TZ}
-    entrypoint: [ "/bin/sh", "/scripts/init-replica.sh" ]
+    entrypoint: ["/bin/sh", "/scripts/init-replica.sh"]
     ports:
       - "${POSTGRES_REPLICA_PORT:-7002}:5432"
     volumes:
@@ -93,7 +93,7 @@ services:
         reservations:
           memory: 1G
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER}" ]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -111,7 +111,7 @@ services:
     networks:
       - gridtokenx-network
     healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 3s
       retries: 5
@@ -132,7 +132,7 @@ services:
     depends_on:
       - redis
     healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 3s
       retries: 5
@@ -215,7 +215,11 @@ services:
       - gridtokenx-network
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9001 --list || exit 1" ]
+      test:
+        [
+          "CMD-SHELL",
+          "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9001 --list || exit 1",
+        ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -252,7 +256,11 @@ services:
       - gridtokenx-network
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9002 --list || exit 1" ]
+      test:
+        [
+          "CMD-SHELL",
+          "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9002 --list || exit 1",
+        ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -289,7 +297,11 @@ services:
       - gridtokenx-network
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9003 --list || exit 1" ]
+      test:
+        [
+          "CMD-SHELL",
+          "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9003 --list || exit 1",
+        ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -314,7 +326,15 @@ services:
       - gridtokenx-network
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8123/ping" ]
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--spider",
+          "http://127.0.0.1:8123/ping",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -340,12 +360,12 @@ services:
       - rabbitmq_data:/var/lib/rabbitmq
       - ./docker/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
       - ./docker/rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
-      - ./docker/rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
+    #      - ./docker/rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
     networks:
       - gridtokenx-network
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD-SHELL", "rabbitmq-diagnostics -q ping" ]
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -416,13 +436,20 @@ services:
       OTEL_RESOURCE_ATTRIBUTES: deployment.environment=${ENVIRONMENT:-development}
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRATION: ${JWT_EXPIRATION}
-      RUST_LOG: ${RUST_LOG:-info}
+      RUST_LOG: debug,librdkafka=warn
       ENCRYPTION_SECRET: ${ENCRYPTION_SECRET}
       API_KEY_SECRET: ${API_KEY_SECRET}
       CHAIN_BRIDGE_URL: ${CHAIN_BRIDGE_URL:-http://host.orbstack.local:5040}
       CHAIN_BRIDGE_INSECURE: "true"
       SOLANA_CLUSTER: ${SOLANA_CLUSTER:-localnet}
       AUTHORITY_WALLET_PATH: /app/dev-wallet.json
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+      SMTP_TLS_MODE: none
+      SMTP_FROM: noreply@gridtokenx.com
+      ENABLE_EMAIL_VERIFICATION: "true"
+      EMAIL_VERIFICATION_REQUIRED: "true"
+      EMAIL_VERIFICATION_BASE_URL: http://localhost:4000
     volumes:
       - ./infra/solana/dev-wallet.json:/app/dev-wallet.json
     depends_on:
@@ -460,7 +487,7 @@ services:
       KAFKA_BROKERS: kafka-cmd:9001
       CLICKHOUSE_URL: http://${CLICKHOUSE_USER:-gridtokenx}:${CLICKHOUSE_PASSWORD:-clickhouse_secret_2025}@clickhouse:8123/${CLICKHOUSE_DB:-gridtokenx}
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-gridtokenx}:${RABBITMQ_DEFAULT_PASS:-rabbitmq_secret_2025}@rabbitmq:5672
-      RUST_LOG: ${RUST_LOG:-info}
+      RUST_LOG: debug,librdkafka=warn
       OTEL_EXPORTER_OTLP_ENDPOINT: http://gridtokenx-otel-gateway:4317
       OTEL_SERVICE_NAME: gridtokenx-trading-service
       OTEL_ENABLED: ${OTEL_ENABLED:-true}
@@ -479,8 +506,16 @@ services:
       SOLANA_ENERGY_TOKEN_PROGRAM_ID: ${SOLANA_ENERGY_TOKEN_PROGRAM_ID}
       ENERGY_TOKEN_MINT: ${ENERGY_TOKEN_MINT}
       AUTHORITY_WALLET_PATH: /app/dev-wallet.json
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+      SMTP_TLS_MODE: none
+      SMTP_FROM: noreply@gridtokenx.com
+      ENABLE_EMAIL_VERIFICATION: "true"
+      EMAIL_VERIFICATION_REQUIRED: "true"
+      EMAIL_VERIFICATION_BASE_URL: http://localhost:4000
       AES_KEY_BASE64: ${AES_KEY_BASE64}
       PAYER_PRIVATE_KEY: ${PAYER_PRIVATE_KEY}
+      ORACLE_BRIDGE_PUBLIC_KEY: ${ORACLE_BRIDGE_PUBLIC_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -501,7 +536,7 @@ services:
     ports:
       - "${IOT_GATEWAY_PORT:-4030}:4010"
     environment:
-      RUST_LOG: ${RUST_LOG:-info}
+      RUST_LOG: debug,librdkafka=warn
       REDIS_URL: redis://redis:6379
       KAFKA_CMD_BROKERS: kafka-cmd:9001
       KAFKA_MARKET_BROKERS: kafka-market:9002
@@ -514,10 +549,14 @@ services:
       IAM_GRPC_URL: http://iam-service:8090
       TRADING_GRPC_URL: http://trading-service:8092
       GRIDTOKENX_API_KEYS: ${ENGINEERING_API_KEY:-engineering-department-api-key-2025},e2e-test-key
+      SETTLEMENT_API_URL: http://trading-service:8093
+      ORACLE_BRIDGE_SIGNING_KEY: /app/oracle-bridge-signing-key.bin
       OTEL_EXPORTER_OTLP_ENDPOINT: http://gridtokenx-otel-gateway:4317
       OTEL_SERVICE_NAME: gridtokenx-oracle-bridge
       OTEL_ENABLED: ${OTEL_ENABLED:-true}
       OTEL_RESOURCE_ATTRIBUTES: deployment.environment=${ENVIRONMENT:-development}
+    volumes:
+      - ./infra/oracle/signing-key.bin:/app/oracle-bridge-signing-key.bin:ro
     depends_on:
       redis:
         condition: service_healthy
@@ -544,6 +583,13 @@ services:
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-gridtokenx}:${RABBITMQ_DEFAULT_PASS:-rabbitmq_secret_2025}@rabbitmq:5672
       PORT: 8080
       RUST_LOG: debug
+      JWT_SECRET: ${JWT_SECRET}
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+      SMTP_TLS_MODE: none
+      SMTP_FROM: noreply@gridtokenx.com
+      EMAIL_FROM_NAME: GridTokenX
+      EMAIL_FROM_ADDRESS: noreply@gridtokenx.com
       CERT_FILE: /app/infra/certs/server.crt
       KEY_FILE: /app/infra/certs/server.key
     volumes:
@@ -574,7 +620,7 @@ services:
     container_name: gridtokenx-agent-trade
     environment:
       DATABASE_URL: sqlite:///app/data/agent.db
-      RUST_LOG: ${RUST_LOG:-info}
+      RUST_LOG: debug,librdkafka=warn
       KAFKA_MARKET_BROKERS: kafka-market:9002
       KAFKA_CMD_BROKERS: kafka-cmd:9001
       IAM_GRPC_URL: http://iam-service:8090
@@ -604,11 +650,24 @@ services:
     environment:
       NODE_ENV: ${NODE_ENV}
       TZ: ${TZ}
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4001}
       NEXT_PUBLIC_SOLANA_RPC_URL: ${NEXT_PUBLIC_SOLANA_RPC_URL}
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:4001}
       NEXT_PUBLIC_PYTH_PRICE_SERVICE_URL: ${NEXT_PUBLIC_PYTH_PRICE_SERVICE_URL}
+      NEXT_PUBLIC_MAPBOX_TOKEN: YOUR_MAPBOX_TOKEN_HERE
     networks:
       - gridtokenx-network
+    depends_on:
+      iam-service:
+        condition: service_healthy
+      trading-service:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
     restart: unless-stopped
 
   # Mailpit SMTP Server (Development Email Testing)
@@ -630,23 +689,28 @@ services:
       - gridtokenx-network
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8025/api/v1/info" ]
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--spider",
+          "http://localhost:8025/api/v1/info",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
-
   # Smart Meter Simulator (Python/FastAPI)
   smartmeter-simulator:
     build:
       context: ./gridtokenx-smartmeter-simulator
       dockerfile: Dockerfile
     container_name: gridtokenx-smartmeter-simulator
-    ports:
-      - "${SMARTMETER_PORT:-12010}:8080"
     environment:
       TZ: ${TZ}
-      PORT: 8080 # Internally 8080, externally mapped to ${SMARTMETER_PORT} (12010)
-      LOG_LEVEL: DEBUG
+      PORT: 8080
+      LOG_LEVEL: INFO
       PYTHONPATH: /app:/app/src
       AUTOSTART_SIMULATION: "true"
       KAFKA_CMD_BROKERS: kafka-cmd:9001
@@ -682,14 +746,14 @@ services:
       - gridtokenx-network
     restart: unless-stopped
 
-  # Smart Meter Simulator UI (React/Vite)
+  # Smart Meter Simulator UI (React/Next.js Static)
   smartmeter-ui:
     build:
       context: ./gridtokenx-smartmeter-simulator/frontend
       dockerfile: Dockerfile
     container_name: gridtokenx-smartmeter-ui
-    ports:
-      - "5173:80"
+    environment:
+      - NEXT_PUBLIC_SIMULATOR_URL=http://localhost:4001
     depends_on:
       - smartmeter-simulator
     networks:
@@ -713,7 +777,7 @@ services:
   tempo:
     image: grafana/tempo:2.6.0
     container_name: gridtokenx-tempo
-    command: [ "-config.file=/etc/tempo.yaml" ]
+    command: ["-config.file=/etc/tempo.yaml"]
     volumes:
       - ./docker/tempo/tempo.yaml:/etc/tempo.yaml:ro
       - tempo_data:/var/tempo
@@ -737,17 +801,25 @@ services:
       - prometheus_data:/prometheus
       - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
-      - '--web.console.templates=/usr/share/prometheus/consoles'
-      - '--web.enable-lifecycle'
-      - '--enable-feature=remote-write-receiver'
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+      - "--web.enable-lifecycle"
+      - "--enable-feature=remote-write-receiver"
     networks:
       - gridtokenx-network
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy" ]
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--spider",
+          "http://localhost:9090/-/healthy",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -787,7 +859,12 @@ services:
   kafka-exporter:
     image: danielqsj/kafka-exporter:latest
     container_name: gridtokenx-kafka-exporter
-    command: [ "--kafka.server=kafka-cmd:9001", "--kafka.server=kafka-market:9002", "--kafka.server=kafka-audit:9003" ]
+    command:
+      [
+        "--kafka.server=kafka-cmd:9001",
+        "--kafka.server=kafka-market:9002",
+        "--kafka.server=kafka-audit:9003",
+      ]
     ports:
       - "9308:9308"
     networks:
@@ -808,9 +885,9 @@ services:
     image: prom/node-exporter:latest
     container_name: gridtokenx-node-exporter
     command:
-      - '--path.rootfs=/host'
-      - '--path.procfs=/host/proc'
-      - '--path.sysfs=/host/sys'
+      - "--path.rootfs=/host"
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
     pid: host
     volumes:
       - /proc:/host/proc:ro
@@ -866,7 +943,15 @@ services:
         condition: service_started
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health" ]
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--spider",
+          "http://localhost:3000/api/health",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -877,7 +962,7 @@ services:
     image: otel/opentelemetry-collector-contrib:0.100.0
     container_name: gridtokenx-otel-agent
     user: "0:0"
-    command: [ "--config", "/etc/otel-agent-config.yaml" ]
+    command: ["--config", "/etc/otel-agent-config.yaml"]
     volumes:
       - ./otel-agent-config.yaml:/etc/otel-agent-config.yaml:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -893,7 +978,7 @@ services:
   otel-gateway:
     image: otel/opentelemetry-collector-contrib:0.100.0
     container_name: gridtokenx-otel-gateway
-    command: [ "--config", "/etc/otel-gateway-config.yaml" ]
+    command: ["--config", "/etc/otel-gateway-config.yaml"]
     volumes:
       - ./otel-gateway-config.yaml:/etc/otel-gateway-config.yaml:ro
     ports:
@@ -924,7 +1009,8 @@ services:
       - gridtokenx-network
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD", "wget", "--spider", "-q", "http://127.0.0.0:8200/v1/sys/health" ]
+      test:
+        ["CMD", "wget", "--spider", "-q", "http://127.0.0.0:8200/v1/sys/health"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -937,7 +1023,7 @@ services:
       - "${KAFKA_SCHEMA_REGISTRY_PORT:-9010}:8081"
     environment:
       SCHEMA_REGISTRY_HOST_NAME: schema-registry
-      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: 'PLAINTEXT://kafka-cmd:29001,PLAINTEXT://kafka-market:29002,PLAINTEXT://kafka-audit:29003'
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: "PLAINTEXT://kafka-cmd:29001,PLAINTEXT://kafka-market:29002,PLAINTEXT://kafka-audit:29003"
     networks:
       - gridtokenx-network
     depends_on:

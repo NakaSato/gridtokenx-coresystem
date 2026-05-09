@@ -43,5 +43,5 @@ We chose **Solana's Sealevel runtime** as the execution layer, deployed initiall
 
 ## References
 
-- [architecture.md](../../architecture.md) — GridChain sovereign chain design
+- [system-architecture.md](../architecture/specs/system-architecture.md) — GridChain sovereign chain design
 - [gridtokenx-anchor/](../../gridtokenx-anchor/) — On-chain programs

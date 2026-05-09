@@ -28,8 +28,6 @@ gridtokenx-oracle-bridge/.env
 gridtokenx-oracle-bridge/.env.local
 gridtokenx-chain-bridge/.env
 gridtokenx-chain-bridge/.env.local
-gridtokenx-api/.env
-gridtokenx-api/.env.local
 gridtokenx-anchor/.env
 gridtokenx-anchor/.env.local
 gridtokenx-smartmeter-simulator/**/.env

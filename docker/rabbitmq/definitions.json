@@ -1,6 +1,15 @@
 {
   "rabbit_version": "3.13.0",
-  "users": [],
+  "users": [
+    {
+      "name": "gridtokenx",
+      "password_hash": "6A/zHkE2K8G8uO8U3V8Y8A== /3458902345",
+      "hashing_algorithm": "rabbit_password_hashing_sha256",
+      "tags": [
+        "administrator"
+      ]
+    }
+  ],
   "vhosts": [
     {
       "name": "/"
