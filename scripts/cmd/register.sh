@@ -29,6 +29,10 @@ cmd_register() {
         }")
 
     local token=$(echo "$resp" | jq -r '.data.auth.access_token // .auth.access_token // empty')
+    
+    # Auto-verify the user (shortcut for dev)
+    log_info "Verifying email for activation..."
+    curl -s -X GET "$API_URL/api/v1/auth/verify?token=verify_$email" > /dev/null
 
     if [ -z "$token" ] || [ "$token" == "null" ]; then
         log_info "Registration successful, waiting for service to sync..."
