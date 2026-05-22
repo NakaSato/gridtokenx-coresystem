@@ -31,6 +31,3 @@
 [submodule "gridtokenx-chain-bridge"]
 	path = gridtokenx-chain-bridge
 	url = https://github.com/NakaSato/gridtokenx-chain-bridge.git
-[submodule "gridtokenx-agent-trade"]
-	path = gridtokenx-agent-trade
-	url = https://github.com/NakaSato/gridtokenx-agent-trade.git

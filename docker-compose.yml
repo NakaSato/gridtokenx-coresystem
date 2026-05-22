@@ -379,7 +379,7 @@ services:
 
   # Apache APISIX - User Gateway (Public Internet / Web Clients)
   apisix:
-    image: apache/apisix:3.9.0-debian
+    image: apache/apisix:3.15.0-debian
     container_name: gridtokenx-apisix
     environment:
       APISIX_STAND_ALONE: "true"
@@ -389,6 +389,7 @@ services:
       - "8001:9180" # Admin HTTP
     volumes:
       - ./apisix_conf/apisix.yaml:/usr/local/apisix/conf/apisix.yaml:ro
+      - ./apisix_conf/config.yaml:/usr/local/apisix/conf/config.yaml:ro
     networks:
       - gridtokenx-network
       - user-tier
@@ -534,7 +535,8 @@ services:
       dockerfile: gridtokenx-oracle-bridge/Dockerfile
     container_name: gridtokenx-oracle-bridge
     ports:
-      - "${IOT_GATEWAY_PORT:-4030}:4010"
+      - "${IOT_GATEWAY_PORT:-4030}:4010"  # REST API
+      - "${GRPC_PORT:-50051}:50051"       # gRPC ingestion (smart meter simulator)
     environment:
       RUST_LOG: debug,librdkafka=warn
       REDIS_URL: redis://redis:6379
@@ -551,6 +553,8 @@ services:
       GRIDTOKENX_API_KEYS: ${ENGINEERING_API_KEY:-engineering-department-api-key-2025},e2e-test-key
       SETTLEMENT_API_URL: http://trading-service:8093
       ORACLE_BRIDGE_SIGNING_KEY: /app/oracle-bridge-signing-key.bin
+      KAFKA_BOOTSTRAP_SERVERS: kafka-market:9002
+      KAFKA_TOPIC_METER_READINGS: meter.readings
       OTEL_EXPORTER_OTLP_ENDPOINT: http://gridtokenx-otel-gateway:4317
       OTEL_SERVICE_NAME: gridtokenx-oracle-bridge
       OTEL_ENABLED: ${OTEL_ENABLED:-true}
@@ -611,33 +615,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 15s
-
-  # Agent Trade Service (Algorithmic Trading)
-  agent-trade:
-    build:
-      context: ./
-      dockerfile: gridtokenx-agent-trade/Dockerfile
-    container_name: gridtokenx-agent-trade
-    environment:
-      DATABASE_URL: sqlite:///app/data/agent.db
-      RUST_LOG: debug,librdkafka=warn
-      KAFKA_MARKET_BROKERS: kafka-market:9002
-      KAFKA_CMD_BROKERS: kafka-cmd:9001
-      IAM_GRPC_URL: http://iam-service:8090
-      TRADING_GRPC_URL: http://trading-service:8092
-      BINANCE_API_KEY: ${BINANCE_API_KEY}
-      BINANCE_SECRET_KEY: ${BINANCE_SECRET_KEY}
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://gridtokenx-otel-gateway:4317
-      OTEL_SERVICE_NAME: gridtokenx-agent-trade
-    volumes:
-      - agent_trade_data:/app/data
-    depends_on:
-      - kafka-market
-      - iam-service
-      - trading-service
-    networks:
-      - gridtokenx-network
-    restart: unless-stopped
 
   # Trading Platform (Next.js)
   trading-ui:
@@ -713,6 +690,9 @@ services:
       LOG_LEVEL: INFO
       PYTHONPATH: /app:/app/src
       AUTOSTART_SIMULATION: "true"
+      KAFKA_BOOTSTRAP_SERVERS: kafka-market:9002
+      KAFKA_TOPIC: meter.readings
+      REDIS_URL: redis://redis:6379
       KAFKA_CMD_BROKERS: kafka-cmd:9001
       KAFKA_MARKET_BROKERS: kafka-market:9002
       KAFKA_AUDIT_BROKERS: kafka-audit:9003
@@ -727,7 +707,13 @@ services:
       OTEL_SERVICE_NAME: gridtokenx-smartmeter-simulator
       OTEL_ENABLED: ${OTEL_ENABLED:-true}
       OTEL_RESOURCE_ATTRIBUTES: deployment.environment=${ENVIRONMENT:-development}
+      # Transport Configuration - Send telemetry to Oracle Bridge via gRPC
+      TRANSPORT_TYPE: grpc
+      GRPC_GATEWAY_HOST: oracle-bridge
+      GRPC_GATEWAY_PORT: 50051
     depends_on:
+      oracle-bridge:
+        condition: service_started
       kafka-cmd:
         condition: service_healthy
       kafka-market:
@@ -742,6 +728,7 @@ services:
         condition: service_healthy
     volumes:
       - ./gridtokenx-smartmeter-simulator/data:/app/data
+      - ./gridtokenx-smartmeter-simulator/backend/src/smart_meter_simulator:/app/src/smart_meter_simulator:rw
     networks:
       - gridtokenx-network
     restart: unless-stopped
@@ -1057,4 +1044,3 @@ volumes:
   minio_data:
   prometheus_data:
   grafana_data:
-  agent_trade_data:
