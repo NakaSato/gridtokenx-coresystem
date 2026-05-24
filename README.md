@@ -12,7 +12,7 @@ The platform bridges **physical energy infrastructure** (smart meters, solar inv
 
 ## Architecture at a Glance
 
-GridTokenX follows a **Modern Microservices Architecture** orchestrated by a high-performance Rust gateway and secured by Solana smart contracts. The system consists of **6 core Rust services**, **3 frontend applications**, **30+ Docker containers** for infrastructure, and **5 Anchor programs** on Solana.
+GridTokenX follows a **Modern Microservices Architecture** orchestrated by a high-performance Rust gateway and secured by Solana smart contracts. The system consists of **5 core Rust services**, **3 frontend applications**, **30+ Docker containers** for infrastructure, and **5 Anchor programs** on Solana.
 
 ### Platform Architecture
 
@@ -28,7 +28,6 @@ graph TD
         APIS <-->|gRPC| IAM[IAM Service :4010/5010]
         APIS <-->|gRPC| Trading[Trading Service :4020/5020]
         APIS <-->|gRPC| OracleB[Oracle Bridge :4030/5030]
-        APIS <-->|gRPC| Agent[Agent Trade :4050]
         Envoy -->|HTTP/gRPC| OracleB
     end
 
@@ -69,7 +68,6 @@ Edge Meter → Edge Gateway → Envoy (Edge Gateway) ─┐
                                               IAM Service ─┐
 User/Web → APISIX (User Gateway) ───────────────┼→ Trading Service─┼→ Solana Blockchain
                                               Oracle Service─┘
-                                              Agent Trade ───┘
                                               Chain Bridge ──┘
 ```
 
@@ -119,7 +117,7 @@ User/Web → APISIX (User Gateway) ───────────────
 
 ### Frontend
 
--   **Trading UI**: Next.js (React, port 3000)
+-   **Trading UI**: Next.js (React, port 11001)
 -   **Explorer**: Platform-specific blockchain explorer
 -   **Portal**: Administrative dashboard
 
@@ -133,7 +131,7 @@ User/Web → APISIX (User Gateway) ───────────────
 -   **Tech**: Rust (Axum), ConnectRPC
 
 ### 2. IAM Service (`gridtokenx-iam-service`) — Identity Guardian
--   **Ports**: 8080 (REST) / 8090 (gRPC via ConnectRPC)
+-   **Ports**: 4010 (REST) / 5010 (gRPC via ConnectRPC)
 -   **Role**: User registration, KYC workflows, secure wallet custody. Generates/encrypts Ed25519 keypairs. Manages Registry Program on-chain. Issues scoped JWTs.
 -   **Security**: AES-256-GCM encryption, argon2id password hashing, JWT auth
 -   **Blockchain**: Registry + Governance programs
@@ -145,18 +143,13 @@ User/Web → APISIX (User Gateway) ───────────────
 -   **Blockchain**: Trading + Energy Token programs
 
 ### 4. Oracle Bridge (`gridtokenx-oracle-bridge`) — Cryptographic Trust Layer
--   **Ports**: 4010 (HTTP) / 50051 (gRPC)
+-   **Port**: 4030 (Unified gRPC/HTTP)
 -   **Role**: Validates Ed25519 signatures from Edge Gateways, performs zone-based partitioning, aggregates 15-minute settlement windows. Bridges physical energy data to digital markets.
 -   **Blockchain**: Oracle Program
 
 ### 5. Chain Bridge (`gridtokenx-chain-bridge`) — Decentralized Signing Authority
--   **Port**: 8095 (gRPC via ConnectRPC)
+-   **Port**: 5040 (gRPC via ConnectRPC)
 -   **Role**: Decentralized signing authority and Solana blockchain interface. All services route blockchain transactions through Chain Bridge for distributed key management.
-
-### 6. Agent Trade (`gridtokenx-agent-trade`) — Algorithmic Trading Agent
--   **Port**: 4050 (HTTP)
--   **Role**: Algorithmic trading agent with an actor-based architecture (MarketData, Execution, Strategy, Risk). Supports Binance WebSocket integration, order book management, and automated grid trading strategies.
--   **Tech**: Rust (Tokio), Binance API, Kafka, SQLite
 
 ### 6. Edge Gateway (`gridtokenx-edge-gateway`) — Edge Aggregation
 -   **Role**: Local aggregation, buffering, protocol translation, Ed25519 signing. Hardware-specific (RPi, rppal, MQTT).
@@ -204,14 +197,8 @@ just migrate
 tail -f logs/*.log
 ```
 
-### 4. Seed Test Data
-```bash
-# Register admin user
-./scripts/app.sh register
-
-# Seed database with test users
-./scripts/app.sh seed
-```
+### 5. Performance Tuning (Optional)
+For production-grade high-throughput setups, follow the [Performance Tuning Guide](docs/architecture/PERFORMANCE_TUNING.md) to configure Firedancer, Hugepages, and CPU pinning.
 
 ---
 
@@ -237,6 +224,7 @@ just build-all          # Build all microservice binaries
 just test               # Run all microservice tests
 just test-all           # Run all tests + integration tests (Solana validator)
 just test-edge          # Run Edge Protocol integration test
+just test-registration  # Run User Registration & Onboarding E2E test
 just migrate            # Run sqlx migrations (IAM Service)
 just migrate-new name:X # Create new IAM migration
 just migrate-revert     # Revert last IAM migration
@@ -276,22 +264,25 @@ grx prepare   # sqlx prepare (offline query preparation)
 
 | Component | HTTP Port | gRPC Port | Role |
 | :--- | :--- | :--- | :--- |
-| **APISIX (User)** | `4001` | — | User Gateway (Web/Mobile) |
-| **Envoy (Edge)** | `4002` | — | Edge Gateway (IoT/mTLS) |
-| **API Services** | `4000` | — | Lead Orchestrator |
-| **IAM Service** | `8080` | `8090` | Identity & Registry |
+| **APISIX Gateway** | `4001` | — | Unified Gateway Routing |
+| **Direct Gateway** | `4000` | — | Platform HTTP API & Health |
+| **Envoy Gateway** | `4002` | — | Edge / IoT Gateway |
+| **IAM Service** | `4010` | `5010` | Identity, Auth & KYC |
 | **Trading Service** | `8093` | `8092` | Matching & Settlement |
-| **Oracle Bridge** | `4010` | `50051` | IoT Data Ingestion |
-| **Agent Trade** | `4050` | — | Algorithmic Trading |
-| **Chain Bridge** | — | `8095` | Decentralized Signing |
-| **PostgreSQL** | `5434` (primary) / `5433` (replica) | — | Primary DB |
-| **Redis** | `6379` (primary) / `6380` (replica) | — | Cache, Session, Pub/Sub |
-| **RabbitMQ Mgmt** | `15672` | — | Task Queues |
-| **Grafana** | `3001` | — | Observability (admin/admin) |
-| **InfluxDB** | `8086` | — | Time-Series Meter Readings |
-| **ClickHouse** | `8123` | — | CQRS Analytics |
-| **Vault** | `8200` | — | Secrets Management |
-| **Kafka** | `9092` (cmd) / `9094` (market) / `9096` (audit) | — | Event Sourcing |
+| **Oracle Bridge** | — | `4030` | Telemetry Validation |
+| **Chain Bridge** | — | `5040` | Solana Signing Authority |
+| **Noti Service** | — | `5050` | Notifications Dispatcher |
+| **Simulator API** | `12010` | — | IoT Simulation Backend |
+| **Trading UI** | `11001` | — | Exchange Web App |
+| **Explorer UI** | `11002` | — | Block Explorer UI |
+| **Simulator UI** | `12011` | — | Smart Meter Simulator Map |
+| **PostgreSQL** | `7001` (primary) | — | Primary DB |
+| **Redis** | `7010` | — | Cache, Session, Pub/Sub |
+| **RabbitMQ** | `9030` (AMQP) / `19030` (mgmt) | — | Task Queues |
+| **Kafka** | `29001` | — | Event Bus / Broker |
+| **Grafana** | `6002` | — | Metrics Dashboard |
+| **Prometheus** | `6001` | — | Metrics Scraper |
+| **Loki** | `6003` | — | Log Aggregator |
 
 ---
 
@@ -299,11 +290,11 @@ grx prepare   # sqlx prepare (offline query preparation)
 
 | Program | ID |
 | :--- | :--- |
-| **Registry** | `FmvDiFUWPrwXsqo7z7XnVniKbZDcz32U5HSDVwPug89c` |
-| **Trading** | `69dGpKu9a8EZiZ7orgfTH6CoGj9DeQHHkHBF2exSr8na` |
-| **Energy Token** | `n52aKuZwUeZAocpWqRZAJR4xFhQqAvaRE7Xepy2JxLxKop` |
-| **Oracle** | `JDUVXMkeGi4oxLp8njBaGScAFaVBBg7iGoiqcY1LxKop` |
-| **Governance** | `DamT9e1VqbA5nSyFZHExKwQu6qs4L5FW6dirWCK8YLd4` |
+| **Registry** | `5xdQsDuGa1AaLVnddGhevvf2bngCvSob4dAepETS7oaJ` |
+| **Trading** | `DA9TdkcToi5r7oS7X5CddoMBiGNF3sAGqwPQph1CfLwd` |
+| **Energy Token** | `EzXnJoHSjS6VR7eBwHTkHHAJGqVfRsEvyksqz7uJCBpe` |
+| **Oracle** | `D5MCbSHxhxZTRFyUMdTHcQvjzwjx5Lb8jg9PQ2LTja8S` |
+| **Governance** | `BRQEyx7DHX1Ljx1eNTHUve52aHHwkWckBXGeL9FZPEgZ` |
 
 ---
 
@@ -316,7 +307,6 @@ gridtokenx-coresystem/
 ├── gridtokenx-oracle-bridge/        # Edge Validation, IoT Ingestion (Rust)
 ├── gridtokenx-chain-bridge/         # Decentralized Signing Authority (Rust)
 ├── gridtokenx-edge-gateway/         # Edge Aggregation (Rust, RPi-specific)
-├── gridtokenx-agent-trade/          # Algorithmic Trading Agent (Rust)
 ├── gridtokenx-anchor/               # Solana Anchor Programs
 │   ├── programs/                    # Registry, Trading, Energy Token, Oracle, Governance
 │   ├── tests/                       # Program integration tests
@@ -359,7 +349,6 @@ gridtokenx-coresystem/
 | `gridtokenx-edge-gateway` | Edge Aggregation | Yes (hardware deps) |
 | `gridtokenx-blockchain.core` | Shared Blockchain Utilities | No |
 | `gridtokenx-wasm` | WebAssembly | No |
-| `gridtokenx-agent-trade` | Algorithmic Trading | No |
 | `gridtokenx-anchor/programs/*` | Anchor Programs | No |
 | `gridtokenx-smartmeter-simulator` | IoT Simulation | No |
 

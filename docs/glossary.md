@@ -72,7 +72,6 @@
 
 | Term | Definition |
 |:---|:---|
-| **Agent Trade** | Algorithmic trading agent service. Managed as a Rust-based microservice with an actor-based architecture for high-concurrency market data processing and order execution. |
 | **ConnectRPC** | A gRPC-compatible protocol that works over HTTP/1.1 and HTTP/2, with browser support. Used for inter-service communication. |
 | **mTLS** | Mutual TLS — both client and server present certificates for authentication. Used for IoT device connections via Envoy. |
 | **SPIFFE** | Secure Production Identity Framework for Everyone — provides cryptographic identities (SVIDs) to workloads. Format: `spiffe://gridtokenx.th/prod/<service>`. |

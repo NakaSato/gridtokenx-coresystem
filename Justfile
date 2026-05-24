@@ -22,8 +22,8 @@ check-all:
     (cd gridtokenx-trading-service; cargo check)
     (cd gridtokenx-oracle-bridge; cargo check)
     (cd gridtokenx-chain-bridge; cargo check)
-    (cd gridtokenx-edge-gateway; cargo check)
     (cd gridtokenx-noti-service; cargo check)
+    (cd gridtokenx-blockchain-core; cargo check)
 
 # Build all binaries
 build-all:
@@ -31,7 +31,6 @@ build-all:
     (cd gridtokenx-trading-service; cargo build)
     (cd gridtokenx-oracle-bridge; cargo build)
     (cd gridtokenx-chain-bridge; cargo build)
-    (cd gridtokenx-edge-gateway; cargo build)
     (cd gridtokenx-noti-service; cargo build)
 
 # Run all microservice tests
@@ -41,6 +40,7 @@ test:
     (cd gridtokenx-oracle-bridge; cargo test)
     (cd gridtokenx-chain-bridge; cargo test)
     (cd gridtokenx-noti-service; cargo test)
+    (cd gridtokenx-blockchain-core; cargo test)
 
 # Run all tests including integration tests requiring solana validator
 test-all:
@@ -50,6 +50,11 @@ test-all:
 test-edge:
     chmod +x scripts/test_edge_protocol.sh
     ./scripts/test_edge_protocol.sh
+
+# Run User Registration & Onboarding E2E test
+test-registration:
+    chmod +x scripts/test-registration-e2e.sh
+    ./scripts/test-registration-e2e.sh
 
 # Run migrations (IAM Service)
 migrate:
@@ -97,13 +102,23 @@ orb-down:
 
 # Clean all build artifacts
 clean-all:
-    cargo clean
+    (cd gridtokenx-iam-service; cargo clean)
+    (cd gridtokenx-trading-service; cargo clean)
+    (cd gridtokenx-oracle-bridge; cargo clean)
+    (cd gridtokenx-chain-bridge; cargo clean)
+    (cd gridtokenx-noti-service; cargo clean)
+    (cd gridtokenx-blockchain-core; cargo clean)
     rm -rf target
     rm -rf scripts/logs
 
 # Format all code
 fmt:
-    cargo fmt
+    (cd gridtokenx-iam-service; cargo fmt)
+    (cd gridtokenx-trading-service; cargo fmt)
+    (cd gridtokenx-oracle-bridge; cargo fmt)
+    (cd gridtokenx-chain-bridge; cargo fmt)
+    (cd gridtokenx-noti-service; cargo fmt)
+    (cd gridtokenx-blockchain-core; cargo fmt)
 
 # Run clippy lints on all services
 clippy:
@@ -112,6 +127,7 @@ clippy:
     (cd gridtokenx-oracle-bridge; cargo clippy -- -D warnings)
     (cd gridtokenx-chain-bridge; cargo clippy -- -D warnings)
     (cd gridtokenx-noti-service; cargo clippy -- -D warnings)
+    (cd gridtokenx-blockchain-core; cargo clippy -- -D warnings)
 
 # Check database migration status (IAM)
 migrate-info:
@@ -121,9 +137,9 @@ migrate-info:
 run-oracle:
     (cd gridtokenx-oracle-bridge; cargo run)
 
-# Run trading engine performance benchmarks
+# Run trading engine performance benchmarks (Criterion)
 benchmark:
-    (cd gridtokenx-trading-service; cargo test --test trading_engine_bench -- --nocapture)
+    (cd gridtokenx-trading-service/crates/trading-engine; cargo bench --bench matching_benchmark)
 
 # --- Solana Mainnet Simulation (Surfpool) ---
 
@@ -140,6 +156,16 @@ simnet-down:
     pkill -f surfpool || true
 
 # --- OrbStack rebuild (All Services) ---
+
+# --- Smart Meter Automation ---
+
+# Auto-send smartmeter data to oracle-bridge with blockchain linking
+auto-meter-send meters="5" interval="15":
+    gridtokenx-smartmeter-simulator/backend/.venv/bin/python scripts/auto-send-smartmeter-to-oracle.py --meters {{meters}} --interval {{interval}}
+
+# Send single smartmeter reading to oracle-bridge
+send-meter-reading meter_id="METER-001" count="1":
+    gridtokenx-smartmeter-simulator/backend/.venv/bin/python scripts/send-smartmeter-to-oracle.py --meter-id {{meter_id}} --count {{count}}
 
 
 

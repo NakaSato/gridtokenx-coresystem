@@ -41,6 +41,7 @@ graph TD
         ChainBridge[Chain Bridge<br/>Signing Authority]
         Vault[HashiCorp Vault<br/>Key Management]
         Programs[Anchor Programs<br/>Registry/Trade/Token]
+        Validator[Firedancer Validator<br/>High-Throughput Node]
     end
 
     %% Relationships: User Flow
@@ -48,6 +49,11 @@ graph TD
     APISIX --> APIOrch
     APIOrch <-->|ConnectRPC| IAM
     APIOrch <-->|ConnectRPC| Trading
+
+## Related Documentation
+- [Data Flow](DATA_FLOW.md)
+- [Performance Tuning (Firedancer)](PERFORMANCE_TUNING.md)
+- [Minting Strategy](MINTING_STRATEGY.md)
     APIOrch <-->|ConnectRPC| Noti
 
     %% Relationships: IoT Flow
@@ -58,9 +64,7 @@ graph TD
     Oracle --> Kafka
 
     %% Relationships: Event Driven
-    Trading --> Kafka
     Trading --> ClickHouse
-    Agent -->|gRPC| Trading
     IAM & Trading & Oracle --> RabbitMQ
     RabbitMQ --> Noti
 
@@ -77,7 +81,7 @@ graph TD
     classDef external fill:#eee,stroke:#333,stroke-dasharray: 5 5;
 
     class APISIX,Envoy,EdgeG gateway;
-    class IAM,Trading,Oracle,Noti,Agent,APIOrch,ChainBridge service;
+    class IAM,Trading,Oracle,Noti,APIOrch,ChainBridge service;
     class Postgres,Influx,ClickHouse,Kafka,RabbitMQ,Redis db;
     class Programs,Vault blockchain;
     class User,Device external;
@@ -98,7 +102,6 @@ graph TD
 - **Trading Service**: The platform's matching engine. Implements a Continuous Double Auction (CDA) for P2P energy trading and manages on-chain settlement triggers.
 - **Oracle Bridge**: Validates Ed25519 signatures from Edge devices and ingests high-frequency telemetry into the data plane.
 - **Noti Service**: Manages multi-channel notifications (WebSockets, Email) via RabbitMQ.
-- **Agent Trade**: Actor-based algorithmic trading agent for automated grid participation.
 
 ### 3. Messaging Plane
 

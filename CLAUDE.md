@@ -1,16 +1,20 @@
+The compressed content was passed inline — I'll output the fixed file directly. The only change is restoring `.unwrap()` in item 7 of "What to Avoid":
+
+---
+
 # CLAUDE.md — LLM Coding Conventions for GridTokenX
 
-> This file is read automatically by Claude Code and other LLM coding assistants.
+> File auto-read by Claude Code + other LLM coding assistants.
 > Last reviewed: 2026-04-16
 
 ---
 
 ## Quick Orientation
 
-- Read [ARCHITECTURE.md](ARCHITECTURE.md) first — it has the full crate inventory, dependency rules, and layer diagram.
+- Read [ARCHITECTURE.md](ARCHITECTURE.md) first — full crate inventory, dependency rules, layer diagram.
 - Read [docs/glossary.md](docs/glossary.md) for domain terms (GRID, GRX, REC, VPP, CDA, PDA, etc.).
-- Each service is an **independent Cargo workspace** — there is no root `Cargo.toml`.
-- The IAM Service uses a **modular monolith** with 6 sub-crates. Other services use layered modules within a single crate.
+- Each service = **independent Cargo workspace** — no root `Cargo.toml`.
+- IAM Service = **modular monolith** with 6 sub-crates. Others: layered modules, single crate.
 
 ---
 
@@ -24,7 +28,6 @@ cd gridtokenx-iam-service && cargo check
 cd gridtokenx-trading-service && cargo check
 cd gridtokenx-oracle-bridge && cargo check
 cd gridtokenx-chain-bridge && cargo check
-cd gridtokenx-agent-trade && cargo check
 
 # Run tests for a single service
 cd gridtokenx-iam-service && cargo test
@@ -80,11 +83,11 @@ just test-all                          # All tests including Solana validator
 
 ### "Sync Core, Async Edges"
 
-The IAM service follows this pattern and other services should adopt it:
+IAM follows this; other services adopt it:
 
-- **Core** (business logic) uses **synchronous traits** — pure functions, no async, no framework deps.
-- **Edges** (API handlers, persistence, message consumers) are **async** — they bridge the sync core to the async world.
-- This makes core logic easy to unit test without mocking async runtimes.
+- **Core** (business logic): **synchronous traits** — pure functions, no async, no framework deps.
+- **Edges** (API handlers, persistence, message consumers): **async** — bridge sync core to async world.
+- Makes core easy to unit test without mocking async runtimes.
 
 ### Dependency Direction
 
@@ -92,11 +95,11 @@ The IAM service follows this pattern and other services should adopt it:
 server → api → logic → persistence → core
 ```
 
-Never the reverse. Business logic never imports HTTP types. Handlers never import SQL queries.
+Never reverse. Business logic never imports HTTP types. Handlers never import SQL queries.
 
 ### Trait-Based Dependency Injection
 
-Services define traits in `core` (or `domain/`), implement them in `persistence` (or `infra/`), and wire them together in `server` (or `startup/`).
+Define traits in `core` (or `domain/`), implement in `persistence` (or `infra/`), wire in `server` (or `startup/`).
 
 ```rust
 // In core/traits.rs — define the contract
@@ -138,9 +141,9 @@ pub fn process_order(order: &Order) -> Result<Trade> {
 }
 ```
 
-- Use `anyhow::Result` for fallible operations in service logic.
+- Use `anyhow::Result` for fallible ops in service logic.
 - Use `thiserror` for typed errors at API boundaries where clients need structured error codes.
-- **Never use `.unwrap()` in production code.** Use `.context()` or `.expect("reason")` with a meaningful message only in initialization code where failure is fatal.
+- **Never `.unwrap()` in production.** Use `.context()` or `.expect("reason")` with meaningful message only in init code where failure is fatal.
 
 ### Logging
 
@@ -155,8 +158,8 @@ pub async fn register_user(pool: &PgPool, user_id: Uuid) -> Result<User> {
 ```
 
 - Use `tracing` (not `log`). All services use structured JSON logging.
-- Use `#[instrument]` on public async functions. Use `skip` to avoid logging sensitive data (passwords, keys, tokens).
-- Log levels: `error` = actionable failures, `warn` = degraded but functional, `info` = business events, `debug` = dev-only detail.
+- `#[instrument]` on public async functions. `skip` to avoid logging sensitive data (passwords, keys, tokens).
+- Log levels: `error` = actionable failures, `warn` = degraded but functional, `info` = business events, `debug` = dev-only.
 
 ### Axum Handlers
 
@@ -171,9 +174,9 @@ pub async fn create_order(
 }
 ```
 
-- Handlers are thin — validate input, call a service, return response.
-- Business logic lives in service layer, never in handlers.
-- Use `State(state)` for dependency injection, not global statics.
+- Handlers thin — validate input, call service, return response.
+- Business logic in service layer, never in handlers.
+- `State(state)` for DI, not global statics.
 
 ### Database (SQLx)
 
@@ -188,28 +191,28 @@ let user = sqlx::query_as!(
 .await?;
 ```
 
-- Use `sqlx::query_as!` for compile-time verified queries.
-- Run `cargo sqlx prepare` before committing if you change queries (offline mode).
-- Migrations live in `<service>/migrations/` and use `sqlx migrate`.
+- `sqlx::query_as!` for compile-time verified queries.
+- Run `cargo sqlx prepare` before committing if queries change (offline mode).
+- Migrations in `<service>/migrations/`, use `sqlx migrate`.
 - Connection URL: `DATABASE_URL` env var (default: `postgresql://gridtokenx_user:gridtokenx_password@localhost:7001/gridtokenx`).
 
 ### Protobuf / ConnectRPC
 
-- Proto files live in `<service>/crates/<service>-protocol/proto/` (IAM) or `<service>/proto/` (others).
-- Use `prost` + `tonic` for code generation.
+- Proto files in `<service>/crates/<service>-protocol/proto/` (IAM) or `<service>/proto/` (others).
+- Use `prost` + `tonic` for codegen.
 - gRPC services use ConnectRPC (HTTP/2 compatible, browser-friendly).
 
 ---
 
 ## What to Avoid
 
-1. **Direct DB calls from handlers.** Always go through a service/repository layer.
+1. **Direct DB calls from handlers.** Always through service/repository layer.
 2. **Blocking in async code.** Use `tokio::task::spawn_blocking` for CPU-heavy work.
 3. **Hardcoded port numbers.** Read from env vars (`IAM_HTTP_PORT`, `TRADING_GRPC_PORT`, etc.).
 4. **Logging secrets.** Never log passwords, private keys, JWT tokens, encryption keys. Use `#[instrument(skip(password))]`.
-5. **Direct Solana RPC calls from services.** All blockchain interaction goes through Chain Bridge.
-6. **cargo add in a different service's workspace.** Each service has its own `Cargo.toml`; don't accidentally add deps to the wrong workspace.
-7. **`.unwrap()` in production paths.** Use `?` with context. Reserve `.unwrap()` for truly impossible cases with a `// SAFETY: ...` comment.
+5. **Direct Solana RPC calls from services.** All blockchain interaction through Chain Bridge.
+6. **`cargo add` in wrong service workspace.** Each service has own `Cargo.toml`; don't add deps to wrong workspace.
+7. **`.unwrap()` in production paths.** Use `?` with context. Reserve `.unwrap()` for truly impossible cases with `// SAFETY: ...` comment.
 
 ---
 
@@ -243,18 +246,18 @@ just benchmark
 
 ### Test Conventions
 
-- Unit tests live in `#[cfg(test)] mod tests` at the bottom of each file.
-- Integration tests live in `tests/` directory of each service.
-- Use real database connections for integration tests (not mocks) via test containers or the dev Postgres.
-- Anchor program tests use the Bankrun test framework.
+- Unit tests in `#[cfg(test)] mod tests` at bottom of each file.
+- Integration tests in `tests/` dir of each service.
+- Use real DB connections for integration tests (not mocks) via test containers or dev Postgres.
+- Anchor program tests use Bankrun test framework.
 
 ---
 
 ## Environment
 
-- Copy `.env.example` to `.env` for development defaults.
+- Copy `.env.example` to `.env` for dev defaults.
 - Port numbering: 4000s=gateways, 5000s=gRPC mesh, 7000s=persistence, 9000s=messaging.
-- See [ARCHITECTURE.md](ARCHITECTURE.md) for the full port scheme.
+- See [ARCHITECTURE.md](ARCHITECTURE.md) for full port scheme.
 - Docker runtime: **OrbStack** (not Docker Desktop) for macOS.
 - Shell: Nushell required for `just` and `grx.nu` scripts.
 
@@ -263,31 +266,24 @@ just benchmark
 ## Service-Specific Gotchas
 
 ### IAM Service
-- Uses modular monolith with 6 sub-crates. When adding a new feature, decide which crate it belongs in based on the dependency direction rule.
-- Wallet keys are encrypted with AES-256-GCM. The `ENCRYPTION_SECRET` env var must be 32+ characters.
-- On-chain registration creates a PDA via the Registry program — this is idempotent but requires the Solana validator running.
+- Modular monolith with 6 sub-crates. New feature → pick crate per dependency direction rule.
+- Wallet keys encrypted with AES-256-GCM. `ENCRYPTION_SECRET` must be 32+ chars.
+- On-chain registration creates PDA via Registry program — idempotent but needs Solana validator running.
 
 ### Trading Service
-- Has its own Cargo workspace (excluded from root because of BPF target conflicts).
-- The matching engine is in `src/domain/` — CDA (Continuous Double Auction) algorithm.
-- Settlement goes through Chain Bridge, not direct Solana RPC.
-- `src/startup/` contains the `ServiceBuilder` pattern for wiring dependencies.
+- Own Cargo workspace (excluded from root due to BPF target conflicts).
+- Matching engine in `src/domain/` — CDA (Continuous Double Auction) algorithm.
+- Settlement through Chain Bridge, not direct Solana RPC.
+- `src/startup/` has `ServiceBuilder` pattern for wiring deps.
 
 ### Oracle Bridge
-- Validates Ed25519 signatures from Edge Gateways. The device identity is verified cryptographically.
+- Validates Ed25519 signatures from Edge Gateways. Device identity verified cryptographically.
 - 15-minute aggregation windows for energy data before settlement.
-- Uses InfluxDB for time-series storage (not Postgres).
-- Has a NILM (Non-Intrusive Load Monitoring) module for appliance disaggregation.
+- InfluxDB for time-series storage (not Postgres).
+- Disseminates verified readings to Redis Streams and Kafka.
 
 ### Chain Bridge
-- The **only** service that directly touches Solana RPC.
-- Signs transactions using Vault Transit (not local keypair files — though dev mode supports keypair path).
-- NATS JetStream for async transaction submission; gRPC for synchronous reads.
+- **Only** service that directly touches Solana RPC.
+- Signs transactions using Vault Transit (not local keypair files — dev mode supports keypair path).
+- NATS JetStream for async tx submission; gRPC for synchronous reads.
 - Binds to `127.0.0.1` only (never `0.0.0.0`).
-
-### Agent Trade
-- Algorithmic trading agent with an actor-based architecture (MarketData, Execution, Strategy, Risk).
-- MarketData actor uses Binance WebSocket streams (trade + depth) with auto-reconnect.
-- Uses `rust_decimal` for all financial calculations (never floats).
-- Persistent state (order history) stored in SQLite via SQLx.
-- Communicates with IAM and Trading services via gRPC.

@@ -13,6 +13,11 @@ cmd_register() {
     log_info "Registering admin user..."
     echo "  Email: $email"
     echo "  Username: $username"
+    if [ -t 1 ]; then
+        echo "  Password: $password"
+    else
+        echo "  Password: [HIDDEN IN NON-INTERACTIVE MODE]"
+    fi
 
     if ! command -v jq &> /dev/null; then
         log_error "jq is required but not installed"

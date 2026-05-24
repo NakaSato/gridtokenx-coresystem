@@ -29,6 +29,43 @@ check_dependencies() {
     return 0
 }
 
+check_performance_tuning() {
+    log_info "Checking Firedancer / High-Performance readiness..."
+    
+    # 1. CPU Features
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # Check for AVX512 on macOS (Intel) or note ARM status
+        local arch=$(uname -m)
+        if [ "$arch" = "arm64" ]; then
+            log_info "CPU: Apple Silicon (ARM64) detected. AVX512 check skipped (Not applicable)."
+        else
+            if sysctl -a | grep -qi "avx512"; then
+                log_success "CPU: AVX512 support detected ✓"
+            else
+                log_warn "CPU: AVX512 support not detected. Firedancer performance will be limited on this host."
+            fi
+        fi
+    elif [ -f /proc/cpuinfo ]; then
+        if grep -qi "avx512" /proc/cpuinfo; then
+            log_success "CPU: AVX512 support detected ✓"
+        else
+            log_warn "CPU: AVX512 support not detected."
+        fi
+    fi
+
+    # 2. Hugepages (Linux only)
+    if [ -f /proc/sys/vm/nr_hugepages ]; then
+        local hp=$(cat /proc/sys/vm/nr_hugepages)
+        if [ "$hp" -gt 0 ]; then
+            log_success "OS: Hugepages enabled ($hp) ✓"
+        else
+            log_warn "OS: Hugepages disabled. See docs/architecture/PERFORMANCE_TUNING.md for setup."
+        fi
+    elif [[ "$OSTYPE" == "darwin"* ]]; then
+        log_info "OS: Hugepages check skipped (macOS host). Verify this in your Linux production environment."
+    fi
+}
+
 cmd_doctor() {
     show_banner
     log_info "Running GridTokenX System Doctor..."
@@ -55,6 +92,9 @@ cmd_doctor() {
     if command -v bun &>/dev/null; then
         log_success "Bun found: $(bun --version)"
     fi
+
+    echo ""
+    check_performance_tuning
     
     echo ""
     log_info "Diagnostic complete!"

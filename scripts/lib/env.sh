@@ -53,6 +53,7 @@ propagate_program_ids() {
     [ -n "$registry_pda" ] && update_env_file "$root_env" "REGISTRY_PDA" "$registry_pda"
     [ -n "$trading_market_pda" ] && update_env_file "$root_env" "TRADING_MARKET_PDA" "$trading_market_pda"
     update_env_file "$root_env" "SOLANA_RPC_URL" "$RPC_URL"
+    [ -n "$SOLANA_COMMITMENT" ] && update_env_file "$root_env" "SOLANA_COMMITMENT" "$SOLANA_COMMITMENT"
 
     # IAM Service
     local iam_service_env="$PROJECT_ROOT/gridtokenx-iam-service/.env"
@@ -80,6 +81,11 @@ propagate_program_ids() {
     [ -n "$fee_col" ] && update_env_file "$trading_service_env" "FEE_COLLECTOR_WALLET" "$fee_col"
     [ -n "$wheel_col" ] && update_env_file "$trading_service_env" "WHEELING_COLLECTOR_WALLET" "$wheel_col"
     [ -n "$loss_col" ] && update_env_file "$trading_service_env" "LOSS_COLLECTOR_WALLET" "$loss_col"
+
+    # Chain Bridge
+    local chain_bridge_env="$PROJECT_ROOT/gridtokenx-chain-bridge/.env"
+    update_env_file "$chain_bridge_env" "SOLANA_RPC_URL" "$RPC_URL"
+    [ -n "$SOLANA_COMMITMENT" ] && update_env_file "$chain_bridge_env" "SOLANA_COMMITMENT" "$SOLANA_COMMITMENT"
 
     # Explorer
     local explorer_env="$PROJECT_ROOT/gridtokenx-explorer/.env"

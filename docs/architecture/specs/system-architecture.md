@@ -45,7 +45,6 @@ This document provides a high-level visual map of the entire GridTokenX ecosyste
  | Chain Bridge (5040)   |<--+ OTEL Collector      |
  | HashiCorp Vault       |   | Prometheus / Grafana|
  | Solana SVM Programs   |   | Mailpit (13060)     |
- | Agent Trade (4050)    |   +---------------------+
  +-----------------------+
 ```
 
@@ -60,7 +59,6 @@ This document provides a high-level visual map of the entire GridTokenX ecosyste
 | **Notification** | Multi-channel Alerts (Email, WS) | ConnectRPC, RabbitMQ, Postgres, Mailpit |
 | **Chain Bridge** | Solana Signing & RPC Proxy | NATS, Vault, gRPC |
 | **Edge Gateway** | Protocol Translation & Aggregation | DLMS, OCPP, OpenADR → Ed25519 JSON |
-| **Agent Trade** | Algorithmic Trading & Market Data | WebSocket, Binance, Kafka, SQLite |
 
 ### 2. On-Chain Programs (Solana/Anchor)
 - **Registry:** On-chain user identity and wallet linkage.

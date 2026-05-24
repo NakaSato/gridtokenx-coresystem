@@ -1,13 +1,12 @@
 routes:
-  - id: 1 # IAM REST (Auth & Profile)
+  - id: 10 # IAM Public REST (Auth & Config)
     uris:
-      - /api/v1/auth/*
-      - /api/v1/identity/*
-      - /api/v1/system/*
-      - /api/v1/users/me
-      - /api/v1/users/me/profile
-      - /api/v1/users/me/wallets
-      - /api/v1/users/me/wallets/*
+      - /api/v1/auth/login
+      - /api/v1/auth/register
+      - /api/v1/auth/verify
+      - /api/v1/auth/forgot-password
+      - /api/v1/auth/reset-password
+      - /api/v1/system/config
     plugins:
       proxy-rewrite:
         headers:
@@ -20,41 +19,130 @@ routes:
       nodes:
         "host.docker.internal:4010": 1
 
-  - id: 2 # Trading REST (Orders, Trades, Quotes, Markets)
+  - id: 11 # IAM Private REST (Profile & Wallets & Meters)
+    uris:
+      - /api/v1/auth/change-password
+      - /api/v1/profile
+      - /api/v1/wallets
+      - /api/v1/wallets/*
+      - /api/v1/onboarding/*
+      - /api/v1/meters
+      - /api/v1/meters/*
+      - /api/v1/me/meters
+    plugins:
+      jwt-auth:
+        store_in_ctx: true
+      serverless-pre-function:
+        phase: rewrite
+        functions:
+          - "return function(conf, ctx)
+               if ctx.jwt_auth_payload then
+                 ngx.req.set_header('x-gridtokenx-user-id', ctx.jwt_auth_payload.sub)
+                 ngx.req.set_header('x-gridtokenx-role', 'api-gateway')
+                 ngx.req.set_header('x-gridtokenx-gateway-secret', 'gridtokenx-gateway-secret-2025')
+               end
+             end"
+      cors: {}
+    upstream:
+      type: roundrobin
+      nodes:
+        "host.docker.internal:4010": 1
+
+  - id: 2 # Trading REST (Orders, Futures, Analytics, ESG)
     uris:
       - /api/v1/orders
       - /api/v1/orders/*
+      - /api/v1/quotes
+      - /api/v1/zones/*
+      - /api/v1/stats
+      - /api/v1/futures/*
+      - /api/v1/analytics/*
       - /api/v1/trades
       - /api/v1/trades/*
-      - /api/v1/quotes
-      - /api/v1/quotes/*
-      - /api/v1/markets/*
-      - /api/v1/users/me/orders
-      - /api/v1/users/me/orders/*
-      - /api/v1/users/me/trades
-      - /api/v1/users/me/trades/*
-      - /api/v1/users/me/futures
-      - /api/v1/users/me/futures/*
-      - /api/v1/users/me/analytics
-      - /api/v1/users/me/analytics/*
-      - /api/v1/users/me/carbon
-      - /api/v1/users/me/carbon/*
-      - /api/v1/users/me/wallets/*/balance
-      - /api/v1/users/me/price-alerts
-      - /api/v1/users/me/price-alerts/*
+      - /api/v1/transactions
+      - /api/v1/carbon/*
+      - /api/v1/settlement/*
+      - /api/v1/wallets/*/balance
     plugins:
-      jwt-auth: {}
-      proxy-rewrite:
-        headers:
-          set:
-            x-gridtokenx-role: "api-gateway"
-            x-gridtokenx-gateway-secret: "gridtokenx-gateway-secret-2025"
-            x-gridtokenx-user-id: "$jwt_claim_sub"
+      jwt-auth:
+        store_in_ctx: true
+      serverless-pre-function:
+        phase: rewrite
+        functions:
+          - "return function(conf, ctx)
+               if ctx.jwt_auth_payload then
+                 ngx.req.set_header('x-gridtokenx-user-id', ctx.jwt_auth_payload.sub)
+                 ngx.req.set_header('x-gridtokenx-role', 'api-gateway')
+                 ngx.req.set_header('x-gridtokenx-gateway-secret', 'gridtokenx-gateway-secret-2025')
+               end
+             end"
       cors: {}
     upstream:
       type: roundrobin
       nodes:
         "host.docker.internal:8093": 1
+
+  - id: 3 # Notification Service
+    uris:
+      - /api/v1/notifications
+      - /api/v1/notifications/*
+      - /ws
+    plugins:
+      jwt-auth:
+        store_in_ctx: true
+      serverless-pre-function:
+        phase: rewrite
+        functions:
+          - "return function(conf, ctx)
+               if ctx.jwt_auth_payload then
+                 ngx.req.set_header('x-gridtokenx-user-id', ctx.jwt_auth_payload.sub)
+                 ngx.req.set_header('x-gridtokenx-role', 'api-gateway')
+                 ngx.req.set_header('x-gridtokenx-gateway-secret', 'gridtokenx-gateway-secret-2025')
+               end
+             end"
+      cors: {}
+    upstream:
+      type: roundrobin
+      nodes:
+        "host.docker.internal:5050": 1
+
+  - id: 4 # Smart Meter Simulator - Grid (Public)
+    uris:
+      - /api/v1/public/grid-*
+    plugins:
+      proxy-rewrite:
+        regex_uri: ["^/api/v1/public/grid-(.*)", "/api/v1/grid/$1"]
+      cors: {}
+    upstream:
+      type: roundrobin
+      nodes:
+        "host.docker.internal:12010": 1
+
+  - id: 5 # Smart Meter Simulator - Meters (Public)
+    uris:
+      - /api/v1/public/meters
+      - /api/v1/public/meters/*
+    plugins:
+      proxy-rewrite:
+        regex_uri: ["^/api/v1/public/meters(.*)", "/api/meters$1"]
+      cors: {}
+    upstream:
+      type: roundrobin
+      nodes:
+        "host.docker.internal:12010": 1
+
+  - id: 9 # Smart Meter Simulator - WebSocket (Public)
+    uris:
+      - /api/market/ws
+    enable_websocket: true
+    plugins:
+      proxy-rewrite:
+        regex_uri: ["^/api/market/ws", "/ws"]
+      cors: {}
+    upstream:
+      type: roundrobin
+      nodes:
+        "host.docker.internal:12010": 1
 
   - id: 8 # Health & Metrics
     uris:
@@ -66,9 +154,9 @@ routes:
         "host.docker.internal:4010": 1
 
 consumers:
-  - username: gridtokenx-user
+  - username: gridtokenx_user
     plugins:
       jwt-auth:
         key: "gridtokenx-iam-service"
-        secret: "CHANGE_ME_SECURE_JWT_SECRET"
+        secret: "dev-jwt-secret-key-minimum-32-characters-long-for-development-2025"
 #END
