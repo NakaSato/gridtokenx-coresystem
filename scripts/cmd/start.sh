@@ -7,7 +7,7 @@
 
 start_core_services() {
     local all_docker=${1:-false}
-    
+
     if [ "$all_docker" = true ]; then
         log_info "Starting ALL services in Docker (OrbStack)..."
     else
@@ -19,7 +19,7 @@ start_core_services() {
     fi
 
     cd "$PROJECT_ROOT"
-    
+
     if [ "$all_docker" = true ]; then
         docker-compose up -d
     else
@@ -27,7 +27,7 @@ start_core_services() {
         # Ensure Docker versions of application services are stopped to prevent port conflicts (native execution preferred)
         docker stop gridtokenx-trading-service gridtokenx-iam-service gridtokenx-oracle-bridge >/dev/null 2>&1 || true
     fi
-    
+
     wait_for_postgres
     wait_for_redis
     log_success "Docker services ready"
@@ -93,6 +93,7 @@ start_application_services() {
     export KAFKA_BROKERS=${KAFKA_BROKERS:-"localhost:29001"}
     export CHAIN_BRIDGE_URL=${CHAIN_BRIDGE_URL:-"http://localhost:5040"}
     export ENCRYPTION_SECRET=${ENCRYPTION_SECRET:-"supersecretencryptionkey"}
+    export OWS_VAULT_PATH=${OWS_VAULT_PATH:-"$HOME/.local/share/gridtokenx/ows-vault"}
     export RABBITMQ_URL=${RABBITMQ_URL:-"amqp://gridtokenx:rabbitmq_secret_2025@localhost:9030"}
     export GRIDTOKENX_API_KEYS=${GRIDTOKENX_API_KEYS:-"engineering-department-api-key-2025"}
 
@@ -136,7 +137,7 @@ _start_native_services() {
     wait_for_port "Chain Bridge" 5040 30
 
     run_in_background "IAM Service" \
-        "DATABASE_URL=$IAM_DATABASE_URL REDIS_URL=$REDIS_URL IAM_PORT=4010 $PROJECT_ROOT/gridtokenx-iam-service/target/debug/gridtokenx-iam-service" \
+        "DATABASE_URL=$IAM_DATABASE_URL REDIS_URL=$REDIS_URL IAM_PORT=4010 OWS_VAULT_PATH=$OWS_VAULT_PATH ENCRYPTION_SECRET=$ENCRYPTION_SECRET $PROJECT_ROOT/gridtokenx-iam-service/target/debug/gridtokenx-iam-service" \
         "$PROJECT_ROOT" \
         "$PROJECT_ROOT/scripts/logs/iam.log"
     wait_for_port "IAM gRPC" 5010 30
@@ -168,13 +169,30 @@ _start_native_services() {
 _start_terminal_services() {
     local skip_ui=$1
 
-    run_in_terminal "IAM Service" "IAM_PORT=4010 $PROJECT_ROOT/gridtokenx-iam-service/target/debug/gridtokenx-iam-service > $PROJECT_ROOT/scripts/logs/iam.log 2>&1" "$PROJECT_ROOT"
+    run_in_terminal "Chain Bridge" \
+        "CHAIN_BRIDGE_INSECURE=true SOLANA_RPC_URL=$SOLANA_RPC_URL $PROJECT_ROOT/gridtokenx-chain-bridge/target/debug/gridtokenx-chain-bridge > $PROJECT_ROOT/scripts/logs/chain-bridge.log 2>&1" \
+        "$PROJECT_ROOT"
+    wait_for_port "Chain Bridge" 5040 30
+
+    run_in_terminal "IAM Service" \
+        "DATABASE_URL=$IAM_DATABASE_URL REDIS_URL=$REDIS_URL IAM_PORT=4010 OWS_VAULT_PATH=$OWS_VAULT_PATH ENCRYPTION_SECRET=$ENCRYPTION_SECRET $PROJECT_ROOT/gridtokenx-iam-service/target/debug/gridtokenx-iam-service > $PROJECT_ROOT/scripts/logs/iam.log 2>&1" \
+        "$PROJECT_ROOT"
     wait_for_port "IAM gRPC" 5010 30
 
-    run_in_terminal "Trading Service" "RUST_LOG=info ENABLE_SETTLEMENT_PROCESSOR=true $PROJECT_ROOT/gridtokenx-trading-service/target/debug/trading-service > $PROJECT_ROOT/scripts/logs/trading.log 2>&1" "$PROJECT_ROOT"
+    run_in_terminal "Trading Service" \
+        "DATABASE_URL=$TRADING_DATABASE_URL REDIS_URL=$REDIS_URL SOLANA_RPC_URL=$SOLANA_RPC_URL SOLANA_WS_URL=$SOLANA_WS_URL RUST_LOG=info ENABLE_SETTLEMENT_PROCESSOR=true $PROJECT_ROOT/gridtokenx-trading-service/target/debug/trading-service > $PROJECT_ROOT/scripts/logs/trading.log 2>&1" \
+        "$PROJECT_ROOT"
     wait_for_port "Trading gRPC" 8092 60
 
-    run_in_terminal "Oracle Bridge" "IAM_SERVICE_URL=http://127.0.0.1:4010 GRIDTOKENX_API_KEYS=\"$GRIDTOKENX_API_KEYS\" RUST_LOG=info $PROJECT_ROOT/gridtokenx-oracle-bridge/target/debug/gridtokenx-oracle-bridge > $PROJECT_ROOT/scripts/logs/oracle-bridge.log 2>&1" "$PROJECT_ROOT"
+    run_in_terminal "Oracle Bridge" \
+        "IAM_SERVICE_URL=http://127.0.0.1:4010 GRIDTOKENX_API_KEYS=\"$GRIDTOKENX_API_KEYS\" RUST_LOG=info $PROJECT_ROOT/gridtokenx-oracle-bridge/target/debug/gridtokenx-oracle-bridge > $PROJECT_ROOT/scripts/logs/oracle-bridge.log 2>&1" \
+        "$PROJECT_ROOT"
+    wait_for_port "Oracle Bridge" 4030 30
+
+    run_in_terminal "Noti Service" \
+        "DATABASE_URL=$NOTI_DATABASE_URL REDIS_URL=$REDIS_URL RUST_LOG=info $PROJECT_ROOT/gridtokenx-noti-service/target/debug/noti-server > $PROJECT_ROOT/scripts/logs/noti.log 2>&1" \
+        "$PROJECT_ROOT"
+    wait_for_port "Noti gRPC" 5050 30
 
     wait_for_service "APISIX" "http://localhost:4001/health" 60 2
 
@@ -193,7 +211,7 @@ _start_frontend_uis_background() {
             "$PROJECT_ROOT/scripts/logs/simulator-api.log"
     fi
     if [ -d "$PROJECT_ROOT/gridtokenx-trading/node_modules" ]; then
-        run_in_background "Trading UI" "bun run dev" \
+        run_in_background "Trading UI" "bun run dev --port 11001" \
             "$PROJECT_ROOT/gridtokenx-trading" "$PROJECT_ROOT/scripts/logs/trading-ui.log"
     fi
     if [ -d "$PROJECT_ROOT/gridtokenx-explorer/node_modules" ]; then
@@ -221,7 +239,7 @@ _start_frontend_uis_terminal() {
         run_in_terminal "Simulator API" "PORT=12010 uv run start" "$PROJECT_ROOT/gridtokenx-smartmeter-simulator/backend"
     fi
     if [ -d "$PROJECT_ROOT/gridtokenx-trading/node_modules" ]; then
-        run_in_terminal "Trading UI" "bun run dev" "$PROJECT_ROOT/gridtokenx-trading"
+        run_in_terminal "Trading UI" "bun run dev --port 11001" "$PROJECT_ROOT/gridtokenx-trading"
     fi
     if [ -d "$PROJECT_ROOT/gridtokenx-explorer/node_modules" ]; then
         run_in_terminal "Explorer UI" "bun run dev --port 11002" "$PROJECT_ROOT/gridtokenx-explorer"
@@ -274,7 +292,6 @@ cmd_start() {
     pkill -f "uvicorn" 2>/dev/null || true
     pkill -f "uv run start" 2>/dev/null || true
     pkill -f "bun run dev" 2>/dev/null || true
-    pkill -f "agent-trade" 2>/dev/null || true
     sleep 2
 
     # Step 2: Core Docker Services
