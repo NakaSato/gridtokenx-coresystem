@@ -187,3 +187,6 @@ secrets/
 .AppleDouble
 .LSOverride
 Icon
+.antigravitycli/
+.gemini/
+insecure-dev-wallet.json
