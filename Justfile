@@ -33,6 +33,14 @@ build-all:
     (cd gridtokenx-chain-bridge; cargo build)
     (cd gridtokenx-noti-service; cargo build)
 
+# Build all binaries in release mode
+build-release:
+    (cd gridtokenx-iam-service; cargo build --release)
+    (cd gridtokenx-trading-service; cargo build --release)
+    (cd gridtokenx-oracle-bridge; cargo build --release)
+    (cd gridtokenx-chain-bridge; cargo build --release)
+    (cd gridtokenx-noti-service; cargo build --release)
+
 # Run all microservice tests
 test:
     (cd gridtokenx-iam-service; cargo test)
@@ -99,6 +107,11 @@ orb-up:
 # Stop all OrbStack services
 orb-down:
     docker compose down
+
+# Rebuild all OrbStack services from scratch
+orb-rebuild:
+    docker compose build --no-cache
+    docker compose up -d --force-recreate
 
 # Clean all build artifacts
 clean-all:

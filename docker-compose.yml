@@ -397,6 +397,11 @@ services:
       - postgres
       - redis
     restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9080/apisix/admin/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   # Envoy - Edge Gateway (IoT Devices / mTLS)
   envoy:
@@ -411,6 +416,11 @@ services:
       - edge-tier
       - gridtokenx-network
     restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9901/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   iam-service:
     build:
@@ -431,10 +441,6 @@ services:
       IAM_PORT: 8080
       IAM_GRPC_PORT: 8090
       PORT: 8080
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://gridtokenx-otel-gateway:4317
-      OTEL_SERVICE_NAME: gridtokenx-iam-service
-      OTEL_ENABLED: ${OTEL_ENABLED:-true}
-      OTEL_RESOURCE_ATTRIBUTES: deployment.environment=${ENVIRONMENT:-development}
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRATION: ${JWT_EXPIRATION}
       RUST_LOG: debug,librdkafka=warn
@@ -491,10 +497,6 @@ services:
       CLICKHOUSE_URL: http://${CLICKHOUSE_USER:-gridtokenx}:${CLICKHOUSE_PASSWORD:-clickhouse_secret_2025}@clickhouse:8123/${CLICKHOUSE_DB:-gridtokenx}
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-gridtokenx}:${RABBITMQ_DEFAULT_PASS:-rabbitmq_secret_2025}@rabbitmq:5672
       RUST_LOG: debug,librdkafka=warn
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://gridtokenx-otel-gateway:4317
-      OTEL_SERVICE_NAME: gridtokenx-trading-service
-      OTEL_ENABLED: ${OTEL_ENABLED:-true}
-      OTEL_RESOURCE_ATTRIBUTES: deployment.environment=${ENVIRONMENT:-development}
       JWT_SECRET: ${JWT_SECRET}
       ENCRYPTION_SECRET: ${ENCRYPTION_SECRET}
       SOLANA_RPC_URL: ${SOLANA_RPC_URL:-http://host.orbstack.local:8001}
@@ -557,10 +559,6 @@ services:
       ORACLE_BRIDGE_SIGNING_KEY: /app/oracle-bridge-signing-key.bin
       KAFKA_BOOTSTRAP_SERVERS: kafka-market:9002
       KAFKA_TOPIC_METER_READINGS: meter.readings
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://gridtokenx-otel-gateway:4317
-      OTEL_SERVICE_NAME: gridtokenx-oracle-bridge
-      OTEL_ENABLED: ${OTEL_ENABLED:-true}
-      OTEL_RESOURCE_ATTRIBUTES: deployment.environment=${ENVIRONMENT:-development}
     volumes:
       - ./infra/oracle/signing-key.bin:/app/oracle-bridge-signing-key.bin:ro
     depends_on:
@@ -705,10 +703,6 @@ services:
       INFLUXDB_BUCKET: ${INFLUXDB_BUCKET}
       DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@postgres:5432/gridtokenx
       API_SERVICES_URL: ${API_SERVICES_URL}
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://gridtokenx-otel-gateway:4317
-      OTEL_SERVICE_NAME: gridtokenx-smartmeter-simulator
-      OTEL_ENABLED: ${OTEL_ENABLED:-true}
-      OTEL_RESOURCE_ATTRIBUTES: deployment.environment=${ENVIRONMENT:-development}
       # Transport Configuration - Send telemetry to Oracle Bridge via gRPC
       TRANSPORT_TYPE: grpc
       GRPC_GATEWAY_HOST: oracle-bridge
@@ -748,33 +742,11 @@ services:
     networks:
       - gridtokenx-network
     restart: unless-stopped
-
-  # Loki - Log Aggregation
-  loki:
-    image: grafana/loki:latest
-    container_name: gridtokenx-loki
-    ports:
-      - "${LOKI_PORT:-6003}:3100"
-    volumes:
-      - ./docker/loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
-    command: -config.file=/etc/loki/loki-config.yaml
-    networks:
-      - gridtokenx-network
-    restart: unless-stopped
-
-  # Tempo - Tracing Backend
-  tempo:
-    image: grafana/tempo:2.6.0
-    container_name: gridtokenx-tempo
-    command: ["-config.file=/etc/tempo.yaml"]
-    volumes:
-      - ./docker/tempo/tempo.yaml:/etc/tempo.yaml:ro
-      - tempo_data:/var/tempo
-    ports:
-      - "${TEMPO_PORT:-6004}:3200" # Tempo HTTP
-    networks:
-      - gridtokenx-network
-    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # ============================================
   # Monitoring Stack: Prometheus + Grafana
@@ -926,10 +898,6 @@ services:
     depends_on:
       prometheus:
         condition: service_healthy
-      loki:
-        condition: service_started
-      tempo:
-        condition: service_started
     restart: unless-stopped
     healthcheck:
       test:
@@ -946,45 +914,6 @@ services:
       retries: 3
       start_period: 30s
 
-  # OTEL Collector - Agent (Node-level collection)
-  otel-agent:
-    image: otel/opentelemetry-collector-contrib:0.100.0
-    container_name: gridtokenx-otel-agent
-    user: "0:0"
-    command: ["--config", "/etc/otel-agent-config.yaml"]
-    volumes:
-      - ./otel-agent-config.yaml:/etc/otel-agent-config.yaml:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /:/hostfs:ro
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
-    networks:
-      - gridtokenx-network
-    depends_on:
-      - otel-gateway
-    restart: unless-stopped
-
-  # OTEL Collector - Gateway (Central processing & routing)
-  otel-gateway:
-    image: otel/opentelemetry-collector-contrib:0.100.0
-    container_name: gridtokenx-otel-gateway
-    command: ["--config", "/etc/otel-gateway-config.yaml"]
-    volumes:
-      - ./otel-gateway-config.yaml:/etc/otel-gateway-config.yaml:ro
-    ports:
-      - "4317:4317" # OTLP gRPC
-      - "4318:4318" # OTLP HTTP
-      - "8888:8888" # Metrics
-    networks:
-      - gridtokenx-network
-    depends_on:
-      prometheus:
-        condition: service_healthy
-      loki:
-        condition: service_started
-      tempo:
-        condition: service_started
-    restart: unless-stopped
-
   # HashiCorp Vault (Security Plane)
   vault:
     image: hashicorp/vault:1.15
@@ -999,7 +928,7 @@ services:
     restart: unless-stopped
     healthcheck:
       test:
-        ["CMD", "wget", "--spider", "-q", "http://127.0.0.0:8200/v1/sys/health"]
+        ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8200/v1/sys/health"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -1043,8 +972,6 @@ volumes:
   kafka_audit_data:
   clickhouse_data:
   rabbitmq_data:
-  loki_data:
-  tempo_data:
   minio_data:
   prometheus_data:
   grafana_data:

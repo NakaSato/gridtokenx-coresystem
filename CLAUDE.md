@@ -32,13 +32,12 @@ cd gridtokenx-chain-bridge && cargo check
 # Run tests for a single service
 cd gridtokenx-iam-service && cargo test
 cd gridtokenx-trading-service && cargo test
-```
-
 ### Workspace-Wide (via just — requires Nushell)
 
 ```bash
 just check-all          # cargo check all microservices
 just build-all          # cargo build all microservices
+just build-release      # cargo build all microservices in release mode
 just test               # cargo test all microservices
 just fmt                # cargo fmt
 just clippy             # cargo clippy -- -D warnings (all services)
@@ -63,7 +62,10 @@ just orb-up             # Start all Docker services (OrbStack)
 just orb-down           # Stop all Docker services
 just orb-rebuild        # Rebuild all services (no cache)
 ./scripts/app.sh start --docker-only   # Start infrastructure only
-./scripts/app.sh start --native-apps   # Docker + native services
+```
+
+### Blockchain
+
 ./scripts/app.sh stop                  # Stop everything
 ./scripts/app.sh doctor                # Health check
 ```
