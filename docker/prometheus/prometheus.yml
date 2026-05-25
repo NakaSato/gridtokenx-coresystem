@@ -20,13 +20,7 @@ scrape_configs:
     static_configs:
       - targets: ['localhost:9090']
 
-  - job_name: 'otel-collector'
-    static_configs:
-      - targets: ['otel-gateway:8888']
-
   - job_name: 'infrastructure'
     static_configs:
       - targets: ['postgres-exporter:9187', 'redis-exporter:9121', 'kafka-exporter:9308', 'node-exporter:9100', 'cadvisor:8080']
 
-  # Note: Application metrics are now pushed via OTEL Remote Write,
-  # so direct scraping of microservices is minimized to reduce load.

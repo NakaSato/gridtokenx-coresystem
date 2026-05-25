@@ -149,12 +149,6 @@ spec:
         - port: 5432   # PostgreSQL
         - port: 6379   # Redis
         - port: 5672   # RabbitMQ
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              name: gridtokenx-observability
-      ports:
-        - port: 4317   # OTEL
     - ports:
         - port: 53
           protocol: UDP
@@ -207,12 +201,6 @@ spec:
         - port: 6379   # Redis
         - port: 9092   # Kafka
         - port: 5672   # RabbitMQ
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              name: gridtokenx-observability
-      ports:
-        - port: 4317
     - ports:
         - port: 53
           protocol: UDP
@@ -252,12 +240,6 @@ spec:
         - port: 5432
         - port: 8086   # InfluxDB
         - port: 9092   # Kafka
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              name: gridtokenx-observability
-      ports:
-        - port: 4317
     - ports:
         - port: 53
           protocol: UDP

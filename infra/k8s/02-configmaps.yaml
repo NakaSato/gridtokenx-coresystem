@@ -34,10 +34,6 @@ data:
   KAFKA_SCHEMA_REGISTRY_URL: "http://schema-registry.gridtokenx-infra.svc.cluster.local:8081"
   RABBITMQ_URL: "amqp://gridtokenx:$(RABBITMQ_PASSWORD)@rabbitmq.gridtokenx-infra.svc.cluster.local:5672"
 
-  # Observability
-  OTEL_ENABLED: "true"
-  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector.gridtokenx-observability.svc.cluster.local:4317"
-  OTEL_EXPORTER_OTLP_HTTP_ENDPOINT: "http://otel-collector.gridtokenx-observability.svc.cluster.local:4318"
   RUST_LOG: "info"
 
   # Feature flags
@@ -48,7 +44,6 @@ data:
   ENABLE_MARKET_DYNAMICS: "true"
   ENABLE_SETTLEMENT_PROCESSOR: "true"
   ENABLE_METRICS: "true"
-  ENABLE_TRACING: "true"
   TOKENIZATION_ENABLE_REAL_BLOCKCHAIN: "true"
 
   # JWT settings
@@ -70,68 +65,6 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: otel-collector-config
-  namespace: gridtokenx-observability
-data:
-  otel-collector-config.yaml: |
-    receivers:
-      otlp:
-        protocols:
-          grpc:
-            endpoint: 0.0.0.0:4317
-          http:
-            endpoint: 0.0.0.0:4318
-      prometheus:
-        config:
-          scrape_configs:
-            - job_name: otel-collector
-              scrape_interval: 10s
-              static_configs:
-                - targets: ['0.0.0.0:8888']
-
-    processors:
-      batch:
-        timeout: 1s
-        send_batch_size: 1024
-      memory_limiter:
-        check_interval: 1s
-        limit_mib: 512
-        spike_limit_mib: 128
-      resource:
-        attributes:
-          - action: insert
-            key: deployment.environment
-            value: production
-
-    exporters:
-      otlp/tempo:
-        endpoint: tempo.gridtokenx-observability.svc.cluster.local:4317
-        tls:
-          insecure: true
-      loki:
-        endpoint: http://loki.gridtokenx-observability.svc.cluster.local:3100/loki/api/v1/push
-      prometheus:
-        endpoint: "0.0.0.0:8889"
-        namespace: gridtokenx
-
-    service:
-      pipelines:
-        traces:
-          receivers: [otlp]
-          processors: [memory_limiter, batch, resource]
-          exporters: [otlp/tempo]
-        metrics:
-          receivers: [otlp, prometheus]
-          processors: [memory_limiter, batch]
-          exporters: [prometheus]
-        logs:
-          receivers: [otlp]
-          processors: [memory_limiter, batch, resource]
-          exporters: [loki]
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
   name: prometheus-config
   namespace: gridtokenx-observability
 data:
@@ -146,10 +79,6 @@ data:
       - job_name: prometheus
         static_configs:
           - targets: ['localhost:9090']
-
-      - job_name: otel-collector
-        static_configs:
-          - targets: ['otel-collector.gridtokenx-observability.svc.cluster.local:8889']
 
       - job_name: iam-service
         static_configs:
@@ -184,37 +113,4 @@ data:
         relabel_configs:
           - action: labelmap
             regex: __meta_kubernetes_node_label_(.+)
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: loki-config
-  namespace: gridtokenx-observability
-data:
-  loki-config.yaml: |
-    auth_enabled: false
-    server:
-      http_listen_port: 3100
-      grpc_listen_port: 9096
-    common:
-      path_prefix: /loki
-      storage:
-        filesystem:
-          chunks_directory: /loki/chunks
-          rules_directory: /loki/rules
-      replication_factor: 1
-      ring:
-        instance_addr: 127.0.0.1
-        kvstore:
-          store: inmemory
-    schema_config:
-      configs:
-        - from: 2024-01-01
-          store: boltdb-shipper
-          object_store: filesystem
-          schema: v11
-          index:
-            prefix: index_
-            period: 24h
-    ruler:
-      alertmanager_url: http://localhost:9093
+
