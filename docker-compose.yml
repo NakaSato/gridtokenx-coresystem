@@ -521,12 +521,16 @@ services:
       AES_KEY_BASE64: ${AES_KEY_BASE64}
       PAYER_PRIVATE_KEY: ${PAYER_PRIVATE_KEY}
       ORACLE_BRIDGE_PUBLIC_KEY: ${ORACLE_BRIDGE_PUBLIC_KEY:-}
+      IAM_SERVICE_URL: http://iam-service:8090
+      INTERNAL_API_KEY: ${ENGINEERING_API_KEY:-engineering-department-api-key-2025}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      iam-service:
         condition: service_healthy
     networks:
       - gridtokenx-network
