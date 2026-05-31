@@ -2,7 +2,7 @@
 # GridTokenX Platform - End-to-End Integration Test via APISIX Gateway
 # Targets Port 4001
 
-BASE="http://localhost:4001"
+BASE="http://apisix.gridtokenx-coresystem.orb.local"
 TS=$(date +%s)
 USER="int_user_${TS}"
 EMAIL="${USER}@gridtokenx.com"
@@ -62,29 +62,29 @@ fi
 # 3. USER DATA
 print_section "Testing User Resources (via IAM & Trading)"
 
-R=$(curl -s "$BASE/api/v1/users/me" -H "Authorization: Bearer $TOKEN")
-check "GET /api/v1/users/me (IAM)" "\"username\":\"$USER\"" "$R"
+R=$(curl -s "$BASE/api/v1/me" -H "Authorization: Bearer $TOKEN")
+check "GET /api/v1/me (IAM)" "\"username\":\"$USER\"" "$R"
 
-R=$(curl -s "$BASE/api/v1/users/me/analytics/stats" -H "Authorization: Bearer $TOKEN")
-check "GET /api/v1/users/me/analytics/stats (Trading Mock)" "total_traded_kwh" "$R"
+R=$(curl -s "$BASE/api/v1/analytics/stats" -H "Authorization: Bearer $TOKEN")
+check "GET /api/v1/analytics/stats (Trading Mock)" "total_traded_kwh" "$R"
 
 # 4. TRADING & MARKETS
 print_section "Testing Trading Resources (via Trading Service)"
 
 R=$(curl -s "$BASE/api/v1/markets/stats" -H "Authorization: Bearer $TOKEN")
-check "GET /api/v1/markets/stats" "last_price" "$R"
+check "GET /api/v1/markets/stats" "avg_price_24h" "$R"
 
-R=$(curl -s "$BASE/api/v1/users/me/orders" -H "Authorization: Bearer $TOKEN")
-check "GET /api/v1/users/me/orders" "orders" "$R"
+R=$(curl -s "$BASE/api/v1/orders" -H "Authorization: Bearer $TOKEN")
+check "GET /api/v1/orders" "pagination" "$R"
 
-R=$(curl -s "$BASE/api/v1/users/me/carbon/balance" -H "Authorization: Bearer $TOKEN")
-check "GET /api/v1/users/me/carbon/balance" "total_credits" "$R"
+R=$(curl -s "$BASE/api/v1/carbon/balance" -H "Authorization: Bearer $TOKEN")
+check "GET /api/v1/carbon/balance" "total_credits" "$R"
 
 # 5. NOTIFICATIONS
 print_section "Testing Notification Resources (via Noti Service)"
 
-R=$(curl -s "$BASE/api/v1/users/me/notifications" -H "Authorization: Bearer $TOKEN")
-check "GET /api/v1/users/me/notifications" "unread_count" "$R"
+R=$(curl -s "$BASE/api/v1/notifications" -H "Authorization: Bearer $TOKEN")
+check "GET /api/v1/notifications" "unread_count" "$R"
 
 # SUMMARY
 print_section "Verification Summary"
