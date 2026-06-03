@@ -2,6 +2,15 @@
 # GridTokenX - Status command
 
 cmd_status() {
+    # Load Environment
+    if [ -f "$PROJECT_ROOT/.env" ]; then
+        set -a; source "$PROJECT_ROOT/.env"; set +a
+    fi
+    # Fallback default RPC_URL and API_URL
+    RPC_URL=${RPC_URL:-"http://localhost:8899"}
+    local api_port=${APISIX_PORT:-4001}
+    API_URL=${API_URL:-"http://localhost:$api_port"}
+
     show_banner
 
     detect_docker_runtime || true

@@ -19,6 +19,13 @@ cmd_register() {
         echo "  Password: [HIDDEN IN NON-INTERACTIVE MODE]"
     fi
 
+    # Load Environment
+    if [ -f "$PROJECT_ROOT/.env" ]; then
+        set -a; source "$PROJECT_ROOT/.env"; set +a
+    fi
+    local api_port=${APISIX_PORT:-4001}
+    local API_URL=${API_URL:-"http://localhost:$api_port"}
+
     if ! command -v jq &> /dev/null; then
         log_error "jq is required but not installed"
     fi
