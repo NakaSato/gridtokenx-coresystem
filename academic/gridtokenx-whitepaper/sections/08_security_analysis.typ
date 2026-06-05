@@ -82,7 +82,7 @@ This prevents replay attacks where an attacker captures a valid settlement trans
 
 === Smart Contract Audit Trail
 
-All on-chain programs have undergone independent security audits by recognized Solana security firms. Audit reports are published publicly and referenced on-chain via IPFS content hashes stored in the `ProtocolConfig` PDA. The platform maintains a bug bounty program with rewards up to \$500,000 for critical vulnerabilities.
+The protocol is designed to maintain a public smart contract audit trail. For production deployment, each on-chain program release should include an independent audit report, a commit hash, deployed program IDs, and an IPFS content hash stored in the `ProtocolConfig` PDA. A bug bounty program should be established before mainnet launch, with severity levels and reward ranges disclosed publicly.
 
 === Integer Overflow Protection
 
@@ -121,7 +121,7 @@ The gTHB stablecoin's mint and burn operations currently require a 5-of-9 multis
 - 3 independent board members
 - 3 institutional custodians
 
-Each signer holds their key in a hardware HSM. While this arrangement provides strong security guarantees, it introduces a latency bottleneck that is architecturally inconsistent with the sub-400ms settlement finality achieved elsewhere in the stack: coordinating 5 independent signers across time zones imposes delays of minutes to hours, and large-volume mints have historically required synchronous coordination ceremonies.
+Each signer holds their key in a hardware HSM. While this arrangement provides strong security guarantees, it can introduce a latency bottleneck that is architecturally inconsistent with sub-second settlement goals: coordinating 5 independent signers across time zones can impose delays of minutes to hours, especially for large-volume mints that require human review.
 
 *Planned Improvement — Programmable MPC Custody*: The roadmap targets replacing the static multisig with a threshold Multi-Party Computation (MPC) signing pipeline. Under this model, signing shares are held by geographically distributed nodes running a threshold signature scheme (e.g., FROST or GG20). Routine mints below a configurable threshold (e.g., 1,000,000 gTHB) are processed fully automatically once bank deposit confirmation and KYC/AML checks pass, with no human coordination required. Large institutional mints above the threshold trigger an asynchronous approval workflow where signers respond via authenticated mobile push rather than in-person ceremony. Reserve attestations remain continuous and on-chain regardless of mint size, preserving auditability while eliminating the synchronous bottleneck.
 
