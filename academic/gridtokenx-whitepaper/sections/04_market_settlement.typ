@@ -126,7 +126,7 @@ For each matched pair, the on-chain `match_orders` instruction executes the foll
 
 === Batch Settlement
 
-To maximize throughput and minimize transaction overhead, the Trading Program supports settling up to 4 order pairs per transaction. With Solana's 400ms block time and the ability to include multiple transactions per block, the platform can theoretically settle over 50,000 trades per hour — sufficient for a national-scale energy market.
+To maximize throughput and minimize transaction overhead, the Trading Program supports settling up to 4 order pairs per transaction. A target of 50,000 trades per hour corresponds to approximately 13.9 matched trades per second, or approximately 3.5 settlement transactions per second at this batch size. This target is analytically modest relative to Solana's advertised throughput, but it still requires empirical validation under account contention, RPC congestion, and priority-fee conditions.
 
 == Fee Structure
 
@@ -156,7 +156,7 @@ The GLF accounts for resistive losses during energy transmission. It is calculat
 
 $ "GLF" = 1 - e^{-alpha dot d} $
 
-Where $alpha = 0.02$ is the loss coefficient per zone distance unit, calibrated against PEA transmission loss data. The loss cost is deducted from the seller's proceeds and transferred to the grid operator as compensation for physical energy losses.
+Where $alpha = 0.02$ is the default loss coefficient per zone distance unit. In a production deployment, this coefficient should be calibrated against utility feeder data or AC power-flow simulation for the relevant service territory. The loss cost is deducted from the seller's proceeds and transferred to the grid operator as compensation for physical energy losses.
 
 == Order Book Transparency
 
