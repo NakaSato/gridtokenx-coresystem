@@ -104,7 +104,7 @@ For a simple resistive line, the loss fraction is approximately:
 
 $ "Loss Fraction" = frac(I^2 R, P_"delivered") approx frac(P_"delivered" dot R, V^2) $
 
-In practice, GridTokenX uses a simplified zone-distance model calibrated against PEA's published transmission loss data:
+In practice, GridTokenX uses a simplified zone-distance model that should be calibrated against utility feeder data or AC power-flow simulation:
 
 $ "GLF"(d) = 1 - e^{-0.02 d} $
 
@@ -141,8 +141,4 @@ Grid operators can create demand response programs through the Governance Progra
 
 == Performance Under Congestion
 
-Simulation studies using historical PEA load data from 2023–2025 demonstrate that the GridTokenX congestion management system:
-- Reduces peak zone loading by an average of 18% compared to unmanaged P2P trading.
-- Increases the proportion of intra-zone trades from 45% to 72% through price signals.
-- Reduces average wheeling charge costs for prosumers by 23% through more efficient trade routing.
-- Maintains grid frequency within ±0.1 Hz of nominal during simulated demand response events.
+The expected impact of grid-aware trading should be validated through controlled simulation rather than asserted from architecture alone. A publishable study should compare GridTokenX against unmanaged P2P trading and static-tariff P2P trading using the same feeder topology, load profile, DER profile, and order-arrival process. The evaluation should report peak zone loading, voltage violations, curtailed energy, matched trade volume, average buyer price, average seller revenue, and wheeling-charge distribution. Section 11 defines this evaluation protocol.
