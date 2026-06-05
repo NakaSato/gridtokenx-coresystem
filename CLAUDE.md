@@ -1,20 +1,20 @@
-The compressed content was passed inline — I'll output the fixed file directly. The only change is restoring `.unwrap()` in item 7 of "What to Avoid":
+# CLAUDE.md
 
----
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-# CLAUDE.md — LLM Coding Conventions for GridTokenX
-
-> File auto-read by Claude Code + other LLM coding assistants.
-> Last reviewed: 2026-04-16
+> Also auto-read by other LLM coding assistants.
+> Last reviewed: 2026-06-05
 
 ---
 
 ## Quick Orientation
 
-- Read [ARCHITECTURE.md](ARCHITECTURE.md) first — full crate inventory, dependency rules, layer diagram.
+- This repo is a **superproject**: every `gridtokenx-*` service is a **git submodule** (see `.gitmodules`). After clone or branch switch run `git submodule update --init --recursive`. A `git status` showing modified submodule pointers is normal — commit the pointer in the superproject, the code inside the submodule.
+- Read [README.md](README.md) for the full architecture diagram, service list, and port table. No root `ARCHITECTURE.md` exists; per-service detail lives in `<service>/ARCHITECTURE.md` (IAM and Noti have one).
 - Read [docs/glossary.md](docs/glossary.md) for domain terms (GRID, GRX, REC, VPP, CDA, PDA, etc.).
-- Each service = **independent Cargo workspace** — no root `Cargo.toml`.
+- Each service = **independent Cargo workspace** — no root `Cargo.toml`. Don't `cargo` from repo root; `cd` into the service first.
 - IAM Service = **modular monolith** with 6 sub-crates. Others: layered modules, single crate.
+- Two interconnected platforms: **Exchange** (IAM + Trading, direct blockchain) and **Infrastructure** (Oracle Bridge + edge, produces validated telemetry). Gateways: **APISIX** (`:4001`, user-facing) and **Envoy** (`:4002`, IoT/mTLS edge); **API orchestrator** at `:4000`.
 
 ---
 
@@ -32,6 +32,8 @@ cd gridtokenx-chain-bridge && cargo check
 # Run tests for a single service
 cd gridtokenx-iam-service && cargo test
 cd gridtokenx-trading-service && cargo test
+```
+
 ### Workspace-Wide (via just — requires Nushell)
 
 ```bash
@@ -62,22 +64,34 @@ just orb-up             # Start all Docker services (OrbStack)
 just orb-down           # Stop all Docker services
 just orb-rebuild        # Rebuild all services (no cache)
 ./scripts/app.sh start --docker-only   # Start infrastructure only
-```
-
-### Blockchain
-
 ./scripts/app.sh stop                  # Stop everything
+./scripts/app.sh status                # Process status
 ./scripts/app.sh doctor                # Health check
 ```
+
+`scripts/app.sh` is the unified orchestrator (subcommands: `start`, `stop`, `restart`, `status`, `doctor`, `init`, `logs`, `solana`).
 
 ### Blockchain
 
 ```bash
 ./scripts/app.sh init                  # Initialize Solana + deploy programs
+just solana-up                         # Start local solana-test-validator
+just solana-down                       # Stop validator
 cd gridtokenx-anchor && anchor build   # Build Anchor programs
 cd gridtokenx-anchor && anchor test    # Run Anchor integration tests
 just test-all                          # All tests including Solana validator
+
+# Mainnet simulation (Surfpool) — no local validator needed
+just simnet                            # Mainnet sim with Studio + hot-reload
+just simnet-ci                         # CI mode (no UI, fast startup)
+just simnet-down                       # Kill running Surfpool
+
+# Smart-meter telemetry into Oracle Bridge
+just auto-meter-send meters="5" interval="15"
+just send-meter-reading meter_id="METER-001" count="1"
 ```
+
+> **macOS Apple Silicon Warning**: Running `solana-test-validator` natively on M-series chips will panic with a "Too many open files" error under load. The `app.sh` scripts handle this automatically via `ulimit -n 65536`. If you run the validator manually outside these scripts, you MUST tune the system limits first.
 
 ---
 
@@ -259,7 +273,7 @@ just benchmark
 
 - Copy `.env.example` to `.env` for dev defaults.
 - Port numbering: 4000s=gateways, 5000s=gRPC mesh, 7000s=persistence, 9000s=messaging.
-- See [ARCHITECTURE.md](ARCHITECTURE.md) for full port scheme.
+- See the port table in [README.md](README.md) for the full scheme.
 - Docker runtime: **OrbStack** (not Docker Desktop) for macOS.
 - Shell: Nushell required for `just` and `grx.nu` scripts.
 

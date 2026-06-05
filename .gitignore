@@ -182,6 +182,15 @@ site/
 secrets/
 *.secret
 .secrets
+.env.secrets
+*.env.secrets
+
+# Solana wallets / keypairs (never commit private keys)
+dev-wallet.json
+*-wallet.json
+*wallet*.json
+*keypair*.json
+insecure-keypair.json
 
 # macOS
 .AppleDouble

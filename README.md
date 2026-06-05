@@ -14,6 +14,8 @@ The platform bridges **physical energy infrastructure** (smart meters, solar inv
 
 GridTokenX follows a **Modern Microservices Architecture** orchestrated by a high-performance Rust gateway and secured by Solana smart contracts. The system consists of **5 core Rust services**, **3 frontend applications**, **30+ Docker containers** for infrastructure, and **5 Anchor programs** on Solana.
 
+> **Repo layout**: this is a **git superproject** — every `gridtokenx-*` service is a git submodule (see `.gitmodules`). There is **no root `Cargo.toml`**; each service is an independent Cargo workspace. Always clone with `--recursive`, and after switching branches run `git submodule update --init --recursive`.
+
 ### Platform Architecture
 
 ```mermaid
@@ -102,7 +104,7 @@ User/Web → APISIX (User Gateway) ───────────────
 
 | Component | Version | Purpose |
 |-----------|---------|---------|
-| **PostgreSQL 17** | Primary + Replica | User data, orders, trades (streaming replication) |
+| **PostgreSQL 17** | Primary + Replica | User data, orders, trades, **Transactional Outbox** |
 | **InfluxDB 2.7** | 1 | Time-series meter readings |
 | **Redis 7** | Primary + Replica | Cache, session, Pub/Sub |
 | **ClickHouse** | 1 | CQRS read-side analytics |
@@ -160,7 +162,7 @@ User/Web → APISIX (User Gateway) ───────────────
 ## Quick Start
 
 ### Prerequisites
--   **OrbStack**: Optimized Docker runtime for macOS ([Setup Guide](docs/ORBSTACK_MIGRATION.md))
+-   **OrbStack**: Optimized Docker runtime for macOS (not Docker Desktop)
 -   **Rust Toolchain**: `rustup`, `cargo`
 -   **Solana CLI & Anchor**: For blockchain interaction
 -   **Nushell**: For `grx` helper script
@@ -197,8 +199,8 @@ just migrate
 tail -f logs/*.log
 ```
 
-### 5. Performance Tuning (Optional)
-For production-grade high-throughput setups, follow the [Performance Tuning Guide](docs/architecture/PERFORMANCE_TUNING.md) to configure Firedancer, Hugepages, and CPU pinning.
+### 4. Performance Tuning (Optional)
+For production-grade high-throughput setups, configure Firedancer, Hugepages, and CPU pinning. On macOS Apple Silicon, `solana-test-validator` requires raised file limits — `app.sh` sets `ulimit -n 65536` automatically.
 
 ---
 
@@ -300,57 +302,55 @@ grx prepare   # sqlx prepare (offline query preparation)
 
 ## Workspace Structure
 
+Each `gridtokenx-*` entry below is a **git submodule** with its own Cargo workspace — there is no root `Cargo.toml`.
+
 ```
-gridtokenx-coresystem/
+gridtokenx-coresystem/                # superproject (git submodules)
 ├── gridtokenx-iam-service/          # Identity, Auth, KYC, Registry (Rust)
 ├── gridtokenx-trading-service/      # Order Matching, Settlement (Rust)
 ├── gridtokenx-oracle-bridge/        # Edge Validation, IoT Ingestion (Rust)
 ├── gridtokenx-chain-bridge/         # Decentralized Signing Authority (Rust)
-├── gridtokenx-edge-gateway/         # Edge Aggregation (Rust, RPi-specific)
+├── gridtokenx-noti-service/         # Notifications Dispatcher (Rust)
 ├── gridtokenx-anchor/               # Solana Anchor Programs
 │   ├── programs/                    # Registry, Trading, Energy Token, Oracle, Governance
 │   ├── tests/                       # Program integration tests
 │   └── shared/                      # Shared types between programs
-├── gridtokenx-blockchain.core/      # Shared blockchain utilities
+├── gridtokenx-blockchain-core/      # Shared blockchain utilities
 ├── gridtokenx-wasm/                 # WebAssembly utilities
 ├── gridtokenx-smartmeter-simulator/ # IoT Device Simulator (Python/FastAPI)
-├── gridtokenx-api/                  # Lead Orchestrator (Rust)
 ├── gridtokenx-trading/              # Trading UI (Next.js)
 ├── gridtokenx-explorer/             # Blockchain Explorer
-├── gridtokenx-portal/               # Admin Dashboard
 ├── apisix_conf/                     # APISIX Gateway Configuration
 ├── envoy_conf/                      # Envoy Gateway Configuration
 ├── docker-compose.yml               # Main Docker Compose
 ├── docker-compose.db.yml            # Database-specific Compose
-├── Cargo.toml                       # Rust Workspace (resolver = "2")
-├── Justfile                         # Task Runner
+├── Justfile                         # Task Runner (Nushell)
 ├── grx.nu                           # Nushell Helper
+├── academic/                        # Whitepaper / thesis (Typst)
 ├── docs/                            # Platform Documentation
-│   ├── PLATFORM_DESIGN.md           # Full Platform Specification (v2.2)
-│   ├── architecture/
-│   │   ├── specs/system-architecture.md
-│   │   └── services/                # Service-specific deep dives
-│   ├── academic/                    # Thesis & Research
-│   └── ORBSTACK_MIGRATION.md        # OrbStack Setup Guide
 ├── scripts/
 │   └── app.sh                       # Unified Platform Manager
 └── tests/
     └── load-test/                   # Load Testing Tool
 ```
 
-### Cargo Workspace Members
+> The API orchestrator (`gridtokenx-api`, `:4000`), Edge Gateway (`gridtokenx-edge-gateway`), and Admin Portal (`gridtokenx-portal`) are referenced throughout the architecture but are **not submodules of this superproject** — they live in separate repos.
 
-| Crate | Description | Excluded? |
+### Per-Service Cargo Workspaces
+
+Each Rust service builds independently. Trading Service and Edge Gateway are kept out of any shared workspace due to target conflicts.
+
+| Service | Description | Notes |
 |-------|-------------|-----------|
-| `gridtokenx-iam-service` | Identity & Access Management | No |
-| `gridtokenx-trading-service` | Trading Engine & Matching | Yes (BPF target) |
-| `gridtokenx-oracle-bridge` | Edge Validation & IoT | No |
-| `gridtokenx-chain-bridge` | Decentralized Signing | No |
-| `gridtokenx-edge-gateway` | Edge Aggregation | Yes (hardware deps) |
-| `gridtokenx-blockchain.core` | Shared Blockchain Utilities | No |
-| `gridtokenx-wasm` | WebAssembly | No |
-| `gridtokenx-anchor/programs/*` | Anchor Programs | No |
-| `gridtokenx-smartmeter-simulator` | IoT Simulation | No |
+| `gridtokenx-iam-service` | Identity & Access Management | Modular monolith, 6 sub-crates |
+| `gridtokenx-trading-service` | Trading Engine & Matching | Separate workspace (BPF target) |
+| `gridtokenx-oracle-bridge` | Edge Validation & IoT | — |
+| `gridtokenx-chain-bridge` | Decentralized Signing | Binds `127.0.0.1` only |
+| `gridtokenx-noti-service` | Notifications Dispatcher | — |
+| `gridtokenx-blockchain-core` | Shared Blockchain Utilities | — |
+| `gridtokenx-wasm` | WebAssembly | — |
+| `gridtokenx-anchor/programs/*` | Anchor Programs | BPF |
+| `gridtokenx-smartmeter-simulator` | IoT Simulation | Python/FastAPI |
 
 ---
 
@@ -370,13 +370,13 @@ gridtokenx-coresystem/
 
 Detailed specifications are located in the `/docs` directory:
 
+-   [Data Flow Documentation](docs/DATA_FLOW.md)
 -   [National Control Plane Design](docs/National.md)
--   [System Architecture & Diagrams](docs/architecture/specs/system-architecture.md)
+-   [Layered System Architecture](docs/LAYERED_SYSTEM_ARCHITECTURE.md)
+-   [Minting E2E Flow](docs/MINTING_E2E_FLOW.md)
 -   [gTHB Issuer Service Spec](docs/gTHB_ISSUER_SERVICE.md)
--   [Surfpool Node Specification](docs/SURFPOOL.md)
 -   [Platform Documentation Overview](docs/Overview.md)
--   [Academic Documentation (Thesis & Research)](docs/academic/README.md)
--   [OrbStack Migration Guide](docs/ORBSTACK_MIGRATION.md)
+-   [Glossary](docs/glossary.md)
 
 ---
 
