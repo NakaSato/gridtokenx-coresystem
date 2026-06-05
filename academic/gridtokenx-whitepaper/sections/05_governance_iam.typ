@@ -6,7 +6,7 @@ A decentralized energy grid requires rigorous identity verification, transparent
 
 === User Onboarding and KYC
 
-All participants in the GridTokenX network — prosumers, grid operators, REC validators, and institutional traders — must complete a Know Your Customer (KYC) verification process before accessing trading functionality. This requirement is mandated by Thai financial regulations (AMLA 2542) and is enforced at both the application layer and the smart contract layer.
+All participants in the GridTokenX network — prosumers, grid operators, REC validators, and institutional traders — must complete a Know Your Customer (KYC) verification process before accessing trading functionality. This requirement reflects the platform's intended operation within regulated financial and utility contexts and is enforced at both the application layer and the smart contract layer. A production deployment should map each KYC tier to the specific requirements of Thai AML, payment, securities, and energy regulators.
 
 The KYC pipeline:
 
@@ -52,6 +52,12 @@ Internal service-to-service communication uses ConnectRPC with JWT-based authent
 )
 
 Service JWTs are short-lived (15-minute expiry) and are automatically rotated by the IAM Service. Vault's AppRole authentication is used for service identity, ensuring that service credentials are never hardcoded in application configuration.
+
+=== Data Privacy and Retention
+
+The IAM Service separates personally identifiable information (PII) from on-chain identity state. Government ID documents, selfies, bank-account evidence, and AML screening records remain off-chain in encrypted storage with access controlled by RBAC and audit logging. The on-chain `UserProfile` stores only the wallet address, KYC tier, jurisdictional eligibility flags, and zone assignment required for protocol enforcement.
+
+Data retention should follow the applicable Thai Personal Data Protection Act (PDPA), AML, tax, and utility-record requirements. Users should be presented with explicit consent language for identity verification, energy telemetry processing, REC issuance, and cross-service audit logging. When retention periods expire, off-chain PII should be deleted or anonymized while preserving the minimum on-chain audit trail required for settlement integrity.
 
 == On-Chain Governance
 
