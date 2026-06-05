@@ -72,7 +72,7 @@ On-chain operations follow a reliable, asynchronous pipeline:
 
 == Messaging and Storage Planes
 
-GridTokenX employs a polyglot persistence strategy, selecting the optimal storage technology for each data access pattern:
+GridTokenX employs a polyglot persistence strategy, selecting storage technologies according to each data access pattern:
 
 *Apache Kafka*: The backbone of the event-driven architecture. Used for ordered, durable event sourcing of all commands, market data, and audit logs. Kafka's log compaction ensures that the full history of every energy transaction is retained for regulatory compliance.
 
@@ -84,7 +84,7 @@ GridTokenX employs a polyglot persistence strategy, selecting the optimal storag
 
 *ClickHouse*: A columnar analytical database that ingests the full telemetry stream from Kafka for historical analysis. Supports prosumer energy dashboards, market analytics, and regulatory reporting with query latency in the hundreds of milliseconds over billions of rows.
 
-*HashiCorp Vault*: Manages all cryptographic secrets including the platform operator keypair, TLS certificates, and database credentials. Vault's Transit Secrets Engine provides signing-as-a-service, ensuring private keys are never exposed to application code.
+*HashiCorp Vault*: Manages all cryptographic secrets including the platform operator keypair, TLS certificates, and database credentials @hashicorpvault. Vault's Transit Secrets Engine provides signing-as-a-service, ensuring private keys are never exposed to application code.
 
 == Deployment and Scalability
 
