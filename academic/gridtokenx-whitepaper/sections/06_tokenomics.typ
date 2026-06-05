@@ -1,6 +1,6 @@
 = Token Economics and Stable Settlement
 
-GridTokenX employs a sophisticated triple-token ecosystem designed to balance real-world energy representation, platform utility, and transactional stability. Each token serves a distinct economic function, and their interactions create a self-reinforcing incentive structure that aligns the interests of all network participants.
+GridTokenX employs a triple-token architecture designed to separate real-world energy representation, platform utility, and transactional stability. Each token serves a distinct economic function, and their interactions are intended to align incentives among prosumers, validators, traders, and grid operators.
 
 == The Triple-Token Model
 
@@ -64,13 +64,13 @@ Total supply: 1,000,000,000 GRX (fixed, no inflation)
 
 gTHB is a reserve-backed stablecoin pegged 1:1 to the Thai Baht (THB). It serves as the exclusive settlement currency for energy trades on the GridTokenX platform, isolating participants from cryptocurrency market volatility.
 
-*Reserve Management*: Every gTHB in circulation is backed by an equivalent amount of THB held in segregated accounts at licensed Thai commercial banks. The reserve is managed by a licensed trust company and is subject to quarterly independent audits.
+*Reserve Management*: Every gTHB in circulation is intended to be backed by an equivalent amount of THB held in segregated accounts at licensed Thai commercial banks. In a production deployment, the reserve should be managed by a licensed trust company or equivalent regulated entity and should be subject to periodic independent audits.
 
 *Mint/Burn Lifecycle*:
 - *Minting*: A user deposits THB via bank transfer to the reserve account. Upon confirmed receipt (verified by the bank's API), the gTHB Issuer Service submits a mint transaction. Routine mints are processed automatically via a threshold MPC signing pipeline once KYC and AML checks pass; large institutional mints above a configurable threshold trigger an asynchronous multi-party approval workflow.
 - *Burning*: A user submits a redemption request. The gTHB Issuer burns the tokens on-chain and initiates a THB bank transfer to the user's registered bank account within 1 business day.
 
-*Transparency*: The platform publishes real-time reserve attestations via a public API, showing total gTHB supply and total THB reserves. Quarterly audit reports from an independent accounting firm are published on the platform's website and referenced on-chain via IPFS content hashes.
+*Transparency*: The platform is designed to publish real-time reserve attestations via a public API, showing total gTHB supply and total THB reserves. Audit reports from an independent accounting firm should be published on the platform's website and referenced on-chain via IPFS content hashes.
 
 == Token Flow Mechanics
 
@@ -109,7 +109,7 @@ GRID tokens minted (1 GRID/kWh)        gTHB tokens minted (1 gTHB/THB)
 
 === Prosumer Incentives
 
-Prosumers are incentivized to participate by receiving market-rate prices for their surplus energy — significantly higher than the fixed net-metering rate offered by the PEA. A prosumer with a 5 kW rooftop solar installation generating 20 kWh/day of surplus energy could earn approximately 70 THB/day at a market price of 3.50 THB/kWh, compared to approximately 20 THB/day under the PEA's net-metering rate of 1.00 THB/kWh.
+Prosumers are incentivized to participate when market prices for surplus energy exceed administratively fixed export tariffs. For illustration, a prosumer with a 5 kW rooftop solar installation generating 20 kWh/day of surplus energy could earn approximately 70 THB/day at a market price of 3.50 THB/kWh, compared with 20 THB/day under a 1.00 THB/kWh export tariff. Actual returns depend on local tariffs, PV yield, wheeling charges, market liquidity, and regulatory approval.
 
 === Validator Incentives
 
