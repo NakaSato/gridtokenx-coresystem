@@ -16,6 +16,12 @@
   #authors.map(a => [
     #text(1.2em, a.name)     #text(0.9em, a.email)
   ]).join(h(2em))
+  #v(0.5em)
+  #text(0.95em, [โครงการ GridTokenX Core System])
+  #linebreak()
+  #text(0.9em, [เวอร์ชัน: มิถุนายน 2026])
+  #v(0.75em)
+  #text(0.9em, [คำสำคัญ: Decentralized Physical Infrastructure Networks; peer-to-peer energy trading; Solana; smart meters; renewable energy certificates; grid-aware markets])
 ]
 
 #v(2em)
@@ -31,6 +37,7 @@
 #v(2em)
 
 #include "sections_th/01_introduction.typ"
+#include "sections_th/02_related_work.typ"
 #include "sections_th/02_methodology.typ"
 #include "sections_th/02_blockchain.typ"
 #include "sections_th/03_iot_edge.typ"
@@ -39,7 +46,12 @@
 #include "sections_th/06_tokenomics.typ"
 #include "sections_th/08_security_analysis.typ"
 #include "sections_th/09_grid_awareness.typ"
+#include "sections_th/10_evaluation.typ"
 #include "sections_th/07_conclusion.typ"
+
+= หมายเหตุผู้เขียน
+
+ต้นฉบับนี้อธิบายโปรโตคอลและ reference implementation แบบโอเพนซอร์ส เว้นแต่ข้อความใดจะระบุอย่างชัดเจนว่าเป็นผลการวัดจริง ค่าตัวเลขเชิงปริมาณควรถูกตีความเป็นเป้าหมายการออกแบบ การประมาณเชิงวิเคราะห์ หรือระเบียบวิธีประเมินผล ผู้เขียนมีส่วนเกี่ยวข้องกับโครงการ GridTokenX และมีผลประโยชน์โดยตรงในโปรโตคอลที่อธิบายในบทความนี้
 
 #v(2em)
 #bibliography("refs.bib", style: "apa")
