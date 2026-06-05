@@ -4,7 +4,7 @@ The reliability and integrity of the GridTokenX energy market depends entirely o
 
 == Edge Gateway Architecture
 
-The Edge Gateway is a purpose-built software stack deployed on industrial-grade ARM hardware at the prosumer premises. It serves as the bridge between the physical energy infrastructure and the GridTokenX cloud platform.
+The Edge Gateway is a dedicated software stack deployed on industrial-grade ARM or x86 hardware at the prosumer premises. It serves as the bridge between the physical energy infrastructure and the GridTokenX cloud platform.
 
 === Hardware Specifications
 
@@ -43,7 +43,7 @@ The gateway runs a minimal Linux distribution (Alpine Linux) with a containerize
 
 === DLMS/COSEM (Smart Meters)
 
-The DLMS/COSEM (Device Language Message Specification / Companion Specification for Energy Metering) protocol suite, standardized as IEC 62056 @dlms, is the dominant communication standard for smart electricity meters in Thailand and across Asia.
+The DLMS/COSEM (Device Language Message Specification / Companion Specification for Energy Metering) protocol suite, standardized as IEC 62056 @dlms @iec62056, is widely used for smart electricity meter communication in Thailand and across Asia.
 
 The DLMS Adapter implements:
 - *HDLC and TCP/IP transport layers*: Supporting both serial (RS-485) and Ethernet-connected meters.
