@@ -2,6 +2,15 @@
 # GridTokenX - Init command (blockchain deployment)
 
 cmd_init() {
+    # Load Environment
+    if [ -f "$PROJECT_ROOT/.env" ]; then
+        set -a; source "$PROJECT_ROOT/.env"; set +a
+    fi
+    # Fallback default RPC_URL and ANCHOR_DIR
+    RPC_URL=${RPC_URL:-"http://localhost:8899"}
+    ANCHOR_DIR=${ANCHOR_DIR:-"$PROJECT_ROOT/gridtokenx-anchor"}
+    DEV_WALLET=${DEV_WALLET:-"$PROJECT_ROOT/infra/solana/dev-wallet.json"}
+
     show_banner
     log_info "Initializing Blockchain..."
     echo ""
@@ -20,7 +29,8 @@ cmd_init() {
 
     if ! curl -s "$RPC_URL/health" > /dev/null 2>&1; then
         log_warn "Solana validator not running. Starting it..."
-        solana-test-validator --reset --ledger "$PROJECT_ROOT/test-ledger" > "$PROJECT_ROOT/solana.log" 2>&1 &
+        
+        solana_validator_start "$PROJECT_ROOT/test-ledger" "$PROJECT_ROOT/solana.log" ""
         wait_for_solana
     fi
 
@@ -62,6 +72,9 @@ cmd_init() {
     else
         npx tsx scripts/bootstrap.ts || log_warn "Bootstrap script failed, but continuing..."
     fi
+
+    log_info "Initializing Registry Shards..."
+    npx tsx scripts/init-shards.ts || log_warn "Shard initialization failed, but continuing..."
 
     log_info "Extracting PDAs and Mint addresses..."
     local pda_config=$(npx tsx scripts/get_pdas.ts 2>/dev/null || echo "")

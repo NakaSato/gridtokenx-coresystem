@@ -22,7 +22,7 @@ We adopted a **structured port numbering scheme** where each range maps to a fun
 | **9000–9099** | Messaging layer | Kafka cmd (9001), market (9002), audit (9003), Schema Registry (9010), RabbitMQ (9030) |
 | **10000–10099** | Admin & debug ports | Per-service admin panels, debug ports, health checks |
 | **11000–11099** | Frontend applications | Trading UI (11001), Explorer (11002), Portal (11003) |
-| **12000–12099** | Edge IoT & simulation | Smart Meter Simulator (12010), Edge Gateway MQTT/HTTP/gRPC |
+| **12000–12099** | Edge IoT & simulation | Smart Meter Simulator API (12010), Simulator Dashboard UI (12011) |
 | **13000–13099** | Platform infrastructure | Vault (13001), Mailpit (13060) |
 
 ### Within Each Range

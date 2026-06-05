@@ -60,7 +60,42 @@ services:
         reservations:
           memory: 1G
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PgBouncer - Lightweight Connection Pooler
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    container_name: gridtokenx-pgbouncer
+    environment:
+      DB_HOST: postgres
+      DB_USER: ${POSTGRES_USER:-gridtokenx_user}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-gridtokenx_password}
+      DB_NAME: ${POSTGRES_DB:-gridtokenx}
+      # Additional databases via custom INI section
+      PGBOUNCER_DATABASES: |
+        gridtokenx = host=postgres port=5432 dbname=gridtokenx
+        gridtokenx_noti = host=postgres port=5432 dbname=gridtokenx_noti
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 1000
+      DEFAULT_POOL_SIZE: 20
+      MIN_POOL_SIZE: 5
+      RESERVE_POOL_SIZE: 5
+      AUTH_TYPE: plain
+    volumes:
+      - ./docker/pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt:ro
+      - ./docker/pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+    ports:
+      - "${PGBOUNCER_PORT:-6432}:6432"
+    networks:
+      - gridtokenx-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h localhost -p 5432 -U ${POSTGRES_USER:-gridtokenx_user}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -69,6 +104,7 @@ services:
   postgres-replica:
     image: postgres:17-alpine
     container_name: gridtokenx-postgres-replica
+    user: postgres
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -76,6 +112,18 @@ services:
       PRIMARY_HOST: postgres
       TZ: ${TZ}
     entrypoint: ["/bin/sh", "/scripts/init-replica.sh"]
+    command:
+      - "postgres"
+      - "-c"
+      - "max_connections=200"
+      - "-c"
+      - "wal_level=replica"
+      - "-c"
+      - "max_wal_senders=10"
+      - "-c"
+      - "max_replication_slots=10"
+      - "-c"
+      - "hot_standby=on"
     ports:
       - "${POSTGRES_REPLICA_PORT:-7002}:5432"
     volumes:
@@ -84,7 +132,54 @@ services:
     networks:
       - gridtokenx-network
     depends_on:
-      postgres:
+      pgbouncer:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL Database for API (Cascading Replica)
+  # Offloads WAL shipping overhead from primary to postgres-replica
+  postgres-replica-cascade:
+    image: postgres:17-alpine
+    container_name: gridtokenx-postgres-replica-cascade
+    user: postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      PRIMARY_HOST: postgres-replica
+      TZ: ${TZ}
+    entrypoint: ["/bin/sh", "/scripts/init-replica.sh"]
+    command:
+      - "postgres"
+      - "-c"
+      - "max_connections=200"
+      - "-c"
+      - "wal_level=replica"
+      - "-c"
+      - "max_wal_senders=10"
+      - "-c"
+      - "max_replication_slots=10"
+      - "-c"
+      - "hot_standby=on"
+    ports:
+      - "7003:5432"
+    volumes:
+      - postgres_replica_cascade_data:/var/lib/postgresql/data
+      - ./scripts/init-replica.sh:/scripts/init-replica.sh:ro
+    networks:
+      - gridtokenx-network
+    depends_on:
+      postgres-replica:
         condition: service_healthy
     deploy:
       resources:
@@ -93,7 +188,7 @@ services:
         reservations:
           memory: 1G
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -215,11 +310,7 @@ services:
       - gridtokenx-network
     restart: unless-stopped
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9001 --list || exit 1",
-        ]
+      test: ["CMD", "nc", "-z", "localhost", "9001"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -256,11 +347,7 @@ services:
       - gridtokenx-network
     restart: unless-stopped
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9002 --list || exit 1",
-        ]
+      test: ["CMD", "nc", "-z", "localhost", "9002"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -297,11 +384,7 @@ services:
       - gridtokenx-network
     restart: unless-stopped
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9003 --list || exit 1",
-        ]
+      test: ["CMD", "nc", "-z", "localhost", "9003"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -398,7 +481,7 @@ services:
       - redis
     restart: always
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9080/apisix/admin/status"]
+      test: ["CMD", "/bin/bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9080"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -422,6 +505,28 @@ services:
       timeout: 5s
       retries: 3
 
+  chain-bridge:
+    build:
+      context: ./
+      dockerfile: gridtokenx-chain-bridge/Dockerfile
+    container_name: gridtokenx-chain-bridge
+    ports:
+      - "${CHAIN_BRIDGE_GRPC_PORT:-5040}:5040"
+    environment:
+      CHAIN_BRIDGE_GRPC_PORT: 5040
+      CHAIN_BRIDGE_INSECURE: "true"
+      SOLANA_RPC_URL: ${DOCKER_SOLANA_RPC_URL:-http://host.docker.internal:8899}
+      VAULT_ADDR: http://vault:8200
+      VAULT_TOKEN: root
+    healthcheck:
+      test: ["CMD", "/bin/bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/5040"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - gridtokenx-network
+    restart: unless-stopped
+
   iam-service:
     build:
       context: ./
@@ -431,7 +536,7 @@ services:
       - "${IAM_HTTP_PORT:-4010}:8080"
       - "${IAM_GRPC_PORT:-5010}:8090"
     environment:
-      DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@postgres:5432/gridtokenx
+      DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgbouncer:5432/gridtokenx
       REDIS_URL: redis://redis:6379
       KAFKA_CMD_BROKERS: kafka-cmd:9001
       KAFKA_MARKET_BROKERS: kafka-market:9002
@@ -446,8 +551,18 @@ services:
       RUST_LOG: debug,librdkafka=warn
       ENCRYPTION_SECRET: ${ENCRYPTION_SECRET}
       API_KEY_SECRET: ${API_KEY_SECRET}
-      CHAIN_BRIDGE_URL: ${CHAIN_BRIDGE_URL:-http://host.orbstack.local:5040}
+      ENVIRONMENT: development
+      VAULT_ADDR: http://vault:8200
+      VAULT_TOKEN: root
+      VAULT_TRANSIT_KEY_NAME: gridtokenx-user-wallets
+      CHAIN_BRIDGE_URL: ${CHAIN_BRIDGE_URL:-http://chain-bridge:5040}
       CHAIN_BRIDGE_INSECURE: "true"
+      SOLANA_PAYER_KEY: ${SOLANA_PAYER_KEY}
+      SOLANA_REGISTRY_PROGRAM_ID: ${SOLANA_REGISTRY_PROGRAM_ID}
+      SOLANA_TRADING_PROGRAM_ID: ${SOLANA_TRADING_PROGRAM_ID}
+      SOLANA_ORACLE_PROGRAM_ID: ${SOLANA_ORACLE_PROGRAM_ID}
+      SOLANA_GOVERNANCE_PROGRAM_ID: ${SOLANA_GOVERNANCE_PROGRAM_ID}
+      SOLANA_ENERGY_TOKEN_PROGRAM_ID: ${SOLANA_ENERGY_TOKEN_PROGRAM_ID}
       SOLANA_CLUSTER: ${SOLANA_CLUSTER:-localnet}
       AUTHORITY_WALLET_PATH: /app/dev-wallet.json
       SMTP_HOST: mailpit
@@ -456,15 +571,17 @@ services:
       SMTP_FROM: noreply@gridtokenx.com
       ENABLE_EMAIL_VERIFICATION: "true"
       EMAIL_VERIFICATION_REQUIRED: "true"
-      EMAIL_VERIFICATION_BASE_URL: http://localhost:4000
+      EMAIL_VERIFICATION_BASE_URL: http://localhost:4001
       OWS_VAULT_PATH: /var/lib/gridtokenx/ows-vault
     volumes:
       - ./infra/solana/dev-wallet.json:/app/dev-wallet.json
       - iam_ows_vault:/var/lib/gridtokenx/ows-vault
     depends_on:
-      postgres:
-        condition: service_healthy
+      pgbouncer:
+        condition: service_started
       rabbitmq:
+        condition: service_healthy
+      chain-bridge:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
@@ -488,7 +605,7 @@ services:
     volumes:
       - ./infra/solana/dev-wallet.json:/app/dev-wallet.json
     environment:
-      DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@postgres:5432/gridtokenx
+      DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgbouncer:5432/gridtokenx
       REDIS_URL: redis://redis:6379
       KAFKA_CMD_BROKERS: kafka-cmd:9001
       KAFKA_MARKET_BROKERS: kafka-market:9002
@@ -499,10 +616,13 @@ services:
       RUST_LOG: debug,librdkafka=warn
       JWT_SECRET: ${JWT_SECRET}
       ENCRYPTION_SECRET: ${ENCRYPTION_SECRET}
-      SOLANA_RPC_URL: ${SOLANA_RPC_URL:-http://host.orbstack.local:8001}
-      CHAIN_BRIDGE_URL: ${CHAIN_BRIDGE_URL:-http://host.orbstack.local:5040}
+      SOLANA_RPC_URL: ${DOCKER_SOLANA_RPC_URL:-http://host.docker.internal:8899}
+      CHAIN_BRIDGE_URL: ${CHAIN_BRIDGE_URL:-http://chain-bridge:5040}
       CHAIN_BRIDGE_INSECURE: "true"
-      SOLANA_WS_URL: ${SOLANA_WS_URL:-ws://host.orbstack.local:8002}
+      SOLANA_PAYER_KEY: EzudwoHvNPAc4dpPi5ndU8MEZVHVzq3Pj3Thm9ooKmiJ
+      SOLANA_WS_URL: ${SOLANA_WS_URL:-ws://host.docker.internal:8002}
+      IAM_SERVICE_URL: http://apisix:9080
+      INTERNAL_API_KEY: ${ENGINEERING_API_KEY:-engineering-department-api-key-2025}
       SOLANA_CLUSTER: ${SOLANA_CLUSTER:-localnet}
       SOLANA_REGISTRY_PROGRAM_ID: ${SOLANA_REGISTRY_PROGRAM_ID}
       SOLANA_TRADING_PROGRAM_ID: ${SOLANA_TRADING_PROGRAM_ID}
@@ -517,20 +637,20 @@ services:
       SMTP_FROM: noreply@gridtokenx.com
       ENABLE_EMAIL_VERIFICATION: "true"
       EMAIL_VERIFICATION_REQUIRED: "true"
-      EMAIL_VERIFICATION_BASE_URL: http://localhost:4000
+      EMAIL_VERIFICATION_BASE_URL: http://localhost:4001
       AES_KEY_BASE64: ${AES_KEY_BASE64}
       PAYER_PRIVATE_KEY: ${PAYER_PRIVATE_KEY}
       ORACLE_BRIDGE_PUBLIC_KEY: ${ORACLE_BRIDGE_PUBLIC_KEY:-}
-      IAM_SERVICE_URL: http://iam-service:8090
-      INTERNAL_API_KEY: ${ENGINEERING_API_KEY:-engineering-department-api-key-2025}
     depends_on:
-      postgres:
-        condition: service_healthy
+      pgbouncer:
+        condition: service_started
       redis:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
       iam-service:
+        condition: service_healthy
+      chain-bridge:
         condition: service_healthy
     networks:
       - gridtokenx-network
@@ -553,13 +673,13 @@ services:
       KAFKA_AUDIT_BROKERS: kafka-audit:9003
       CLICKHOUSE_URL: http://${CLICKHOUSE_USER:-gridtokenx}:${CLICKHOUSE_PASSWORD:-clickhouse_secret_2025}@clickhouse:8123/${CLICKHOUSE_DB:-gridtokenx}
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-gridtokenx}:${RABBITMQ_DEFAULT_PASS:-rabbitmq_secret_2025}@rabbitmq:5672
-      DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@postgres:5432/gridtokenx
-      TRADING_DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@postgres:5432/gridtokenx
+      DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgbouncer:5432/gridtokenx
+      TRADING_DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgbouncer:5432/gridtokenx
       API_GATEWAY_URL: http://apisix:9080
-      IAM_GRPC_URL: http://iam-service:8090
-      TRADING_GRPC_URL: http://trading-service:8092
+      IAM_GRPC_URL: http://apisix:9080
+      TRADING_GRPC_URL: http://apisix:9080
       GRIDTOKENX_API_KEYS: ${ENGINEERING_API_KEY:-engineering-department-api-key-2025},e2e-test-key
-      SETTLEMENT_API_URL: http://trading-service:8093
+      SETTLEMENT_API_URL: http://apisix:9080
       ORACLE_BRIDGE_SIGNING_KEY: /app/oracle-bridge-signing-key.bin
       KAFKA_BOOTSTRAP_SERVERS: kafka-market:9002
       KAFKA_TOPIC_METER_READINGS: meter.readings
@@ -585,7 +705,7 @@ services:
       - "${NOTI_GRPC_PORT:-5060}:8090"
       - "${NOTI_GRPC_PORT:-5060}:8090/udp"
     environment:
-      DATABASE_URL: postgres://gridtokenx_user:gridtokenx_password@postgres:5432/gridtokenx_noti
+      DATABASE_URL: postgres://gridtokenx_user:gridtokenx_password@pgbouncer:5432/gridtokenx_noti
       REDIS_URL: redis://redis:6379
       KAFKA_BROKERS: kafka-cmd:9001
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-gridtokenx}:${RABBITMQ_DEFAULT_PASS:-rabbitmq_secret_2025}@rabbitmq:5672
@@ -604,8 +724,8 @@ services:
       - ./infra/certs/server.crt:/app/infra/certs/server.crt:ro
       - ./infra/certs/server.key:/app/infra/certs/server.key:ro
     depends_on:
-      postgres:
-        condition: service_healthy
+      pgbouncer:
+        condition: service_started
       rabbitmq:
         condition: service_healthy
       redis:
@@ -625,6 +745,8 @@ services:
     build:
       context: ./gridtokenx-trading
       dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_MAPBOX_TOKEN=${NEXT_PUBLIC_MAPBOX_TOKEN:-pk.eyJ1IjoiMjQxMDcxNzMwMjAwMyIsImEiOiJjbW54ZXJrNTMwMXJ0MnFzYmNhdTdsMHpwIn0.UI7eEeQCjjUDpv0ZWfUk4w}
     container_name: gridtokenx-trading
     ports:
       - "${TRADING_UI_PORT:-11001}:3000"
@@ -635,7 +757,7 @@ services:
       NEXT_PUBLIC_SOLANA_RPC_URL: ${NEXT_PUBLIC_SOLANA_RPC_URL}
       NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:4001}
       NEXT_PUBLIC_PYTH_PRICE_SERVICE_URL: ${NEXT_PUBLIC_PYTH_PRICE_SERVICE_URL}
-      NEXT_PUBLIC_MAPBOX_TOKEN: YOUR_MAPBOX_TOKEN_HERE
+      NEXT_PUBLIC_MAPBOX_TOKEN: ${NEXT_PUBLIC_MAPBOX_TOKEN:-pk.eyJ1IjoiMjQxMDcxNzMwMjAwMyIsImEiOiJjbW54ZXJrNTMwMXJ0MnFzYmNhdTdsMHpwIn0.UI7eEeQCjjUDpv0ZWfUk4w}
     networks:
       - gridtokenx-network
     depends_on:
@@ -644,7 +766,7 @@ services:
       trading-service:
         condition: service_started
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      test: ["CMD", "bun", "-e", "fetch('http://localhost:3000').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -705,7 +827,7 @@ services:
       INFLUXDB_TOKEN: your-influxdb-token
       INFLUXDB_ORG: ${INFLUXDB_ORG}
       INFLUXDB_BUCKET: ${INFLUXDB_BUCKET}
-      DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@postgres:5432/gridtokenx
+      DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgbouncer:5432/gridtokenx
       API_SERVICES_URL: ${API_SERVICES_URL}
       # Transport Configuration - Send telemetry to Oracle Bridge via gRPC
       TRANSPORT_TYPE: grpc
@@ -740,14 +862,14 @@ services:
       dockerfile: Dockerfile
     container_name: gridtokenx-smartmeter-ui
     environment:
-      - NEXT_PUBLIC_SIMULATOR_URL=http://localhost:4001
+      - NEXT_PUBLIC_SIMULATOR_URL=http://apisix.gridtokenx-coresystem.orb.local
     depends_on:
       - smartmeter-simulator
     networks:
       - gridtokenx-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000"]
+      test: ["CMD", "bun", "-e", "fetch('http://localhost:3000').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -795,14 +917,14 @@ services:
     image: prometheuscommunity/postgres-exporter:latest
     container_name: gridtokenx-postgres-exporter
     environment:
-      DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable"
+      DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pgbouncer:5432/${POSTGRES_DB}?sslmode=disable"
     ports:
       - "9187:9187"
     networks:
       - gridtokenx-network
     depends_on:
-      postgres:
-        condition: service_healthy
+      pgbouncer:
+        condition: service_started
     restart: unless-stopped
 
   # Redis Exporter
@@ -966,6 +1088,7 @@ volumes:
     driver: local
   postgres_data:
   postgres_replica_data:
+  postgres_replica_cascade_data:
   redis_data:
   redis_replica_data:
   influxdb_data:

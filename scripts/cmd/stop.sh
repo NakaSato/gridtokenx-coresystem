@@ -15,7 +15,7 @@ cmd_stop() {
     pkill -f "vite" 2>/dev/null || true
     pkill -f "uvicorn" 2>/dev/null || true
     pkill -f "uv run start" 2>/dev/null && log_success "Simulator stopped" || true
-    pkill -f "solana-test-validator" 2>/dev/null && log_success "Solana validator stopped" || log_warn "Solana validator was not running"
+    solana_validator_stop
 
     if [ "$1" == "--all" ]; then
         echo ""

@@ -14,14 +14,50 @@ NC='\033[0m' # No Color
 # common.sh lives in scripts/lib/, so go up two levels to reach project root
 _LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$_LIB_DIR/../.." && pwd)"
+
+# Load Environment
+if [ -f "$PROJECT_ROOT/.env" ]; then
+    set -a; source "$PROJECT_ROOT/.env"; set +a
+fi
+RPC_URL=${SOLANA_RPC_URL:-${RPC_URL:-"http://localhost:8899"}}
+
 ANCHOR_DIR="$PROJECT_ROOT/gridtokenx-anchor"
 DEV_WALLET="$PROJECT_ROOT/infra/solana/dev-wallet.json"
 PID_FILE="$PROJECT_ROOT/.gridtokenx.pid"
 
-# Service ports
-API_URL="http://localhost:4001"
-RPC_URL="http://localhost:8899"
-WS_URL="ws://localhost:8002"
+
+# --- Solana Validator Helpers ---
+
+solana_validator_start() {
+    local ledger_dir="${1:-$PROJECT_ROOT/test-ledger}"
+    local log_file="${2:-$PROJECT_ROOT/scripts/logs/validator.log}"
+    local extra_args="${3:-}"
+
+    log_info "Starting Solana test validator..."
+    
+    # Apple Silicon (Darwin/ARM64) optimizations
+    if [ "$(uname)" == "Darwin" ] && [ "$(uname -m)" == "arm64" ]; then
+        log_info "Applying Apple Silicon (M2) optimizations..."
+        ulimit -n 65536
+    fi
+    
+    # Ensure log directory exists
+    mkdir -p "$(dirname "$log_file")"
+    
+    # Assemble final command
+    # Added --rpc-port 8899 explicitly
+    if [ -z "$extra_args" ]; then
+        solana-test-validator --reset --limit-ledger-size 10000 --ledger "$ledger_dir" --rpc-port 8899 > "$log_file" 2>&1 &
+    else
+        solana-test-validator --reset --limit-ledger-size 10000 --ledger "$ledger_dir" --rpc-port 8899 $extra_args > "$log_file" 2>&1 &
+    fi
+}
+
+solana_validator_stop() {
+    log_info "Stopping Solana test validator..."
+    pkill -f "solana-test-validator" 2>/dev/null && log_success "Solana validator stopped" || log_warn "Solana validator was not running"
+}
+
 
 log_info() {
     echo -e "${BLUE}[INFO]${NC} $1"
@@ -61,6 +97,7 @@ show_help() {
     echo "  register  Register admin user"
     echo "  seed      Seed database with test users (SQL)"
     echo "  logs      View service logs"
+    echo "  solana    Manage local solana test validator (start/stop)"
     echo "  doctor    Check system dependencies"
     echo ""
     echo "Options for 'start', 'native', 'docker':"

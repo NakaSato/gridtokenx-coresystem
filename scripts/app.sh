@@ -18,6 +18,7 @@ export PATH="$HOME/.cargo/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH
 #   register  - Register admin user
 #   seed      - Seed database with test users
 #   logs      - View service logs
+#   solana    - Manage local solana test validator (start/stop)
 #
 # Examples:
 #   ./app.sh start                  # Start everything (terminal)
@@ -49,6 +50,7 @@ source "$SCRIPT_DIR/cmd/register.sh"
 source "$SCRIPT_DIR/cmd/seed.sh"
 source "$SCRIPT_DIR/cmd/logs.sh"
 source "$SCRIPT_DIR/cmd/start.sh"
+source "$SCRIPT_DIR/cmd/solana.sh"
 
 # ============================================================================
 # Main
@@ -111,6 +113,9 @@ main() {
             ;;
         logs)
             cmd_logs "$@"
+            ;;
+        solana)
+            cmd_solana "$@"
             ;;
         help|--help|-h)
             show_help

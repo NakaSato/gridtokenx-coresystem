@@ -1,135 +1,80 @@
-GRIDTOKENX FULL SYSTEM ARCHITECTURE
-====================================================================================
+# GridTokenX System Architecture
 
-[ TIER 0: NATIONAL CONTROL PLANE ] (Bangkok Primary + DR)
----------------------------------------------------------
-|  - Federated IAM (Master KYC & Identity)
-|  - National REC Registry (Master Truth for Energy Credits)
-|  - Cross-Region Settlement Coordinator
-|  - Regulatory Gateways (ERC, Thai SEC, EGAT, NESDB)
-|  - Solana L1 Anchoring (State root checkpoints)
----------------------------------------------------------
-      |
-      +-------+---------------+---------------+---------------+---------------+
-              |               |               |               |               |
-              v               v               v               v               v
-[ TIER 1: REGIONAL CLUSTERS ] (PEA-N, PEA-NE, PEA-C, PEA-S, MEA)
-------------------------------------------------------------------------------------
-|  - Execution Plane: Order matching, Settlement, Risk, VPP dispatch
-|  - Chain Plane: Regional SVM Rollup (App-chain), Chain Bridge
-|  - Messaging: Triple-Kafka stack (Command, Market, Audit)
-|  - Persistence: CQRS (Postgres/Redis) + Analytics (ClickHouse/Influx)
-------------------------------------------------------------------------------------
-      | (Command Dispatch / Telemetry Stream)
-      v
-[ TIER 2: EDGE / PROVINCE AGGREGATORS ] (74 Province DCs)
----------------------------------------------------------
-|  - Regional Edge: WAF, NLB, Envoy (mTLS termination)
-|  - Ingestion: Protocol translation (MQTT/CoAP -> Kafka)
-|  - Local buffering & Ed25519 device authentication
----------------------------------------------------------
-      |
-      v
-[ TIER 3: SUBSTATION NODES ] (~5,000 Edge Nodes)
----------------------------------------------------------
-|  - Local DR firing (sub-second response)
-|  - Data pre-validation & 60s buffering
-|  - Protocol: Edge-to-Oracle Bridge (Signed payloads)
----------------------------------------------------------
-      |
-      v
-[ TIER 4: METER / IOT TIER ] (Millions of Devices)
----------------------------------------------------------
-|  - Hardware: AMI, Inverters, EVSE, Home Batteries
-|  - Security: Ed25519 signing on-chip (gridtokenx-edge-meter)
-|  - Logic: Smart Meter Simulator / Real hardware
----------------------------------------------------------
+This document describes the actual system architecture and deployment topology of the GridTokenX platform as implemented in the current codebase.
 
+## High-Level Topology
 
-NATIONAL CONTROL PLANE  (Bangkok primary + DR site)
-+------------------------------------------------------------------------------------+
-|                                                                                    |
-|  [Federated IAM]    [National REC      [Cross-region       [Regulatory gateway]    |
-|   identity, KYC      registry           settlement          ERC · Thai SEC ·       |
-|   wallet anchor]     (master truth)     coordinator]        EGAT · NESDB           |
-|                                                                                    |
-|  [Schema registry]  [KMS / HSM]        [Observability      [Solana L1 anchoring]   |
-|   contract specs     national keys      Mimir/Loki/Tempo    state roots,           |
-|   evolution gates    Vault + cloudHSM   SLO + budgets       hourly checkpoints]    |
-|                                                                                    |
-+-----+----------------+----------------+----------------+----------------+----------+
-      |                |                |                |                |
-      v                v                v                v                v
-  +-------+        +-------+        +-------+        +-------+        +-------+
-  | NORTH |        | N-EAST|        |CENTRAL|        | SOUTH |        | METRO |
-  | PEA-N |        | PEA-NE|        | PEA-C |        | PEA-S |        | (MEA) |
-  +---+---+        +---+---+        +---+---+        +---+---+        +---+---+
-      |                |                |                |                |
-      | full regional stack per region (Diagram 2)                        |
-      v                v                v                v                v
-  +------------------------------------------------------------------------+
-  |       EDGE / PROVINCE TIER  (74 province aggregators)                  |
-  +------------------------------------------------------------------------+
-                                  |
-                                  v
-  +------------------------------------------------------------------------+
-  |       SUBSTATION TIER  (~5,000 substation edge nodes)                  |
-  |       local DR firing · pre-validation · 60s buffering                 |
-  +------------------------------------------------------------------------+
-                                  |
-                                  v
-  +------------------------------------------------------------------------+
-  |       METER TIER  (millions of devices)                                |
-  |       AMI · rooftop inverters · EVSE · battery controllers             |
-  +------------------------------------------------------------------------+
+The system is designed around a microservices architecture communicating via REST, gRPC, and asynchronous message brokers. All components are containerized and orchestrated via Docker Compose for local development and testing.
 
+```text
+[ EXTERNAL CLIENTS / DEVICES ]
+          | (HTTPS / mTLS)
+          v
++--------------------------------------------------------+
+| EDGE & API GATEWAYS                                    |
+| - APISIX (User Proxy / Web Clients)                    |
+| - Envoy  (IoT Edge Proxy / mTLS)                       |
++--------------------------------------------------------+
+          |
+          v
++--------------------------------------------------------+
+| CORE MICROSERVICES (Rust)                              |
+| - IAM Service (Identity, Auth, JWT)                    |
+| - Trading Service (Matching, Settlement, Order Book)   |
+| - Oracle Bridge (IoT Telemetry Ingestion)              |
+| - Notification Service (Email, Alerts)                 |
++--------------------------------------------------------+
+          |
+          v
++--------------------------------------------------------+
+| BLOCKCHAIN INTERFACE (Rust)                            |
+| - Chain Bridge (Vault-backed Signing & Submission)     |
++--------------------------------------------------------+
+          | (RPC)
+          v
+[ SOLANA LOCALNET / DEVNET ]
+```
 
-REGION  (e.g. PEA-North, runs in Chiang Mai datacenter + Bangkok DR)
-+----------------------------------------------------------------------------+
-|  CLIENTS                                                                   |
-|  [Trading PWA]  [Portal]  [Explorer]  [Mobile]  [DSO ops console]          |
-|       |            |          |          |             |                   |
-|       v            v          v          v             v                   |
-|  +---------------------------------------------------------+               |
-|  | Regional edge: WAF -> NLB -> Kong (3+ replicas)         |               |
-|  +---------------------------+-----------------------------+               |
-|                              v                                             |
-|  +---------------------------+-----------------------------+               |
-|  | API tier: gridtokenx-api (Axum, N pods, stateless)      |<--> Redis     |
-|  | thin BFF + WS hub + command publisher                   |     cluster   |
-|  +---------------------------+-----------------------------+               |
-|                              v                                             |
-|  +========================== SERVICE MESH (Istio + mTLS) ===============+  |
-|                              v                                             |
-|     +-----------+-----------+-----------+-----------+-----------+          |
-|     v           v           v           v           v           v          |
-|  [IAM]    [Order book]  [Matching   [Settlement] [Risk]   [DR / VPP        |
-|           write/read     engine                  engine]  dispatcher]      |
-|           CQRS split]    in-memory                                         |
-|     |          |   |         |           |          |          |           |
-|     |          |   +- write  +-event-+   |          |          |           |
-|     |          |              hot path                                     |
-|     v          v                          v          v          v          |
-|  +------------------------------------------------------------------+      |
-|  | THREE Kafka clusters by traffic class (NOT one):                 |      |
-|  |  - cmd-events     (durable, ordered, small)                      |      |
-|  |  - market-data    (high-TPS, ephemeral, large)                   |      |
-|  |  - audit          (regulatory, tiered S3, 7yr retention)         |      |
-|  +------------------------------------------------------------------+      |
-|                                                                            |
-|  CQRS READ SIDE  (consumes from Kafka, never blocks writes)                |
-|  [order projection]  [trade history]  [position service]  [analytics]      |
-|   Redis + Postgres    ClickHouse       Postgres            ClickHouse      |
-|                                                                            |
-|  TELEMETRY PIPELINE  (independent of trading, scales separately)           |
-|  [ingest]  ->  [NILM/validation]  ->  [forecasting CTT-ViT]                |
-|     |                  |                       |                           |
-|     v                  v                       v                           |
-|  TimescaleDB hot   ClickHouse warm        Object store cold (S3)           |
-|                                                                            |
-|  CHAIN TIER                                                                |
-|  [Regional Solana app-chain / SVM rollup]  --hourly state root-->  L1      |
-|  Validator set: PEA + MEA + EGAT + 2 universities + 2 independent          |
-+----------------------------------------------------------------------------+
-                              ^
-                              | telemetry stream from edge tier
+## Core Components
+
+### 1. API & Edge Gateways
+- **Apache APISIX (`apisix`)**: Handles public internet traffic for web clients (e.g., `trading-ui`). Routes requests to appropriate microservices.
+- **Envoy (`envoy`)**: Edge gateway primarily designed for IoT device ingestion, terminating mTLS connections from smart meters.
+
+### 2. Microservices
+- **IAM Service (`gridtokenx-iam-service`)**: Manages user identities, API keys, JWT authentication, and off-chain wallet authority mapping.
+- **Trading Service (`gridtokenx-trading-service`)**: The core engine containing the order matcher, settlement logic, and trading API. Connects to Redis for caching/streaming and Postgres for state persistence.
+- **Oracle Bridge (`gridtokenx-oracle-bridge`)**: Receives telemetry data (e.g., from `gridtokenx-smartmeter-simulator`), validates device signatures, and pushes events into the internal message bus for settlement.
+- **Notification Service (`gridtokenx-noti-service`)**: Handles async delivery of emails and platform alerts.
+
+### 3. Messaging & Streaming
+The platform uses a segmented approach to message routing to isolate different traffic profiles:
+- **Kafka Cluster (Command)**: Durable, strictly ordered queue for critical commands.
+- **Kafka Cluster (Market)**: High-throughput, ephemeral stream for market data and telemetry.
+- **Kafka Cluster (Audit)**: Long-retention queue for regulatory and system audit events.
+- **RabbitMQ**: Handles asynchronous task queuing and RPC-style service-to-service communication.
+- **Redis Streams**: Used for fast, transient event dissemination (e.g., between Oracle Bridge and Trading Service).
+
+### 4. Persistence Tier
+- **PostgreSQL**: Primary transactional store for all services. Implemented with primary and read-replica (including cascading replica) nodes. Connection pooling is managed by PgBouncer.
+- **Redis**: Caching layer for IAM and Trading services, and transient event streams.
+- **ClickHouse**: OLAP database used for high-volume analytics and trade history.
+- **InfluxDB**: Time-series database for raw smart meter telemetry persistence.
+- **MinIO**: S3-compatible object storage for cold data and large payloads.
+
+### 5. Blockchain Integration
+- **Chain Bridge (`gridtokenx-chain-bridge`)**: The exclusive gateway to the Solana network. No microservice holds private keys. Instead, they send transaction requests via gRPC or NATS to the Chain Bridge, which delegates signing to a HashiCorp Vault Transit engine before submitting the transaction to Solana. Enforces SPIFFE-based identity mapping and program-level RBAC.
+- **Vault (`vault`)**: HashiCorp Vault instance providing the Transit Secrets Engine for Ed25519 transaction signing.
+
+### 6. Observability
+- **Prometheus & Grafana**: System metrics collection and visualization.
+- **Node Exporter & cAdvisor**: Host and container-level resource metrics.
+
+## Logical Flow Example (Telemetry Ingestion)
+
+1. `smartmeter-simulator` generates energy generation data and signs it.
+2. Payload is sent via gRPC to the `oracle-bridge`.
+3. `oracle-bridge` verifies the Ed25519 signature and publishes the validated reading to a Kafka topic (market tier).
+4. `trading-service` consumes the reading, calculates the required `surplus_kwh`, and stages a `Pending` settlement in Postgres.
+5. A background worker in `trading-service` issues a transaction request to `chain-bridge`.
+6. `chain-bridge` verifies the service's identity, requests a signature from Vault, and submits the `execute_generation_mint` instruction to the Solana network.

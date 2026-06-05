@@ -169,7 +169,7 @@ describe("registry", () => {
 
 ```bash
 # Start local validator
-solana-test-validator --reset
+solana-test-validator --reset --limit-ledger-size 10000
 
 # Run tests
 anchor test

@@ -23,6 +23,10 @@
 | **CT Clamp** | Current Transformer Clamp — a sensor that clips around a wire to measure current flow without breaking the circuit. |
 | **TOU** | Time-of-Use — a tariff structure where electricity prices vary based on the time of day. |
 | **Wheeling Charge** | Fee paid to a grid operator for transporting electricity through their network. |
+| **WMA** | Weighted Moving Average — a recursive filtering technique (implemented as 80/20) used to smooth temporal jitter in smart meter telemetry. |
+| **P_FiT** | Feed-in-Tariff — the base price per kWh (Default: 0.10 GRX) paid to prosumers for surplus energy exported to the grid. |
+| **M_zone** | Incentive Multiplier — a zone-specific multiplier used to programmatically incentivize generation in specific geographic areas. |
+| **Meritocratic Voting Weight** | A governance mechanism where voting power is derived from cumulative physical energy contribution ($\sum E$), not just token holdings. |
 | **FT (Ft)** | Float Tariff — a variable component of Thailand's electricity tariff that reflects fuel and policy costs. |
 | **Substation** | A facility that transforms voltage levels for electricity distribution. In GridTokenX, substation-level edge nodes aggregate meter data. |
 

@@ -51,7 +51,11 @@ A key sub-pattern: core business logic (`iam-logic`) uses **synchronous traits**
 
 - **Positive**: Compile-time boundary enforcement, easy to test in isolation, clear extraction path to microservices if needed.
 - **Negative**: More boilerplate (6 crates per service vs 1), longer initial setup time.
-- **Adoption**: IAM Service fully implemented. Trading Service uses a lighter-weight layered version (`api/core/domain/infra/services` directories within a single crate). Oracle Bridge and Chain Bridge use flat modules (simpler services don't need the full pattern).
+- **Adoption**: 
+  - **IAM Service:** Fully implemented modular monolith using Cargo workspace separation (`iam-server`, `iam-api`, `iam-logic`, `iam-persistence`, `iam-protocol`, `iam-core`).
+  - **Trading Service:** Layered monolith inside a single Rust crate (`api`, `core`, `domain`, `infra`, `services`).
+  - **Oracle Bridge & Chain Bridge:** Flat module structure in Rust (simplifying deployment for lightweight proxy/bridge pipelines).
+  - **SmartMeter Simulator:** Python-Rust Hybrid structure (FastAPI + Python for physical power flow simulations, utilizing a Rust extension engine via PyO3 for accelerated multi-threaded telemetry batch generations).
 
 ## References
 

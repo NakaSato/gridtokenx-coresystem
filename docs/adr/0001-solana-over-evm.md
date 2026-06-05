@@ -26,6 +26,7 @@ We chose **Solana's Sealevel runtime** as the execution layer, deployed initiall
 | **Parallel execution** | ✅ Sealevel (non-conflicting txns) | ❌ Sequential EVM |
 | **Smart contract language** | Rust (Anchor framework) | Solidity |
 | **Ecosystem maturity** | SPL Token-2022 with extensions | ERC-20/ERC-1155 well-established |
+| **Telemetry Signature Verification** | ✅ Native Ed25519 precompile system instructions (low gas/compute cost) | ❌ Native secp256k1 (Ed25519 verification is highly complex and gas-expensive) |
 | **Sovereign deployment** | ✅ Runtime is open-source, BPF programs portable | ❌ Requires running an EVM chain |
 
 ### Key Factors
@@ -34,6 +35,7 @@ We chose **Solana's Sealevel runtime** as the execution layer, deployed initiall
 2. **Rust unifies the stack.** Backend services are Rust; Anchor smart contracts are Rust. One language, shared types, compile-time guarantees across the entire stack.
 3. **Sovereign chain path.** GridTokenX plans to run a permissioned PoS-BFT chain with Thai utility validators (PEA, MEA, EGAT). Solana's runtime can be deployed as a sovereign chain without modification.
 4. **Sub-cent settlement.** Energy trades can be as small as 0.1 kWh — transaction fees must be negligible.
+5. **Native Cryptographic Compatibility (Ed25519):** Telemetry from smart meters is signed using Ed25519 at the source. Solana natively supports Ed25519 signature verification via the precompiled `ed25519_program` system instruction, making on-chain telemetry verification computationally and economically viable. On EVM, verifying non-secp256k1 signatures is prohibitively gas-intensive.
 
 ## Consequences
 

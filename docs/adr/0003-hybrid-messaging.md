@@ -28,9 +28,9 @@ We use a **hybrid architecture** with three messaging systems, each purpose-matc
 
 | Cluster | Port | Purpose | Retention |
 |:---|:---|:---|:---|
-| `cmd-events` | 9001 | Commands, trades, settlements | 7 days |
-| `market-data` | 9002 | Order book updates, prices | Ephemeral (high-TPS) |
-| `audit` | 9003 | Regulatory compliance, S3-tiered | 7 years |
+| `cmd-events` | 9001 | Commands, trades, settlements, and verified telemetry streams | 7 days |
+| `market-data` | 9002 | Order book updates, prices, and unvalidated edge data feeds | Ephemeral (high-TPS) |
+| `audit` | 9003 | Regulatory compliance, S3-tiered, and historical generation telemetry logs | 7 years |
 
 ## Rationale
 
@@ -51,7 +51,7 @@ Redis Pub/Sub is **fire-and-forget** — no durability, no replay. Perfect for r
 Each system handles the workload it was designed for:
 
 ```
-Kafka:    Ordered, durable event log → trades, audits, event sourcing
+Kafka:    Ordered, durable event log → telemetry ingestion, trades, audits, event sourcing
 RabbitMQ: Reliable task processing   → email, retries, DLQ
 Redis:    Ultra-low-latency pub/sub  → WebSocket, price tickers, sessions
 ```

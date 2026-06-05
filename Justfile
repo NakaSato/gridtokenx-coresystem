@@ -154,6 +154,16 @@ run-oracle:
 benchmark:
     (cd gridtokenx-trading-service/crates/trading-engine; cargo bench --bench matching_benchmark)
 
+# --- Solana Localnet ---
+
+# Start local solana test validator
+solana-up:
+    ./scripts/app.sh solana start
+
+# Stop local solana test validator
+solana-down:
+    ./scripts/app.sh solana stop
+
 # --- Solana Mainnet Simulation (Surfpool) ---
 
 # Start mainnet simulation with Studio and hot-reload

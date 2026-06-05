@@ -86,9 +86,11 @@ ONBOARD_RESP=$(curl -s -X POST "$API_URL/api/v1/identity/onboard" \
     -H "x-gridtokenx-role: api-gateway" \
     -H "x-gridtokenx-gateway-secret: gridtokenx-gateway-secret-2025" \
     -d '{
-        "user_type": "Prosumer",
-        "lat_e7": 13756300,
-        "long_e7": 100501800
+        "user_type": "prosumer",
+        "location": {
+            "lat_e7": 13756300,
+            "long_e7": 100501800
+        }
     }')
 
 TX_SIG=$(echo "$ONBOARD_RESP" | jq -r '.transaction_signature // empty')
@@ -130,7 +132,7 @@ log_success "Secondary Wallet Linked & Auto-Registered. PDA: $PDA"
 
 # 6. Final State Verification
 log_info "Step 6: Verifying final user profile state..."
-ME_RESP=$(curl -s -X GET "$API_URL/api/v1/users/me" \
+ME_RESP=$(curl -s -X GET "$API_URL/api/v1/me" \
     -H "Authorization: Bearer $JWT" \
     -H "x-gridtokenx-role: api-gateway" \
     -H "x-gridtokenx-gateway-secret: gridtokenx-gateway-secret-2025")

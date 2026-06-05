@@ -25,7 +25,7 @@ start_core_services() {
     else
         docker-compose up -d postgres redis mailpit apisix envoy rabbitmq kafka-cmd
         # Ensure Docker versions of application services are stopped to prevent port conflicts (native execution preferred)
-        docker stop gridtokenx-trading-service gridtokenx-iam-service gridtokenx-oracle-bridge >/dev/null 2>&1 || true
+        docker stop gridtokenx-trading-service gridtokenx-iam-service gridtokenx-oracle-bridge gridtokenx-noti-service >/dev/null 2>&1 || true
     fi
 
     wait_for_postgres
@@ -37,7 +37,8 @@ start_blockchain_services() {
     echo ""
     log_info "Starting Solana test validator..."
     mkdir -p "$PROJECT_ROOT/scripts/logs"
-    solana-test-validator --reset --ledger "$PROJECT_ROOT/test-ledger" > "$PROJECT_ROOT/scripts/logs/validator.log" 2>&1 &
+    
+    solana_validator_start "$PROJECT_ROOT/test-ledger" "$PROJECT_ROOT/scripts/logs/validator.log" ""
     wait_for_solana
 
     # Fund wallets
@@ -159,7 +160,7 @@ _start_native_services() {
         "$PROJECT_ROOT/scripts/logs/noti.log"
     wait_for_port "Noti gRPC" 5050 30
 
-    wait_for_service "APISIX" "http://localhost:4001/health" 60 2
+    wait_for_service "APISIX" "http://localhost:4001/api/v1/system/config" 60 2
 
     if [ "$skip_ui" = false ]; then
         _start_frontend_uis_background
@@ -194,7 +195,7 @@ _start_terminal_services() {
         "$PROJECT_ROOT"
     wait_for_port "Noti gRPC" 5050 30
 
-    wait_for_service "APISIX" "http://localhost:4001/health" 60 2
+    wait_for_service "APISIX" "http://localhost:4001/api/v1/system/config" 60 2
 
     if [ "$skip_ui" = false ]; then
         _start_frontend_uis_terminal
@@ -284,7 +285,7 @@ cmd_start() {
 
     # Step 1: Cleanup native service processes
     log_info "Cleaning up existing native processes..."
-    pkill -f "solana-test-validator" 2>/dev/null || true
+    solana_validator_stop
     pkill -f "api-services" 2>/dev/null || true
     pkill -f "gridtokenx-trading-service" 2>/dev/null || true
     pkill -f "gridtokenx-oracle-bridge" 2>/dev/null || true

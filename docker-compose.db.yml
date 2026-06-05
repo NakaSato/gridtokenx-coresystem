@@ -36,6 +36,10 @@ services:
       - "log_min_duration_statement=1000"
       - "-c"
       - "shared_preload_libraries=pg_stat_statements"
+      - "-c"
+      - "idle_in_transaction_session_timeout=30000"
+      - "-c"
+      - "statement_timeout=60000"
     ports:
       - "${POSTGRES_PRIMARY_PORT:-7001}:5432"
     volumes:
