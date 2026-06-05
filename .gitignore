@@ -199,3 +199,11 @@ Icon
 .antigravitycli/
 .gemini/
 insecure-dev-wallet.json
+
+# Scratch / tool output / runtime data
+validator_logs.txt
+*_logs.txt
+graphify-out/
+calc_disc.cjs
+check_pda.rs
+data/
