@@ -2,19 +2,19 @@
 
 == Summary of Contributions
 
-This paper has presented GridTokenX, a production-grade Decentralized Physical Infrastructure Network (DePIN) for real-time peer-to-peer energy trading. We have demonstrated that the combination of hardware-rooted cryptographic trust, high-performance blockchain settlement, and grid-aware market mechanics can overcome the fundamental limitations of existing P2P energy trading solutions.
+This paper has presented GridTokenX, a reference architecture for a Decentralized Physical Infrastructure Network (DePIN) for real-time peer-to-peer energy trading. We have argued that the combination of hardware-rooted cryptographic trust, high-performance blockchain settlement, and grid-aware market mechanics can address several limitations of existing P2P energy trading solutions when supported by reproducible benchmarking, regulatory approval, and utility-grade deployment validation.
 
 The key technical contributions of this work are:
 
 *End-to-End Cryptographic Provenance*: By anchoring data integrity at the physical layer through Ed25519 hardware signing and propagating cryptographic proofs through every layer of the stack to on-chain settlement, GridTokenX creates an unbroken chain of trust from the physical kilowatt-hour to the digital token. This eliminates the trusted intermediary that has been the Achilles' heel of previous P2P energy trading platforms.
 
-*High-Performance On-Chain Settlement*: The sharded Anchor program architecture, zero-copy state management, and batch settlement design enable the platform to sustain over 50,000 settlement operations per hour while remaining within Solana's per-transaction compute unit limits. This throughput is sufficient to support a national-scale energy market.
+*High-Performance On-Chain Settlement*: The sharded Anchor program architecture, zero-copy state management, and batch settlement design are intended to support a target of 50,000 settlement operations per hour while remaining within Solana's per-transaction compute unit limits. Section 11 defines the measurements required to substantiate this target.
 
-*Economically Sound Triple-Token Model*: The GRID/GRX/gTHB token architecture cleanly separates the concerns of energy representation, protocol governance, and stable settlement. The physical backing of GRID tokens and the full collateralization of gTHB provide economic stability that purely algorithmic token designs cannot achieve.
+*Separated Triple-Token Model*: The GRID/GRX/gTHB token architecture separates the concerns of energy representation, protocol governance, and stable settlement. The physical backing of GRID tokens and the proposed full collateralization of gTHB are intended to reduce volatility relative to purely algorithmic token designs.
 
 *Regulatory-Native Architecture*: By integrating KYC/AML compliance, I-REC standard REC issuance, and PEA-aligned wheeling charge structures into the core protocol design, GridTokenX is positioned to operate within existing regulatory frameworks rather than in opposition to them.
 
-*Grid-Aware Congestion Management*: The zone-based capacity enforcement, dynamic wheeling charges, and VPP integration ensure that every settled trade is physically deliverable and that the platform actively contributes to grid stability rather than exacerbating congestion.
+*Grid-Aware Congestion Management*: The zone-based capacity enforcement, dynamic wheeling charges, and VPP integration are designed to reject physically infeasible trades and create price signals that discourage avoidable congestion.
 
 == Limitations and Open Challenges
 
@@ -59,6 +59,6 @@ To validate the platform's grid-aware trading algorithms before deployment in ne
 
 The transition to a decentralized, renewable energy future is not merely a technical challenge — it is an economic coordination problem of enormous complexity. Millions of independent prosumers, each with their own generation assets, storage systems, and consumption patterns, must be coordinated in real time to maintain grid stability while maximizing the utilization of clean energy.
 
-GridTokenX demonstrates that blockchain technology, when designed with physical infrastructure constraints in mind, can serve as the coordination layer for this transition. By making the rules of the energy market transparent, automated, and tamper-proof, the platform creates the trust infrastructure necessary for a genuinely decentralized energy economy.
+GridTokenX illustrates how blockchain technology, when designed with physical infrastructure constraints in mind, can serve as one coordination layer for this transition. By making market rules transparent, automated, and auditable, the platform aims to provide trust infrastructure for a more decentralized energy economy.
 
 The code, smart contracts, and protocol specifications described in this paper are available as open-source software @gridtokenx, inviting collaboration from the global DePIN and energy research communities.
