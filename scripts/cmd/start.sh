@@ -110,7 +110,7 @@ start_application_services() {
 
     export ENERGY_TOKEN_MINT=${ENERGY_TOKEN_MINT:-$default_energy_mint}
     export CURRENCY_TOKEN_MINT=${CURRENCY_TOKEN_MINT:-$default_currency_mint}
-    export FEE_COLLECTOR_WALLET=${FEE_COLLECTOR_WALLET:-"$PROJECT_ROOT/infra/solana/dev-wallet.json"}
+    export FEE_COLLECTOR_WALLET=${FEE_COLLECTOR_WALLET:?FEE_COLLECTOR_WALLET must be set (infra/ removed)}
 
     # Noti specific (uses APP prefix)
     export APP__PORT=${APP__PORT:-"5050"}
@@ -148,8 +148,11 @@ _start_native_services() {
         "$PROJECT_ROOT" \
         "$PROJECT_ROOT/scripts/logs/trading.log"
 
+    # ENVIRONMENT=production makes the REST /v1/private-network/ingest path enforce Ed25519
+    # signature verification (reject tampered/unknown/wrong-key). Without it the handler
+    # falls through and accepts unverified telemetry as 202 — see docs/E2E_IMPL_PLAN.md.
     run_in_background "Oracle Bridge" \
-        "IAM_SERVICE_URL=http://127.0.0.1:4010 GRIDTOKENX_API_KEYS=\"$GRIDTOKENX_API_KEYS\" RUST_LOG=info $PROJECT_ROOT/gridtokenx-oracle-bridge/target/debug/gridtokenx-oracle-bridge" \
+        "ENVIRONMENT=production IAM_SERVICE_URL=http://127.0.0.1:4010 GRIDTOKENX_API_KEYS=\"$GRIDTOKENX_API_KEYS\" RUST_LOG=info $PROJECT_ROOT/gridtokenx-oracle-bridge/target/debug/gridtokenx-oracle-bridge" \
         "$PROJECT_ROOT" \
         "$PROJECT_ROOT/scripts/logs/oracle-bridge.log"
     wait_for_port "Oracle Bridge" 4030 30
@@ -185,8 +188,9 @@ _start_terminal_services() {
         "$PROJECT_ROOT"
     wait_for_port "Trading gRPC" 8092 60
 
+    # ENVIRONMENT=production enforces REST telemetry signature verification (see above / docs).
     run_in_terminal "Oracle Bridge" \
-        "IAM_SERVICE_URL=http://127.0.0.1:4010 GRIDTOKENX_API_KEYS=\"$GRIDTOKENX_API_KEYS\" RUST_LOG=info $PROJECT_ROOT/gridtokenx-oracle-bridge/target/debug/gridtokenx-oracle-bridge > $PROJECT_ROOT/scripts/logs/oracle-bridge.log 2>&1" \
+        "ENVIRONMENT=production IAM_SERVICE_URL=http://127.0.0.1:4010 GRIDTOKENX_API_KEYS=\"$GRIDTOKENX_API_KEYS\" RUST_LOG=info $PROJECT_ROOT/gridtokenx-oracle-bridge/target/debug/gridtokenx-oracle-bridge > $PROJECT_ROOT/scripts/logs/oracle-bridge.log 2>&1" \
         "$PROJECT_ROOT"
     wait_for_port "Oracle Bridge" 4030 30
 

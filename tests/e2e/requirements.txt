@@ -1,0 +1,11 @@
+# GridTokenX E2E — Python deps (gRPC / crypto / bus suites)
+pytest>=8.0
+requests>=2.31
+grpcio>=1.60
+grpcio-tools>=1.60
+protobuf>=4.25
+cryptography>=42.0
+base58>=2.1
+# Phase 2 (event tap):
+redis>=5.0
+confluent-kafka>=2.3
