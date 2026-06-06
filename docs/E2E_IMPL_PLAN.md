@@ -114,7 +114,7 @@ Depends Phase 1 (verified+funded user) + Phase 3 (settlement).
 - [x] Partial fill, no-cross resting, cancel. *(resting/cancel cases + partial fill filled_amount=4 stays partially_filled, full=5 → filled)*
 - [~] Gating: unverified/zero-balance rejected. *(role/secret gating ✓ — no-role 401; zero-balance gating not asserted)*
 - [ ] On-chain settlement: balances move, no direct Solana RPC from Trading (assert via Chain Bridge only). *(needs platform `:4000` + funded ATAs — out-of-repo)*
-- [ ] Concurrency invariant: N concurrent orders, sum fills ≤ qty, no double-fill. *(not built)*
+- [x] Concurrency invariant: N concurrent orders, sum fills ≤ qty, no double-fill. *(40_trading `test_concurrent_buys_no_oversell`: 5 distinct buyers fire crossing buys SIMULTANEOUSLY (ThreadPoolExecutor) at one resting sell Q=4 in a fresh isolated per-run zone; asserts seller `filled_amount ≤ Q` at every poll (oversell/double-fill guard) and converges to exactly Q (liveness). Live 7P/0skip)*
 - [x] gRPC `:8092` parity.
 
 **Exit:** §6 green.
@@ -176,7 +176,7 @@ First live bring-up surfaced **environment prereqs not in CLAUDE.md** (fixed in-
 | 10_iam | run.sh | 20/0 | ✓ |
 | 20_oracle | test_telemetry.py | 6P/0skip | ✓ |
 | 30_settlement | test_settlement.py | 3skip(platform :4000) | ✓ |
-| 40_trading | test_trading.py | 6P/0skip | ✓ |
+| 40_trading | test_trading.py | 7P/0skip | ✓ |
 | 50_chain_bridge | test_chain_bridge.py + run.sh | rust 11/11 + py 4P/2skip | ✓ |
 | 60_noti | test_noti.py | 3P | ✓ |
 | 70_anchor | run.sh | 3 mocha passing LIVE (`E2E_RUN_ANCHOR=1`) | ✓ |

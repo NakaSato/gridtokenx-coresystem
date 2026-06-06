@@ -12,6 +12,7 @@ On-chain settlement is best-effort (full stack + Chain Bridge required).
 
 Run: cd tests/e2e && python -m pytest 40_trading -v
 """
+import concurrent.futures
 import os
 import time
 
@@ -20,6 +21,21 @@ import requests
 
 TRADING = os.getenv("TRADING_URL", "http://localhost:8093")
 ZONE = int(os.getenv("E2E_TRADING_ZONE", "1"))
+
+# A per-run, high, otherwise-unused zone for the concurrency test, so its book is
+# empty at the start (no leftover asks from other suites/runs) and the resting sell
+# is the ONLY ask the concurrent buyers can cross. Matching is zone-segmented and
+# same-zone flow is always allowed (production can_accommodate_flow == true), so a
+# fresh zone fully isolates the book without depending on grid topology.
+def _conc_zone():
+    rid = os.getenv("E2E_RUN_ID", "0")
+    try:
+        return 7000 + (int(rid) % 1000)
+    except ValueError:
+        return 7000 + (abs(hash(rid)) % 1000)
+
+
+CONC_ZONE = _conc_zone()
 
 
 def _up():
@@ -44,9 +60,9 @@ def hdr(user_id, role="api-gateway"):
     return h
 
 
-def place_order(user_id, side, amount, price, role="api-gateway"):
+def place_order(user_id, side, amount, price, role="api-gateway", zone=ZONE):
     body = {"side": side, "order_type": "limit",
-            "energy_amount_kwh": str(amount), "price_per_kwh": str(price), "zone_id": ZONE}
+            "energy_amount_kwh": str(amount), "price_per_kwh": str(price), "zone_id": zone}
     return requests.post(f"{TRADING}/api/v1/orders", json=body, headers=hdr(user_id, role), timeout=8)
 
 
@@ -191,6 +207,83 @@ def test_crossing_orders_match(new_user, make_user):
     buy_id = b.json()["id"]
     assert poll_filled(buyer, buy_id, 4, timeout=25), \
         "buyer's crossing order did not fill within 25s (cross-party CDA match)"
+
+
+def test_concurrent_buys_no_oversell(new_user, make_user):
+    """Case 7 (concurrency invariant): N distinct buyers fire crossing buys
+    SIMULTANEOUSLY against ONE resting sell of size Q, with total buy demand > Q.
+    The resting sell must never over-fill — filled_amount <= Q at every observation,
+    no matter how the matcher interleaves the concurrent crossing orders. A
+    double-fill / lost-update race in the matcher (e.g. two cycles both crediting
+    the same resting order, or update_filled_amount stomping a concurrent write)
+    would push the seller's fill above Q.
+
+    Why assert on the SELLER's own order: it is immune to a shared/dirty book. Extra
+    liquidity from other suites can only let the *buyers* fill elsewhere — it can
+    never make this one sell order exceed its own size. We further isolate the book
+    in a fresh per-run zone (CONC_ZONE) so the buyers can only cross this sell, which
+    also gives a clean liveness signal: the fill must converge to exactly Q.
+    """
+    seller = new_user["user_id"] or pytest.skip("no user_id")
+    N = 5
+    buyers = []
+    for _ in range(N):
+        uid = make_user()["user_id"]
+        if not uid:
+            pytest.skip("could not provision distinct buyer")
+        buyers.append(uid)
+    assert len(set(buyers)) == N, "buyers must be distinct identities"
+    assert seller not in buyers, "seller must differ from every buyer (self-trade guard)"
+
+    Q = 4          # resting sell size
+    price = 9
+    # Total buy demand = N * 1 = 5 > Q = 4  -> the buyers contend for limited liquidity.
+    s = place_order(seller, "sell", Q, price, zone=CONC_ZONE)
+    if s.status_code != 200:
+        pytest.skip(f"resting sell not accepted in conc zone: {s.status_code} {s.text}")
+    sell_id = s.json().get("id")
+    assert sell_id, "no sell order id"
+
+    def fire(uid):
+        try:
+            r = place_order(uid, "buy", 1, price, zone=CONC_ZONE)
+            return (r.status_code, r.json().get("id") if r.status_code == 200 else None)
+        except requests.RequestException:
+            return (None, None)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=N) as ex:
+        results = list(ex.map(fire, buyers))
+    accepted = [oid for code, oid in results if code == 200 and oid]
+    assert accepted, f"no concurrent buy accepted: {results}"
+
+    # Drain the async matcher; assert the oversell guard holds at EVERY observation,
+    # not only at the end (a transient over-credit is still a double-fill bug).
+    from decimal import Decimal, InvalidOperation
+    deadline = time.time() + 30
+    seller_fill = Decimal(0)
+    while time.time() < deadline:
+        try:
+            r = get_order(seller, sell_id)
+        except requests.RequestException:
+            time.sleep(1)
+            continue
+        if r.status_code == 200:
+            o = _order_row(r, sell_id)
+            if o:
+                fa = o.get("filled_amount_kwh") or o.get("filled_amount") or "0"
+                try:
+                    seller_fill = Decimal(str(fa))
+                except InvalidOperation:
+                    pass
+                assert seller_fill <= Q, \
+                    f"resting sell OVER-FILLED: {seller_fill} > {Q} (matcher double-fill/lost-update race)"
+                if seller_fill >= Q:
+                    break
+        time.sleep(1)
+    # Liveness: in the isolated zone the only ask is this sell, so the contending
+    # buys must have filled it to exactly Q (4 of the 5 buyers' 1-kWh orders).
+    assert seller_fill == Q, \
+        f"resting sell did not fully fill in isolated zone: {seller_fill} != {Q} (matcher liveness/under-fill)"
 
 
 def test_cancel_order(new_user):
