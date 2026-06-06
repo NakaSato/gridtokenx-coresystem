@@ -148,11 +148,11 @@ _start_native_services() {
         "$PROJECT_ROOT" \
         "$PROJECT_ROOT/scripts/logs/trading.log"
 
-    # ENVIRONMENT=production makes the REST /v1/private-network/ingest path enforce Ed25519
-    # signature verification (reject tampered/unknown/wrong-key). Without it the handler
-    # falls through and accepts unverified telemetry as 202 — see docs/E2E_IMPL_PLAN.md.
+    # Oracle Bridge enforces Ed25519 telemetry signature verification fail-CLOSED by
+    # default (rejects tampered/unknown/wrong-key); set ORACLE_ALLOW_UNVERIFIED_TELEMETRY=true
+    # only to disable it in trusted dev. See docs/E2E_IMPL_PLAN.md.
     run_in_background "Oracle Bridge" \
-        "ENVIRONMENT=production IAM_SERVICE_URL=http://127.0.0.1:4010 GRIDTOKENX_API_KEYS=\"$GRIDTOKENX_API_KEYS\" RUST_LOG=info $PROJECT_ROOT/gridtokenx-oracle-bridge/target/debug/gridtokenx-oracle-bridge" \
+        "IAM_SERVICE_URL=http://127.0.0.1:4010 GRIDTOKENX_API_KEYS=\"$GRIDTOKENX_API_KEYS\" RUST_LOG=info $PROJECT_ROOT/gridtokenx-oracle-bridge/target/debug/gridtokenx-oracle-bridge" \
         "$PROJECT_ROOT" \
         "$PROJECT_ROOT/scripts/logs/oracle-bridge.log"
     wait_for_port "Oracle Bridge" 4030 30
@@ -188,9 +188,10 @@ _start_terminal_services() {
         "$PROJECT_ROOT"
     wait_for_port "Trading gRPC" 8092 60
 
-    # ENVIRONMENT=production enforces REST telemetry signature verification (see above / docs).
+    # Oracle Bridge enforces telemetry signature verification fail-CLOSED by default
+    # (see above / docs). ORACLE_ALLOW_UNVERIFIED_TELEMETRY=true disables it for dev.
     run_in_terminal "Oracle Bridge" \
-        "ENVIRONMENT=production IAM_SERVICE_URL=http://127.0.0.1:4010 GRIDTOKENX_API_KEYS=\"$GRIDTOKENX_API_KEYS\" RUST_LOG=info $PROJECT_ROOT/gridtokenx-oracle-bridge/target/debug/gridtokenx-oracle-bridge > $PROJECT_ROOT/scripts/logs/oracle-bridge.log 2>&1" \
+        "IAM_SERVICE_URL=http://127.0.0.1:4010 GRIDTOKENX_API_KEYS=\"$GRIDTOKENX_API_KEYS\" RUST_LOG=info $PROJECT_ROOT/gridtokenx-oracle-bridge/target/debug/gridtokenx-oracle-bridge > $PROJECT_ROOT/scripts/logs/oracle-bridge.log 2>&1" \
         "$PROJECT_ROOT"
     wait_for_port "Oracle Bridge" 4030 30
 
