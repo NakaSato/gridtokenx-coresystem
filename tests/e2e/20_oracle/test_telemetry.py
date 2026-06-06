@@ -126,7 +126,13 @@ def test_dissemination_fanout(device):
 
 
 def test_grpc_valid_and_tampered(device):
-    """Case 6: gRPC SubmitTelemetry accepts valid, rejects tampered."""
+    """Case 6: gRPC Ingest accepts a valid signed reading, rejects a tampered one.
+
+    Service is `gridtokenx.oracle.v1.OracleService/Ingest(MeterReading)` (proto
+    in gridtokenx-oracle-bridge/proto/oracle.proto). The verifier reconstructs the
+    canonical target `{meter_id}:{kwh}:{timestamp}`, so kwh on the wire must be the
+    canonicalized form the signature was computed over.
+    """
     grpc = pytest.importorskip("grpc")
     try:
         import oracle_pb2
@@ -137,19 +143,24 @@ def test_grpc_valid_and_tampered(device):
     channel = grpc.insecure_channel(ORACLE_GRPC)
     stub = oracle_pb2_grpc.OracleServiceStub(channel)
     kwh, ts = "55.55", int(time.time() * 1000)
+    kwh_canon = crypto.rust_f64_str(kwh)  # match Oracle's canonical reconstruction
     sig = crypto.sign_telemetry(device["priv"], device["meter_id"], kwh, ts)
 
-    req = oracle_pb2.TelemetryRequest(meter_id=device["meter_id"], kwh=kwh, timestamp=ts, signature=sig)
+    reading = oracle_pb2.MeterReading(
+        meter_id=device["meter_id"], kwh=kwh_canon, timestamp=ts, signature=sig,
+    )
     try:
-        resp = stub.SubmitTelemetry(req, timeout=5)
+        resp = stub.Ingest(reading, timeout=5)
     except grpc.RpcError as e:
         if e.code() == grpc.StatusCode.UNAVAILABLE:
-            # Oracle gRPC :5030 not bound — documented service finding
-            # (docs/E2E_IMPL_PLAN.md). Only the REST ingest path is up.
+            # Oracle gRPC :5030 not bound — only the REST ingest path is up.
             pytest.skip(f"Oracle gRPC {ORACLE_GRPC} unreachable (server not bound): {e.details()}")
         pytest.fail(f"valid gRPC telemetry rejected: {e.code()} {e.details()}")
     assert resp.status, "empty gRPC status on valid telemetry"
 
-    req.signature = "invalid_signature_base58"
+    tampered = oracle_pb2.MeterReading(
+        meter_id=device["meter_id"], kwh=kwh_canon, timestamp=ts,
+        signature="invalid_signature_base58",
+    )
     with pytest.raises(grpc.RpcError):
-        stub.SubmitTelemetry(req, timeout=5)
+        stub.Ingest(tampered, timeout=5)

@@ -26,7 +26,7 @@ if _version_not_supported:
 
 
 class OracleServiceStub(object):
-    """Service for high-frequency oracle ingestion
+    """Service for high-performance unified oracle ingestion (UTT)
     """
 
     def __init__(self, channel):
@@ -35,55 +35,43 @@ class OracleServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.SubmitTelemetry = channel.unary_unary(
-                '/gridtokenx.oracle.v1.OracleService/SubmitTelemetry',
-                request_serializer=oracle__pb2.TelemetryRequest.SerializeToString,
-                response_deserializer=oracle__pb2.TelemetryResponse.FromString,
+        self.Ingest = channel.unary_unary(
+                '/gridtokenx.oracle.v1.OracleService/Ingest',
+                request_serializer=oracle__pb2.MeterReading.SerializeToString,
+                response_deserializer=oracle__pb2.IngestResponse.FromString,
                 _registered_method=True)
-        self.SubmitTelemetryBatch = channel.unary_unary(
-                '/gridtokenx.oracle.v1.OracleService/SubmitTelemetryBatch',
-                request_serializer=oracle__pb2.TelemetryBatchRequest.SerializeToString,
-                response_deserializer=oracle__pb2.TelemetryBatchResponse.FromString,
+        self.IngestBatch = channel.unary_unary(
+                '/gridtokenx.oracle.v1.OracleService/IngestBatch',
+                request_serializer=oracle__pb2.MeterReadingBatchRequest.SerializeToString,
+                response_deserializer=oracle__pb2.MeterReadingBatchResponse.FromString,
                 _registered_method=True)
-        self.PushGradients = channel.unary_unary(
-                '/gridtokenx.oracle.v1.OracleService/PushGradients',
-                request_serializer=oracle__pb2.PushGradientsRequest.SerializeToString,
-                response_deserializer=oracle__pb2.PushGradientsResponse.FromString,
-                _registered_method=True)
-        self.PullGlobalModel = channel.unary_unary(
-                '/gridtokenx.oracle.v1.OracleService/PullGlobalModel',
-                request_serializer=oracle__pb2.PullGlobalModelRequest.SerializeToString,
-                response_deserializer=oracle__pb2.PullGlobalModelResponse.FromString,
+        self.BulkRawIngest = channel.unary_unary(
+                '/gridtokenx.oracle.v1.OracleService/BulkRawIngest',
+                request_serializer=oracle__pb2.BulkRawRequest.SerializeToString,
+                response_deserializer=oracle__pb2.BulkRawResponse.FromString,
                 _registered_method=True)
 
 
 class OracleServiceServicer(object):
-    """Service for high-frequency oracle ingestion
+    """Service for high-performance unified oracle ingestion (UTT)
     """
 
-    def SubmitTelemetry(self, request, context):
-        """Path A: High-frequency telemetry ingestion (VPP operations)
+    def Ingest(self, request, context):
+        """Unified Ingestion: Verified telemetry for both VPP operations (Path A) and Settlement (Path B)
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def SubmitTelemetryBatch(self, request, context):
-        """Batch: Submit multiple telemetry readings in one call (high throughput)
+    def IngestBatch(self, request, context):
+        """Batch Ingestion: Optimized for high-throughput aggregators
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def PushGradients(self, request, context):
-        """Federated Learning: Push locally trained model gradients for global aggregation
-        """
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def PullGlobalModel(self, request, context):
-        """Federated Learning: Pull the latest global model weights (Gating/Experts)
+    def BulkRawIngest(self, request, context):
+        """Bulk Raw Ingestion: Maximum performance endpoint for simulators (bypasses per-reading Protobuf overhead)
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -92,25 +80,20 @@ class OracleServiceServicer(object):
 
 def add_OracleServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'SubmitTelemetry': grpc.unary_unary_rpc_method_handler(
-                    servicer.SubmitTelemetry,
-                    request_deserializer=oracle__pb2.TelemetryRequest.FromString,
-                    response_serializer=oracle__pb2.TelemetryResponse.SerializeToString,
+            'Ingest': grpc.unary_unary_rpc_method_handler(
+                    servicer.Ingest,
+                    request_deserializer=oracle__pb2.MeterReading.FromString,
+                    response_serializer=oracle__pb2.IngestResponse.SerializeToString,
             ),
-            'SubmitTelemetryBatch': grpc.unary_unary_rpc_method_handler(
-                    servicer.SubmitTelemetryBatch,
-                    request_deserializer=oracle__pb2.TelemetryBatchRequest.FromString,
-                    response_serializer=oracle__pb2.TelemetryBatchResponse.SerializeToString,
+            'IngestBatch': grpc.unary_unary_rpc_method_handler(
+                    servicer.IngestBatch,
+                    request_deserializer=oracle__pb2.MeterReadingBatchRequest.FromString,
+                    response_serializer=oracle__pb2.MeterReadingBatchResponse.SerializeToString,
             ),
-            'PushGradients': grpc.unary_unary_rpc_method_handler(
-                    servicer.PushGradients,
-                    request_deserializer=oracle__pb2.PushGradientsRequest.FromString,
-                    response_serializer=oracle__pb2.PushGradientsResponse.SerializeToString,
-            ),
-            'PullGlobalModel': grpc.unary_unary_rpc_method_handler(
-                    servicer.PullGlobalModel,
-                    request_deserializer=oracle__pb2.PullGlobalModelRequest.FromString,
-                    response_serializer=oracle__pb2.PullGlobalModelResponse.SerializeToString,
+            'BulkRawIngest': grpc.unary_unary_rpc_method_handler(
+                    servicer.BulkRawIngest,
+                    request_deserializer=oracle__pb2.BulkRawRequest.FromString,
+                    response_serializer=oracle__pb2.BulkRawResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -121,11 +104,11 @@ def add_OracleServiceServicer_to_server(servicer, server):
 
  # This class is part of an EXPERIMENTAL API.
 class OracleService(object):
-    """Service for high-frequency oracle ingestion
+    """Service for high-performance unified oracle ingestion (UTT)
     """
 
     @staticmethod
-    def SubmitTelemetry(request,
+    def Ingest(request,
             target,
             options=(),
             channel_credentials=None,
@@ -138,9 +121,9 @@ class OracleService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/gridtokenx.oracle.v1.OracleService/SubmitTelemetry',
-            oracle__pb2.TelemetryRequest.SerializeToString,
-            oracle__pb2.TelemetryResponse.FromString,
+            '/gridtokenx.oracle.v1.OracleService/Ingest',
+            oracle__pb2.MeterReading.SerializeToString,
+            oracle__pb2.IngestResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -152,7 +135,7 @@ class OracleService(object):
             _registered_method=True)
 
     @staticmethod
-    def SubmitTelemetryBatch(request,
+    def IngestBatch(request,
             target,
             options=(),
             channel_credentials=None,
@@ -165,9 +148,9 @@ class OracleService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/gridtokenx.oracle.v1.OracleService/SubmitTelemetryBatch',
-            oracle__pb2.TelemetryBatchRequest.SerializeToString,
-            oracle__pb2.TelemetryBatchResponse.FromString,
+            '/gridtokenx.oracle.v1.OracleService/IngestBatch',
+            oracle__pb2.MeterReadingBatchRequest.SerializeToString,
+            oracle__pb2.MeterReadingBatchResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -179,7 +162,7 @@ class OracleService(object):
             _registered_method=True)
 
     @staticmethod
-    def PushGradients(request,
+    def BulkRawIngest(request,
             target,
             options=(),
             channel_credentials=None,
@@ -192,36 +175,9 @@ class OracleService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/gridtokenx.oracle.v1.OracleService/PushGradients',
-            oracle__pb2.PushGradientsRequest.SerializeToString,
-            oracle__pb2.PushGradientsResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def PullGlobalModel(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/gridtokenx.oracle.v1.OracleService/PullGlobalModel',
-            oracle__pb2.PullGlobalModelRequest.SerializeToString,
-            oracle__pb2.PullGlobalModelResponse.FromString,
+            '/gridtokenx.oracle.v1.OracleService/BulkRawIngest',
+            oracle__pb2.BulkRawRequest.SerializeToString,
+            oracle__pb2.BulkRawResponse.FromString,
             options,
             channel_credentials,
             insecure,

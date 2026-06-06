@@ -24,35 +24,25 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0coracle.proto\x12\x14gridtokenx.oracle.v1\"\xf6\x03\n\x10TelemetryRequest\x12\x12\n\nreading_id\x18\x01 \x01(\t\x12\x10\n\x08meter_id\x18\x02 \x01(\t\x12\x14\n\x0cmeter_serial\x18\x03 \x01(\t\x12\x0f\n\x07user_id\x18\x04 \x01(\t\x12\x16\n\x0ewallet_address\x18\x05 \x01(\t\x12\x14\n\x07zone_id\x18\x06 \x01(\x05H\x00\x88\x01\x01\x12\x0b\n\x03kwh\x18\x07 \x01(\t\x12\x1d\n\x10\x65nergy_generated\x18\x08 \x01(\tH\x01\x88\x01\x01\x12\x1c\n\x0f\x65nergy_consumed\x18\t \x01(\tH\x02\x88\x01\x01\x12\x14\n\x07voltage\x18\n \x01(\tH\x03\x88\x01\x01\x12\x14\n\x07\x63urrent\x18\x0b \x01(\tH\x04\x88\x01\x01\x12\x1a\n\rbattery_level\x18\x0c \x01(\tH\x05\x88\x01\x01\x12\x18\n\x0btemperature\x18\r \x01(\tH\x06\x88\x01\x01\x12\x11\n\ttimestamp\x18\x0e \x01(\x03\x12\x13\n\x0braw_payload\x18\x0f \x01(\x0c\x12\x16\n\tsignature\x18\x10 \x01(\tH\x07\x88\x01\x01\x42\n\n\x08_zone_idB\x13\n\x11_energy_generatedB\x12\n\x10_energy_consumedB\n\n\x08_voltageB\n\n\x08_currentB\x10\n\x0e_battery_levelB\x0e\n\x0c_temperatureB\x0c\n\n_signature\"7\n\x11TelemetryResponse\x12\x12\n\nreceipt_id\x18\x01 \x01(\t\x12\x0e\n\x06status\x18\x02 \x01(\t\"Q\n\x15TelemetryBatchRequest\x12\x38\n\x08readings\x18\x01 \x03(\x0b\x32&.gridtokenx.oracle.v1.TelemetryRequest\"m\n\x16TelemetryBatchResponse\x12\x13\n\x0breceipt_ids\x18\x01 \x03(\t\x12\x0e\n\x06status\x18\x02 \x01(\t\x12\x16\n\x0e\x61\x63\x63\x65pted_count\x18\x03 \x01(\x05\x12\x16\n\x0erejected_count\x18\x04 \x01(\x05\"k\n\x16PullGlobalModelRequest\x12\x10\n\x08meter_id\x18\x01 \x01(\t\x12\x17\n\x0f\x63urrent_version\x18\x02 \x01(\t\x12\x17\n\nmodel_type\x18\x03 \x01(\tH\x00\x88\x01\x01\x42\r\n\x0b_model_type\"h\n\x17PullGlobalModelResponse\x12\x0f\n\x07version\x18\x01 \x01(\t\x12\x15\n\rmodel_payload\x18\x02 \x01(\x0c\x12\x12\n\nmodel_type\x18\x03 \x01(\t\x12\x11\n\ttimestamp\x18\x04 \x01(\x03\"\xf0\x01\n\x14PushGradientsRequest\x12\x10\n\x08meter_id\x18\x01 \x01(\t\x12\x14\n\x0c\x62\x61se_version\x18\x02 \x01(\t\x12\x46\n\x06layers\x18\x03 \x03(\x0b\x32\x36.gridtokenx.oracle.v1.PushGradientsRequest.LayersEntry\x12\x14\n\x0csample_count\x18\x04 \x01(\x05\x1aR\n\x0bLayersEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x32\n\x05value\x18\x02 \x01(\x0b\x32#.gridtokenx.oracle.v1.GradientLayer:\x02\x38\x01\"\x1f\n\rGradientLayer\x12\x0e\n\x06values\x18\x01 \x03(\x02\"9\n\x15PushGradientsResponse\x12\x0e\n\x06status\x18\x01 \x01(\t\x12\x10\n\x08\x61\x63\x63\x65pted\x18\x02 \x01(\x08\x32\xc0\x03\n\rOracleService\x12\x62\n\x0fSubmitTelemetry\x12&.gridtokenx.oracle.v1.TelemetryRequest\x1a\'.gridtokenx.oracle.v1.TelemetryResponse\x12q\n\x14SubmitTelemetryBatch\x12+.gridtokenx.oracle.v1.TelemetryBatchRequest\x1a,.gridtokenx.oracle.v1.TelemetryBatchResponse\x12h\n\rPushGradients\x12*.gridtokenx.oracle.v1.PushGradientsRequest\x1a+.gridtokenx.oracle.v1.PushGradientsResponse\x12n\n\x0fPullGlobalModel\x12,.gridtokenx.oracle.v1.PullGlobalModelRequest\x1a-.gridtokenx.oracle.v1.PullGlobalModelResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0coracle.proto\x12\x14gridtokenx.oracle.v1\"6\n\x0e\x42ulkRawRequest\x12\x0f\n\x07payload\x18\x01 \x01(\x0c\x12\x13\n\x0bmeter_count\x18\x02 \x01(\x05\":\n\x0f\x42ulkRawResponse\x12\x17\n\x0fprocessed_count\x18\x01 \x01(\x05\x12\x0e\n\x06status\x18\x02 \x01(\t\"\xf6\x03\n\x0cMeterReading\x12\x12\n\nreading_id\x18\x01 \x01(\t\x12\x10\n\x08meter_id\x18\x02 \x01(\t\x12\x14\n\x0cmeter_serial\x18\x03 \x01(\t\x12\x0f\n\x07user_id\x18\x04 \x01(\t\x12\x16\n\x0ewallet_address\x18\x05 \x01(\t\x12\x16\n\tzone_code\x18\x06 \x01(\tH\x00\x88\x01\x01\x12\x0b\n\x03kwh\x18\x07 \x01(\t\x12\x1d\n\x10\x65nergy_generated\x18\x08 \x01(\tH\x01\x88\x01\x01\x12\x1c\n\x0f\x65nergy_consumed\x18\t \x01(\tH\x02\x88\x01\x01\x12\x14\n\x07voltage\x18\n \x01(\tH\x03\x88\x01\x01\x12\x14\n\x07\x63urrent\x18\x0b \x01(\tH\x04\x88\x01\x01\x12\x1a\n\rbattery_level\x18\x0c \x01(\tH\x05\x88\x01\x01\x12\x18\n\x0btemperature\x18\r \x01(\tH\x06\x88\x01\x01\x12\x11\n\ttimestamp\x18\x0e \x01(\x03\x12\x13\n\x0braw_payload\x18\x0f \x01(\x0c\x12\x16\n\tsignature\x18\x10 \x01(\tH\x07\x88\x01\x01\x42\x0c\n\n_zone_codeB\x13\n\x11_energy_generatedB\x12\n\x10_energy_consumedB\n\n\x08_voltageB\n\n\x08_currentB\x10\n\x0e_battery_levelB\x0e\n\x0c_temperatureB\x0c\n\n_signature\"4\n\x0eIngestResponse\x12\x12\n\nreceipt_id\x18\x01 \x01(\t\x12\x0e\n\x06status\x18\x02 \x01(\t\"P\n\x18MeterReadingBatchRequest\x12\x34\n\x08readings\x18\x01 \x03(\x0b\x32\".gridtokenx.oracle.v1.MeterReading\"p\n\x19MeterReadingBatchResponse\x12\x13\n\x0breceipt_ids\x18\x01 \x03(\t\x12\x0e\n\x06status\x18\x02 \x01(\t\x12\x16\n\x0e\x61\x63\x63\x65pted_count\x18\x03 \x01(\x05\x12\x16\n\x0erejected_count\x18\x04 \x01(\x05\x32\xb1\x02\n\rOracleService\x12R\n\x06Ingest\x12\".gridtokenx.oracle.v1.MeterReading\x1a$.gridtokenx.oracle.v1.IngestResponse\x12n\n\x0bIngestBatch\x12..gridtokenx.oracle.v1.MeterReadingBatchRequest\x1a/.gridtokenx.oracle.v1.MeterReadingBatchResponse\x12\\\n\rBulkRawIngest\x12$.gridtokenx.oracle.v1.BulkRawRequest\x1a%.gridtokenx.oracle.v1.BulkRawResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'oracle_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_PUSHGRADIENTSREQUEST_LAYERSENTRY']._loaded_options = None
-  _globals['_PUSHGRADIENTSREQUEST_LAYERSENTRY']._serialized_options = b'8\001'
-  _globals['_TELEMETRYREQUEST']._serialized_start=39
-  _globals['_TELEMETRYREQUEST']._serialized_end=541
-  _globals['_TELEMETRYRESPONSE']._serialized_start=543
-  _globals['_TELEMETRYRESPONSE']._serialized_end=598
-  _globals['_TELEMETRYBATCHREQUEST']._serialized_start=600
-  _globals['_TELEMETRYBATCHREQUEST']._serialized_end=681
-  _globals['_TELEMETRYBATCHRESPONSE']._serialized_start=683
-  _globals['_TELEMETRYBATCHRESPONSE']._serialized_end=792
-  _globals['_PULLGLOBALMODELREQUEST']._serialized_start=794
-  _globals['_PULLGLOBALMODELREQUEST']._serialized_end=901
-  _globals['_PULLGLOBALMODELRESPONSE']._serialized_start=903
-  _globals['_PULLGLOBALMODELRESPONSE']._serialized_end=1007
-  _globals['_PUSHGRADIENTSREQUEST']._serialized_start=1010
-  _globals['_PUSHGRADIENTSREQUEST']._serialized_end=1250
-  _globals['_PUSHGRADIENTSREQUEST_LAYERSENTRY']._serialized_start=1168
-  _globals['_PUSHGRADIENTSREQUEST_LAYERSENTRY']._serialized_end=1250
-  _globals['_GRADIENTLAYER']._serialized_start=1252
-  _globals['_GRADIENTLAYER']._serialized_end=1283
-  _globals['_PUSHGRADIENTSRESPONSE']._serialized_start=1285
-  _globals['_PUSHGRADIENTSRESPONSE']._serialized_end=1342
-  _globals['_ORACLESERVICE']._serialized_start=1345
-  _globals['_ORACLESERVICE']._serialized_end=1793
+  _globals['_BULKRAWREQUEST']._serialized_start=38
+  _globals['_BULKRAWREQUEST']._serialized_end=92
+  _globals['_BULKRAWRESPONSE']._serialized_start=94
+  _globals['_BULKRAWRESPONSE']._serialized_end=152
+  _globals['_METERREADING']._serialized_start=155
+  _globals['_METERREADING']._serialized_end=657
+  _globals['_INGESTRESPONSE']._serialized_start=659
+  _globals['_INGESTRESPONSE']._serialized_end=711
+  _globals['_METERREADINGBATCHREQUEST']._serialized_start=713
+  _globals['_METERREADINGBATCHREQUEST']._serialized_end=793
+  _globals['_METERREADINGBATCHRESPONSE']._serialized_start=795
+  _globals['_METERREADINGBATCHRESPONSE']._serialized_end=907
+  _globals['_ORACLESERVICE']._serialized_start=910
+  _globals['_ORACLESERVICE']._serialized_end=1215
 # @@protoc_insertion_point(module_scope)
