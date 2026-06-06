@@ -42,7 +42,7 @@ Reuse `scripts/production-e2e.sh` + `scripts/test-registration-e2e.sh`.
 - [~] Add: login happy/wrong-pass ✓, RBAC 403 (auth±) ✓, idempotent register 409 ✓ — **JWT refresh+rotation dropped** (no `/refresh` route in IAM).
 - [x] Wallet provisioning assert: `db.py` confirms no plaintext key; key only via Vault (Vault-Transit cipher check).
 - [x] On-chain user PDA assert (onboard `/users/me/onchain-profile` + idempotent re-onboard). *(PDA read still via service, not yet `chain.py` gRPC.)*
-- [ ] gRPC `:5010` parity case (Python ConnectRPC) — **not built** (11 cases are REST-only).
+- [x] gRPC `:5010` parity case (Python ConnectRPC) — **built 2026-06-07** (`10_iam/test_iam_grpc.py`, 4 cases). IAM `IdentityService` is ConnectRPC (HTTP+JSON, camelCase); calls `VerifyToken`/`GetUserInfo` over `http://:5010/identity.IdentityService/<M>` with a REST-issued JWT (conftest) and asserts the gRPC-decoded `userId`/`id` == REST `sub` (REST/gRPC share one identity view), garbage token → `valid:false`, and missing ServiceRole → 403 `permission_denied`. Auth = same `x-gridtokenx-role`+`x-gridtokenx-gateway-secret` model as Trading. Live 4P.
 
 **Exit:** §1 + §2 cases green. *(Meter registration deferred — no `/meters` route in IAM; register_meter PDA covered onchain in 70_anchor + Redis meter map in 20_oracle/90_golden_path.)*
 
@@ -173,7 +173,7 @@ First live bring-up surfaced **environment prereqs not in CLAUDE.md** (fixed in-
 | Suite | File | Cases | Live? |
 |-------|------|-------|-------|
 | 00_harness | run.sh | 5/0 | ✓ |
-| 10_iam | run.sh | 20/0 | ✓ |
+| 10_iam | run.sh + test_iam_grpc.py | 20/0 + gRPC 4P | ✓ |
 | 20_oracle | test_telemetry.py | 6P/0skip | ✓ |
 | 30_settlement | test_settlement.py | 3skip(platform :4000) | ✓ |
 | 40_trading | test_trading.py | 7P/0skip | ✓ |
