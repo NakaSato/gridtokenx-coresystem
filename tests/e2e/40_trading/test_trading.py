@@ -72,7 +72,12 @@ def _order_row(resp, oid):
 def poll_status(user_id, oid, want, timeout=20):
     deadline = time.time() + timeout
     while time.time() < deadline:
-        r = get_order(user_id, oid)
+        try:
+            r = get_order(user_id, oid)
+        except requests.RequestException:
+            # Transient blip (cold service, reset socket) — keep polling.
+            time.sleep(1)
+            continue
         if r.status_code == 200:
             o = _order_row(r, oid)
             if o and o.get("status", "").lower() == want:
@@ -83,13 +88,19 @@ def poll_status(user_id, oid, want, timeout=20):
 
 def poll_filled(user_id, oid, min_qty, timeout=25):
     """Poll until the order's filled qty reaches min_qty (a CDA match occurred).
-    We assert on filled quantity, not the status label, because the matcher marks
-    even fully-filled orders 'partially_filled' (matcher_service.rs:141,148 hardcode
-    PartiallyFilled and never promote to Filled) — a known service finding."""
+    We assert on filled quantity, not the status label: in a shared/dirty book a
+    crossing order may match a different counterparty's resting order, and partial
+    fills legitimately stay 'partially_filled'. Filled qty is the robust signal that
+    a match happened. (The matcher Filled-status promotion bug was fixed in
+    trading-service c506791; qty remains the more reliable assertion.)"""
     from decimal import Decimal, InvalidOperation
     deadline = time.time() + timeout
     while time.time() < deadline:
-        r = get_order(user_id, oid)
+        try:
+            r = get_order(user_id, oid)
+        except requests.RequestException:
+            time.sleep(1)
+            continue
         if r.status_code == 200:
             o = _order_row(r, oid)
             if o:
@@ -143,7 +154,11 @@ def test_noncrossing_order_rests_in_book(new_user):
     deadline = time.time() + 15
     found = False
     while time.time() < deadline:
-        lr = requests.get(f"{TRADING}/api/v1/orders?limit=50", headers=hdr(uid), timeout=8)
+        try:
+            lr = requests.get(f"{TRADING}/api/v1/orders?limit=50", headers=hdr(uid), timeout=8)
+        except requests.RequestException:
+            time.sleep(1)
+            continue
         if lr.status_code == 200:
             if any(o.get("id") == oid and o.get("status", "").lower() in resting
                    for o in lr.json().get("data", [])):

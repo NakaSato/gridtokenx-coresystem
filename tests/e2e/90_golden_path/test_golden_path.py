@@ -200,8 +200,11 @@ def test_golden_path():
             grew = False
             deadline = time.time() + 10
             while time.time() < deadline:
-                if redis_util.stream_total_len() > before:
-                    grew = True; break
+                try:
+                    if redis_util.stream_total_len() > before:
+                        grew = True; break
+                except Exception:
+                    pass  # transient Redis blip — keep polling
                 time.sleep(0.5)
             st.ok("dissemination to Redis zone stream") if grew else \
                 st.fail("dissemination", "no zone stream growth")
@@ -241,8 +244,12 @@ def test_golden_path():
             filled = False
             deadline = time.time() + 25
             while time.time() < deadline:
-                g = requests.get(f"{TRADING}/api/v1/orders/{buy_id}",
-                                 headers=trade_hdr(buyer["user_id"]), timeout=8)
+                try:
+                    g = requests.get(f"{TRADING}/api/v1/orders/{buy_id}",
+                                     headers=trade_hdr(buyer["user_id"]), timeout=8)
+                except requests.RequestException:
+                    time.sleep(1)
+                    continue
                 if g.status_code == 200:
                     j = g.json() or {}
                     row = j if j.get("id") == buy_id else None

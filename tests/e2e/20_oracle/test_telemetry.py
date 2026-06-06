@@ -118,9 +118,13 @@ def test_dissemination_fanout(device):
     deadline = time.time() + 10
     grew = False
     while time.time() < deadline:
-        if redis_util.stream_total_len() > before:
-            grew = True
-            break
+        try:
+            if redis_util.stream_total_len() > before:
+                grew = True
+                break
+        except Exception:
+            # Transient Redis blip — keep polling until the deadline.
+            pass
         time.sleep(0.5)
     assert grew, "no zone stream growth after accepted reading (dissemination fan-out failed)"
 
