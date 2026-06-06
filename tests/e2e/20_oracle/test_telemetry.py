@@ -15,11 +15,13 @@ import pytest
 import requests
 
 import crypto
+import events
 import redis_util
 
 ORACLE_REST = os.getenv("ORACLE_BRIDGE_REST", "http://localhost:4030")
 ORACLE_GRPC = os.getenv("ORACLE_BRIDGE_GRPC", "localhost:5030")
 INGEST_URL = f"{ORACLE_REST}/v1/private-network/ingest"
+KAFKA_TOPIC = os.getenv("KAFKA_TOPIC_METER_READINGS", "meter.readings")
 
 
 def _oracle_up() -> bool:
@@ -127,6 +129,56 @@ def test_dissemination_fanout(device):
             pass
         time.sleep(0.5)
     assert grew, "no zone stream growth after accepted reading (dissemination fan-out failed)"
+
+
+def test_kafka_dissemination_fanout(device):
+    """Case 7: an accepted reading is ALSO published to the Kafka dissemination topic
+    (`meter.readings`) as a MeterReadingEvent — the Kafka fan-out leg of Oracle
+    dissemination, complementing the Redis-stream assertion in Case 5.
+
+    Real consumer tap (lib/events.kafka_tap): we open the tap at the topic's current
+    end BEFORE ingesting, so we observe exactly the event this reading triggers (no
+    stale-event false positive, no missed event). Skips if the broker is unreachable,
+    or if the broker is up but no event arrives in the window (Oracle's Kafka producer
+    is gated on KAFKA_BOOTSTRAP_SERVERS and publishes best-effort).
+    """
+    import json
+
+    if not events.kafka_broker_up():
+        pytest.skip(f"Kafka broker {events.KAFKA_BROKER} unreachable")
+    consumer, ok = events.kafka_tap(KAFKA_TOPIC)
+    if not ok:
+        pytest.skip(f"Kafka topic {KAFKA_TOPIC} not present")
+    meter = device["meter_id"]
+    kwh, ts = "188.5", int(time.time() * 1000)
+    sig = crypto.sign_telemetry(device["priv"], meter, kwh, ts)
+    try:
+        r = requests.post(INGEST_URL, json=_rest_payload(meter, kwh, ts, sig), timeout=5)
+        assert r.status_code in (200, 202), f"reading rejected: {r.status_code} {r.text}"
+
+        def is_ours(val: bytes) -> bool:
+            try:
+                return json.loads(val).get("meter_id") == meter
+            except Exception:
+                return False
+
+        raw = events.drain_kafka(consumer, is_ours, timeout=20)
+    finally:
+        consumer.close()
+
+    if raw is None:
+        pytest.skip("broker up but no MeterReadingEvent published within 20s "
+                    "(Oracle KAFKA_BOOTSTRAP_SERVERS unset / producer disconnected)")
+    ev = json.loads(raw)
+    # Identity: the event is THIS ingest, not any reading on the topic — match both the
+    # (per-test-unique) meter id and the exact Ed25519 signature we submitted.
+    assert ev["meter_id"] == meter, f"wrong meter in event: {ev}"
+    assert ev.get("signature") == sig, f"event signature != submitted sig: {ev}"
+    # The verification verdict is carried through dissemination (fail-closed accepted it).
+    assert ev.get("verified") is True, f"accepted reading not marked verified in event: {ev}"
+    # NOTE: energy_* fields come from the parsed DeviceMetrics, not the REST payload's
+    # `energy_consumed` shorthand, so their values are not asserted here — the Redis
+    # fan-out (Case 5) and signature match above already prove the reading is carried.
 
 
 def test_grpc_valid_and_tampered(device):

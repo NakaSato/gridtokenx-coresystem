@@ -26,7 +26,7 @@
 - [x] `run.sh` bring-up gate: `./scripts/app.sh start && ./scripts/app.sh init && ./scripts/app.sh doctor` — abort if doctor not green.
 - [x] `just e2e` recipe → `tests/e2e/run.sh`. `just e2e-suite name:X` for single suite.
 - [x] Seed reset helper: truncate test schema + flush Redis `test:*` + unique Kafka group ids per run.
-- [ ] Tap helper proven against one real topic before building dependent suites (de-risk early). *(deferred — events.py is a stub; Redis-stream tap proven in 20_oracle, Kafka tap unproven until live run)*
+- [x] Tap helper proven against one real topic before building dependent suites (de-risk early). *(2026-06-07: `lib/events.py` Kafka tap implemented + proven LIVE against Oracle dissemination topic `meter.readings` — see 20_oracle Case 7. Redis-stream tap already proven in 20_oracle Case 5.)*
 
 **Exit:** `just e2e` runs, health gate green, one trivial smoke case passes.
 
@@ -57,7 +57,7 @@ Reuse `tests/e2e/test_telemetry_security.py` + `proto/oracle_pb2*`.
 - [x] Move existing test under `20_oracle/` (rewrote as `test_telemetry.py` pytest; legacy `test_telemetry_security.py` kept at e2e root as standalone `__main__` smoke tool — not pytest-collectable, orchestrator runs numbered dirs only).
 - [~] Add: invalid sig reject ✓, unknown device reject ✓, wrong-key reject ✓ — **replay reject deferred** (gRPC UTT-H nonce, service.rs:166).
 - [ ] 15-min aggregation window correctness — **deferred → Phase 4** (window hardcoded `WINDOW_MINUTES=15` in aggregator.rs; backdate timestamps to force completion).
-- [~] Dissemination fan-out: Redis zone-stream growth asserted ✓ (`test_dissemination_fanout`) — **Kafka tap unbuilt** (`events.py` stub, unproven until live run).
+- [x] Dissemination fan-out: Redis zone-stream growth ✓ (`test_dissemination_fanout`) **+ Kafka tap built & proven LIVE 2026-06-07** (`test_kafka_dissemination_fanout`). `lib/events.py` `kafka_tap()` opens a confluent consumer assigned to each partition's high-watermark BEFORE ingest (reads only the event this reading triggers — no group-join race, no stale-event false positive), `drain_kafka()` polls for it. Ingests a valid signed reading → asserts a `MeterReadingEvent` lands on `meter.readings` matching the per-test meter id + the exact submitted Ed25519 signature + `verified:true`. Skips gracefully when broker unreachable, or broker-up-but-producer-disconnected. **Env caveat:** Oracle's Kafka producer is gated on `KAFKA_BOOTSTRAP_SERVERS`; it must resolve to a host-reachable address (`localhost:29001`) — if it resolves to the docker-internal advertised name (`kafka-cmd:9001`) the native Oracle process logs `AllBrokersDown` and publishes nothing (test then skips). energy_* event fields come from parsed DeviceMetrics (not the REST `energy_consumed` shorthand) so their values aren't asserted; identity is proven via meter id + signature.
 - [ ] Envoy mTLS enforcement: non-mTLS client at `:4002` rejected — **deferred** (needs cert fixtures; loose reachability check in `80_gateways`).
 - [ ] Simulator integration: `just send-meter-reading` + `just auto-meter-send meters=5` land in InfluxDB — **not built** in `20_oracle`.
 
@@ -174,7 +174,7 @@ First live bring-up surfaced **environment prereqs not in CLAUDE.md** (fixed in-
 |-------|------|-------|-------|
 | 00_harness | run.sh | 5/0 | ✓ |
 | 10_iam | run.sh + test_iam_grpc.py | 20/0 + gRPC 4P | ✓ |
-| 20_oracle | test_telemetry.py | 6P/0skip | ✓ |
+| 20_oracle | test_telemetry.py | 7P/0skip | ✓ |
 | 30_settlement | test_settlement.py | 3skip(platform :4000) | ✓ |
 | 40_trading | test_trading.py | 7P/0skip | ✓ |
 | 50_chain_bridge | test_chain_bridge.py + run.sh | rust 11/11 + py 4P/2skip | ✓ |
