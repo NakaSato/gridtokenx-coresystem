@@ -2,7 +2,7 @@
 
 > Companion to [E2E_TEST_PLAN.md](E2E_TEST_PLAN.md). This is the build order.
 > Decisions: **local solana-test-validator** (dev + CI) · **hybrid bash+python** (bash+curl+jq for HTTP, Python+pytest for gRPC/crypto).
-> Last updated: 2026-06-06
+> Last updated: 2026-06-07
 
 ---
 
@@ -167,9 +167,9 @@ First live bring-up surfaced **environment prereqs not in CLAUDE.md** (fixed in-
 
 ---
 
-## Build Status (2026-06-06)
+## Build Status (2026-06-07)
 
-**All 8 phases built + ALL 10 SUITES CERTIFIED LIVE GREEN** (final artifact `1780761558-77585`, `E2E run PASSED (10 suites)`, 0 failures). To execute: `./scripts/app.sh start && ./scripts/app.sh init`, then `just e2e` (or `just e2e-suite name="10_iam"`). Heavy suites are opt-in: `E2E_RUN_ANCHOR=1`; Chain Bridge reads need `CHAIN_BRIDGE_INSECURE=true` (dev). Full settlement/golden-path need the out-of-repo platform `:4000` + gateways up.
+**All 8 phases built + ALL 10 SUITES CERTIFIED LIVE GREEN** (cert artifact `1780761558-77585`, `E2E run PASSED (10 suites)`, 0 failures). **2026-06-07 additions** (all live, folded into the table below): IAM gRPC IdentityService parity (`10_iam` +4P), Kafka dissemination tap proven (`20_oracle` → 7P), trading concurrency invariant (`40_trading` → 7P), on-chain GRID balance delta wired (`30_settlement` Phase 4 #5, assert-when-reachable). To execute: `./scripts/app.sh start && ./scripts/app.sh init`, then `just e2e` (or `just e2e-suite name="10_iam"`). Heavy suites are opt-in: `E2E_RUN_ANCHOR=1`; Chain Bridge reads need `CHAIN_BRIDGE_INSECURE=true` (dev). Full settlement/golden-path need the out-of-repo platform `:4000` + gateways up.
 
 | Suite | File | Cases | Live? |
 |-------|------|-------|-------|

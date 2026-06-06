@@ -207,3 +207,5 @@ graphify-out/
 calc_disc.cjs
 check_pda.rs
 data/
+# Added by code-review-graph
+.code-review-graph/

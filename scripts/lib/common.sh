@@ -22,7 +22,7 @@ fi
 RPC_URL=${SOLANA_RPC_URL:-${RPC_URL:-"http://localhost:8899"}}
 
 ANCHOR_DIR="$PROJECT_ROOT/gridtokenx-anchor"
-DEV_WALLET="$PROJECT_ROOT/infra/solana/dev-wallet.json"
+DEV_WALLET="${DEV_WALLET:-}"  # infra/ removed; set via env or .env
 PID_FILE="$PROJECT_ROOT/.gridtokenx.pid"
 
 

@@ -64,6 +64,16 @@ test-registration:
     chmod +x scripts/test-registration-e2e.sh
     ./scripts/test-registration-e2e.sh
 
+# Run full E2E suite (health gate -> all suites). SKIP_GATE=1 to bypass app.sh doctor.
+e2e:
+    chmod +x tests/e2e/run.sh
+    bash tests/e2e/run.sh
+
+# Run a single E2E suite by name fragment, e.g. just e2e-suite name="10_iam"
+e2e-suite name="00_harness":
+    chmod +x tests/e2e/run.sh
+    bash tests/e2e/run.sh {{name}}
+
 # Run migrations (IAM Service)
 migrate:
     (cd gridtokenx-iam-service; sqlx migrate run)

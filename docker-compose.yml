@@ -428,6 +428,29 @@ services:
         reservations:
           memory: 512M
 
+  # NATS JetStream - Blockchain TX Bus (chain.tx.submit / chain.tx.simulate)
+  nats:
+    image: nats:2.10-alpine
+    container_name: gridtokenx-nats
+    command:
+      - "--jetstream"
+      - "--store_dir=/data"
+      - "--http_port=8222"
+    ports:
+      - "${NATS_CLIENT_PORT:-9020}:4222" # Client connections
+      - "${NATS_MONITOR_PORT:-9021}:8222" # HTTP monitoring
+    volumes:
+      - nats_data:/data
+    networks:
+      - gridtokenx-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8222/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   # Apache APISIX - User Gateway (Public Internet / Web Clients)
   apisix:
     image: apache/apisix:3.15.0-debian
@@ -484,6 +507,7 @@ services:
       CHAIN_BRIDGE_GRPC_PORT: 5040
       CHAIN_BRIDGE_INSECURE: "true"
       SOLANA_RPC_URL: ${DOCKER_SOLANA_RPC_URL:-http://host.docker.internal:8899}
+      NATS_URL: ${NATS_URL:-nats://nats:4222}
       VAULT_ADDR: http://vault:8200
       VAULT_TOKEN: root
     healthcheck:
@@ -491,6 +515,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+    depends_on:
+      nats:
+        condition: service_healthy
     networks:
       - gridtokenx-network
     restart: unless-stopped
@@ -1042,6 +1069,7 @@ volumes:
   kafka_market_data:
   kafka_audit_data:
   rabbitmq_data:
+  nats_data:
   minio_data:
   prometheus_data:
   grafana_data:
