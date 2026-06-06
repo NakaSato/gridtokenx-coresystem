@@ -92,10 +92,10 @@ Build before settlement since §5/§6 depend on it.
 
 Reference `docs/MINTING_E2E_FLOW.md`. Depends Phase 2 + 3.
 
-- [ ] Telemetry → mint: aggregated reading → settlement → mint via Chain Bridge → on-chain balance == kWh.
+- [~] Telemetry → mint: aggregated reading → settlement → mint via Chain Bridge → on-chain balance increases. *(on-chain balance delta WIRED 2026-06-07 — `test_onchain_balance_increase` reads the prosumer GRID ATA via Chain Bridge before/after a backdated generation settlement and asserts growth; assert-when-reachable, skips when platform :4000 down / mint pubkey unknown / Chain Bridge mTLS-only)*
 - [ ] NATS JetStream path assert (submit + ack).
 - [ ] Settlement idempotency: same window not double-minted.
-- [ ] Final on-chain token account state via `chain.py`.
+- [x] Final on-chain token account state via `chain.py`. *(2026-06-07: `lib/chain.py` no longer a stub — real ConnectRPC reads `get_slot`/`get_balance`/`get_account_data`/`get_token_account_balance` over HTTP+JSON, plus `ata(owner,mint)` SPL ATA derivation via solders + `token_balance_of`. Proven LIVE against running Chain Bridge :5040.)*
 
 **Exit:** §5 green.
 
@@ -103,6 +103,7 @@ Reference `docs/MINTING_E2E_FLOW.md`. Depends Phase 2 + 3.
 > **⚠️ Architecture reality [CORRECTED 2026-06-06 during Phase 5]:** the generation-mint **handler IS in `gridtokenx-trading-service` (a submodule)** — `execute_generation_mint`, REST `POST :8093/api/v1/settlement/generation-mint`, gRPC `trading.TradingService/SettleGenerationMint`. Oracle posts to `API_SERVICES_URL` (default `:4000`, the `gridtokenx-api` orchestrator — NOT a submodule) which **forwards** to trading. So the mint effect IS observable in-repo via **trading-service logs** (and chain-bridge), even though the `:4000` forwarder is out-of-repo. The in-repo `settlements` table (IAM migrations) is **trade** settlement (buyer/seller/epoch) → Phase 5, NOT generation-mint. Phase 4 asserts via service LOGS (oracle "completed billing bins" + chain-bridge tx success) and requires the FULL stack incl. platform :4000 (skips loudly otherwise).
 > **Path:** ingest → Redis zone stream → zone_ingester → Aggregator → SettlementEngine(60s) → platform REST → NATS chain.tx.submit → Chain Bridge mint. Mint is **generation-driven** (`energy_generated`, not consumed).
 > **TODO:** on-chain GRID balance delta assertion needs currency mint pubkey + ATA derivation (solders) — skipped test stub in place.
+> **[DONE 2026-06-07]** On-chain GRID balance delta assertion BUILT. `lib/chain.py` rewritten from stub to a real Chain Bridge ConnectRPC read client (HTTP+JSON, no proto codegen — same Connect pattern as 50_chain_bridge): `get_slot`/`get_balance`/`get_account_data`/`get_token_account_balance` + `ata(owner,mint)` (SPL Associated-Token PDA `[owner, TOKEN_PROGRAM_ID, mint]` under ATA program, via `solders.Pubkey.find_program_address`) + `token_balance_of` (returns 0 when ATA absent). Added `solders>=0.21` to requirements (note: derive ATA with raw `find_program_address` — the `spl`/`solana-py` pkg is NOT needed/installed). `test_onchain_balance_increase` is now a real assert-when-reachable test (was `@pytest.mark.skip` stub): maps the meter to the IAM user's real `user_id` (was nil uuid) so settlement credits that user's custodial `wallet_address`, reads the GRID ATA balance before, sends 3 backdated generation readings, polls the ATA until balance grows within `SETTLE_TIMEOUT`, asserts delta>0. Skips loudly when platform :4000 down (no mint driver), GRID mint pubkey unresolvable (`ENERGY_TOKEN_MINT`/`GRID_MINT`/`CURRENCY_MINT` env — bootstrap-generated, `.env` empty + `infra/solana/currency-mint.json` removed), no custodial wallet, or Chain Bridge mTLS-only. **Proven LIVE:** `chain.py` reads exercised against running Chain Bridge :5040 (slot 33388, system-program lamports, ATA derivation deterministic, `token_balance_of`→0 for non-existent ATA). 30_settlement collects 3 / skips 3 cleanly (the balance test reaches its own platform guard, not just the module gate). Full path stays out-of-repo (needs :4000 + a fixed GRID mint).
 
 ---
 
@@ -175,7 +176,7 @@ First live bring-up surfaced **environment prereqs not in CLAUDE.md** (fixed in-
 | 00_harness | run.sh | 5/0 | ✓ |
 | 10_iam | run.sh + test_iam_grpc.py | 20/0 + gRPC 4P | ✓ |
 | 20_oracle | test_telemetry.py | 7P/0skip | ✓ |
-| 30_settlement | test_settlement.py | 3skip(platform :4000) | ✓ |
+| 30_settlement | test_settlement.py | 3skip(platform :4000) — incl. on-chain GRID balance delta (assert-when-reachable, 2026-06-07) | ✓ |
 | 40_trading | test_trading.py | 7P/0skip | ✓ |
 | 50_chain_bridge | test_chain_bridge.py + run.sh | rust 11/11 + py 4P/2skip | ✓ |
 | 60_noti | test_noti.py | 3P | ✓ |

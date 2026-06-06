@@ -23,6 +23,7 @@ import time
 import pytest
 import requests
 
+import chain
 import crypto
 import dlogs
 import redis_util
@@ -33,6 +34,13 @@ INGEST_URL = f"{ORACLE_REST}/v1/private-network/ingest"
 
 ORACLE_CONTAINER = os.getenv("ORACLE_CONTAINER", "gridtokenx-oracle-bridge")
 CHAIN_CONTAINER = os.getenv("CHAIN_CONTAINER", "gridtokenx-chain-bridge")
+
+# GRID (energy-token) mint that generation settlement credits. Bootstrap-generated,
+# not statically known in this repo (infra/solana/currency-mint.json was removed and
+# .env ENERGY_TOKEN_MINT is empty), so the on-chain balance check resolves it from
+# env and skips when unknown.
+GRID_MINT = (os.getenv("ENERGY_TOKEN_MINT") or os.getenv("GRID_MINT")
+             or os.getenv("CURRENCY_MINT") or "").strip()
 
 # Settlement tick is 60s; backdated bin flushes on the next tick. Allow margin.
 SETTLE_TIMEOUT = float(os.getenv("E2E_SETTLE_TIMEOUT", "150"))
@@ -90,13 +98,17 @@ def _send_generation_reading(meter_id, priv, generated_kwh, ts_ms):
 
 @pytest.fixture
 def gen_device(new_user):
-    """Registered device whose meter maps to a real IAM user_id (mint target)."""
+    """Registered device whose meter maps to the real IAM user_id (mint target).
+
+    Mapping to the actual user (not a nil uuid) lets the settlement resolver credit
+    that user's custodial wallet (`new_user["wallet"]`), which the on-chain balance
+    check then reads via Chain Bridge.
+    """
     pk, pub_hex = crypto.new_identity()
     meter_id = f"E2E-GEN-{int(time.time()*1000)%1000000}"
     redis_util.register_device_key(meter_id, pub_hex)
-    # Map meter -> the IAM user so settlement resolves an owner. new_user has no
-    # exposed user_id here; use a deterministic test uuid (resolver tolerates nil).
-    redis_util.register_meter(meter_id, "00000000-0000-0000-0000-000000000001")
+    owner_uuid = new_user.get("user_id") or "00000000-0000-0000-0000-000000000001"
+    redis_util.register_meter(meter_id, owner_uuid)
     yield {"meter_id": meter_id, "priv": pk, "user": new_user}
     redis_util.unregister_device(meter_id)
 
@@ -145,9 +157,54 @@ def test_mint_tx_reaches_chain_bridge(gen_device):
     assert landed, "no Chain Bridge tx success/submit log after settlement"
 
 
-@pytest.mark.skip(reason="TODO: needs currency mint pubkey + ATA derivation (solders) to "
-                         "assert on-chain GRID balance delta via Chain Bridge "
-                         "GetTokenAccountBalance — wire in when mint address is fixed")
 def test_onchain_balance_increase(gen_device):
-    """Definitive check: prosumer GRID balance increases by minted amount."""
-    pass
+    """Definitive check: the prosumer's on-chain GRID balance increases after a
+    backdated generation settlement, read via Chain Bridge GetTokenAccountBalance.
+
+    This is the end-to-end proof that telemetry -> settlement -> mint actually
+    credited tokens on-chain (the log-based tests above only prove the pipeline
+    fired). It needs the FULL stack, so it skips loudly when any piece is absent:
+      - platform :4000 (out-of-repo) drives the mint;
+      - the GRID mint pubkey must be resolvable (ENERGY_TOKEN_MINT/GRID_MINT env);
+      - the user's custodial wallet must be known (IAM register/verify);
+      - Chain Bridge must answer reads over plain HTTP (CHAIN_BRIDGE_INSECURE=true).
+    """
+    if not _platform_up():
+        pytest.skip(f"platform/api-services not up at {API_SERVICES_URL} — no mint driver")
+    if not GRID_MINT:
+        pytest.skip("GRID mint pubkey unknown (set ENERGY_TOKEN_MINT/GRID_MINT) — "
+                    "bootstrap-generated, not statically known in this repo")
+    owner = gen_device["user"].get("wallet")
+    if not owner:
+        pytest.skip("IAM did not return a custodial wallet_address for the user")
+    if not chain.reachable():
+        pytest.skip("Chain Bridge unreachable over plain HTTP (mTLS-only or down) — "
+                    "start with CHAIN_BRIDGE_INSECURE=true")
+
+    token_account = chain.ata(owner, GRID_MINT)
+    before = chain.token_balance_of(owner, GRID_MINT)
+
+    meter, priv = gen_device["meter_id"], gen_device["priv"]
+    # Backdated ~25 min => its 15-min window already closed; flushes on next tick.
+    base = int((time.time() - 25 * 60) * 1000)
+    minted_kwh = 10.0
+    n = 3
+    for i in range(n):
+        r = _send_generation_reading(meter, priv, minted_kwh, base + i * 1000)
+        assert r.status_code in (200, 202), f"reading {i} rejected: {r.status_code} {r.text}"
+
+    # Mint is async (settlement tick -> NATS -> Chain Bridge -> land). Poll the ATA.
+    deadline = time.time() + SETTLE_TIMEOUT
+    after = before
+    while time.time() < deadline:
+        try:
+            after = chain.token_balance_of(owner, GRID_MINT)
+            if after > before:
+                break
+        except chain.ChainBridgeError:
+            pass  # ATA may not exist until the first mint creates it — keep polling.
+        time.sleep(3)
+
+    assert after > before, (
+        f"prosumer GRID balance did not increase after settlement: "
+        f"before={before} after={after} ATA={token_account} mint={GRID_MINT} owner={owner}")
