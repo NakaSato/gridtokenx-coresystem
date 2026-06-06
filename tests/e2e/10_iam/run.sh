@@ -93,7 +93,13 @@ fi
 
 # --- Case 10: Link secondary wallet -> auto on-chain --------------------
 log_info "Case 10: link secondary wallet auto-registers on-chain"
-SEC_WALLET="GtuQNK2t3B1xW95hUzr5NZ7XiWMpQTNxuApM$(openssl rand -hex 4)"
+# Must be a real base58 ed25519 pubkey — IAM validates it (and registers it
+# on-chain), so a hand-built hex-suffixed string fails "Invalid Base58 string".
+SEC_WALLET_KP="${TMPDIR:-/tmp}/e2e-sec-${E2E_RUN_ID}-$RANDOM.json"
+SEC_WALLET=$(solana-keygen new --no-bip39-passphrase --silent --force -o "$SEC_WALLET_KP" >/dev/null 2>&1 \
+    && solana-keygen pubkey "$SEC_WALLET_KP" 2>/dev/null)
+[ -n "$SEC_WALLET" ] || log_warn "solana-keygen unavailable — link-wallet uses a static valid pubkey"
+SEC_WALLET="${SEC_WALLET:-So11111111111111111111111111111111111111112}"
 LINK=$(link_wallet "$JWT" "$SEC_WALLET")
 REGISTERED=$(echo "$LINK" | jq -r '.wallet.blockchain_registered // empty')
 PDA=$(echo "$LINK" | jq -r '.wallet.user_account_pda // empty')
