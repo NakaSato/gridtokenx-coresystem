@@ -232,9 +232,10 @@ def test_golden_path():
             # against the best resting ask. (We can't assert the SELLER's specific sell
             # fills: in a shared/dirty book the buy may cross an even cheaper resting ask
             # left by other tests, leaving this seller's ask untouched — that's correct CDA.)
-            # GET /orders/:id is routed to list_orders -> {data:[...]} (:id ignored), and the
-            # matcher marks even full fills 'partially_filled' (matcher_service.rs hardcodes
-            # PartiallyFilled), so we assert on filled qty, not the status label.
+            # GET /orders/:id now returns a bare OrderData object (since the
+            # get_order_by_id fix); tolerate the older {data:[...]} list shape too.
+            # Assert on filled qty, not status — matcher labels full fills as Filled
+            # but partials stay partially_filled.
             from decimal import Decimal, InvalidOperation
             buy_id = b.json()["id"]
             filled = False
@@ -243,9 +244,12 @@ def test_golden_path():
                 g = requests.get(f"{TRADING}/api/v1/orders/{buy_id}",
                                  headers=trade_hdr(buyer["user_id"]), timeout=8)
                 if g.status_code == 200:
-                    rows = (g.json() or {}).get("data", [])
-                    row = next((o for o in rows if o.get("id") == buy_id),
-                               rows[0] if rows else None)
+                    j = g.json() or {}
+                    row = j if j.get("id") == buy_id else None
+                    if row is None:
+                        rows = j.get("data") or []
+                        row = next((o for o in rows if o.get("id") == buy_id),
+                                   rows[0] if rows else None)
                     if row:
                         try:
                             if Decimal(str(row.get("filled_amount_kwh") or "0")) >= Decimal("4"):
