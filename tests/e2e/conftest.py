@@ -34,10 +34,12 @@ def endpoints():
     }
 
 
-@pytest.fixture
-def new_user():
+def _register_and_verify():
     """Register + verify a fresh user. Returns dict(jwt, username, email, wallet)."""
-    username = f"e2e_{E2E_RUN_ID}_{int(time.time()*1000)%100000}"
+    # Salt the username with a per-call counter so two users provisioned in the
+    # same millisecond (e.g. a cross-party trade test) never collide.
+    _register_and_verify.n += 1
+    username = f"e2e_{E2E_RUN_ID}_{int(time.time()*1000)%100000}_{_register_and_verify.n}"
     email = f"{username}@grx.test"
     r = requests.post(f"{IAM_URL}/api/v1/auth/register",
                       json={"username": username, "email": email, "password": E2E_PASSWORD}, timeout=10)
@@ -54,6 +56,25 @@ def new_user():
         "email": email,
         "wallet": body.get("wallet_address"),
     }
+
+
+_register_and_verify.n = 0
+
+
+@pytest.fixture
+def new_user():
+    """Register + verify a fresh user. Returns dict(jwt, username, email, wallet)."""
+    return _register_and_verify()
+
+
+@pytest.fixture
+def make_user():
+    """Factory: call to provision an additional distinct verified user.
+
+    Use when a test needs two separate identities (e.g. a cross-party trade
+    where buyer and seller must differ, else the engine's self-trade guard
+    blocks the match)."""
+    return _register_and_verify
 
 
 def _jwt_sub(jwt: str):

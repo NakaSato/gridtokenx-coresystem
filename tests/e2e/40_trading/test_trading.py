@@ -170,24 +170,27 @@ def test_noncrossing_order_rests_in_book(new_user):
 
 # --- Matching (CDA) ------------------------------------------------------
 
-def test_crossing_orders_match(new_user):
-    """Case 4: a buy crossing a resting sell produces fills on both sides."""
+def test_crossing_orders_match(new_user, make_user):
+    """Case 4: a buy from a DISTINCT user crossing a resting sell produces a fill.
+
+    Buyer and seller must be different identities — the engine's self-trade guard
+    blocks a single user from matching its own order, so we provision a second user.
+    We assert the BUYER's crossing order fills: it is the active taker and reliably
+    crosses the best resting ask. In a shared/dirty book the buy may match an even
+    cheaper ask left by another test rather than this seller's, so asserting the
+    seller's specific fill would be flaky — the buyer fill is the robust CDA signal.
+    """
     seller = new_user["user_id"] or pytest.skip("no user_id")
-    # Need a distinct buyer; reuse same user is allowed by engine but self-trade may
-    # be blocked. Use same uid — assert at least the sell gets (partially) filled.
+    buyer = make_user()["user_id"] or pytest.skip("could not provision distinct buyer")
+    assert buyer != seller, "buyer and seller must differ for a cross-party match"
     price = 12
     s = place_order(seller, "sell", 4, price)
     assert s.status_code == 200, s.text
-    sell_id = s.json()["id"]
-    b = place_order(seller, "buy", 4, price)
+    b = place_order(buyer, "buy", 4, price)
     assert b.status_code == 200, b.text
-    filled = poll_filled(seller, sell_id, 4, timeout=25)
-    if not filled:
-        # Engine may forbid self-trade; downgrade to a soft check.
-        o = _order_row(get_order(seller, sell_id), sell_id) or {}
-        pytest.skip(f"no fill (likely self-trade guard); sell status={o.get('status')} "
-                    f"filled={o.get('filled_amount_kwh')}")
-    assert filled
+    buy_id = b.json()["id"]
+    assert poll_filled(buyer, buy_id, 4, timeout=25), \
+        "buyer's crossing order did not fill within 25s (cross-party CDA match)"
 
 
 def test_cancel_order(new_user):
