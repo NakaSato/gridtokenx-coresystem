@@ -390,38 +390,6 @@ services:
       retries: 5
       start_period: 30s
 
-  # ClickHouse (CQRS Read Side for High Volume Analytics)
-  clickhouse:
-    image: clickhouse/clickhouse-server:24.3-alpine
-    container_name: gridtokenx-clickhouse
-    environment:
-      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-gridtokenx}
-      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-clickhouse_secret_2025}
-      CLICKHOUSE_DB: ${CLICKHOUSE_DB:-gridtokenx}
-      CLICKHOUSE_LISTEN_HOST: 0.0.0.0
-    ports:
-      - "${CLICKHOUSE_PORT:-7030}:8123"
-      - "7031:9000"
-    volumes:
-      - clickhouse_data:/var/lib/clickhouse
-      - ./docker/clickhouse/listen_host.xml:/etc/clickhouse-server/config.d/listen_host.xml
-    networks:
-      - gridtokenx-network
-    restart: unless-stopped
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "wget",
-          "--quiet",
-          "--tries=1",
-          "--spider",
-          "http://127.0.0.1:8123/ping",
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   # RabbitMQ Message Broker (Task Queues & RPC)
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
@@ -541,7 +509,6 @@ services:
       KAFKA_CMD_BROKERS: kafka-cmd:9001
       KAFKA_MARKET_BROKERS: kafka-market:9002
       KAFKA_AUDIT_BROKERS: kafka-audit:9003
-      CLICKHOUSE_URL: http://${CLICKHOUSE_USER:-gridtokenx}:${CLICKHOUSE_PASSWORD:-clickhouse_secret_2025}@clickhouse:8123/${CLICKHOUSE_DB:-gridtokenx}
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-gridtokenx}:${RABBITMQ_DEFAULT_PASS:-rabbitmq_secret_2025}@rabbitmq:5672
       IAM_PORT: 8080
       IAM_GRPC_PORT: 8090
@@ -611,7 +578,6 @@ services:
       KAFKA_MARKET_BROKERS: kafka-market:9002
       KAFKA_AUDIT_BROKERS: kafka-audit:9003
       KAFKA_BROKERS: kafka-cmd:9001
-      CLICKHOUSE_URL: http://${CLICKHOUSE_USER:-gridtokenx}:${CLICKHOUSE_PASSWORD:-clickhouse_secret_2025}@clickhouse:8123/${CLICKHOUSE_DB:-gridtokenx}
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-gridtokenx}:${RABBITMQ_DEFAULT_PASS:-rabbitmq_secret_2025}@rabbitmq:5672
       RUST_LOG: debug,librdkafka=warn
       JWT_SECRET: ${JWT_SECRET}
@@ -671,7 +637,6 @@ services:
       KAFKA_CMD_BROKERS: kafka-cmd:9001
       KAFKA_MARKET_BROKERS: kafka-market:9002
       KAFKA_AUDIT_BROKERS: kafka-audit:9003
-      CLICKHOUSE_URL: http://${CLICKHOUSE_USER:-gridtokenx}:${CLICKHOUSE_PASSWORD:-clickhouse_secret_2025}@clickhouse:8123/${CLICKHOUSE_DB:-gridtokenx}
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-gridtokenx}:${RABBITMQ_DEFAULT_PASS:-rabbitmq_secret_2025}@rabbitmq:5672
       DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgbouncer:5432/gridtokenx
       TRADING_DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgbouncer:5432/gridtokenx
@@ -822,7 +787,6 @@ services:
       KAFKA_CMD_BROKERS: kafka-cmd:9001
       KAFKA_MARKET_BROKERS: kafka-market:9002
       KAFKA_AUDIT_BROKERS: kafka-audit:9003
-      CLICKHOUSE_URL: http://${CLICKHOUSE_USER:-gridtokenx}:${CLICKHOUSE_PASSWORD:-clickhouse_secret_2025}@clickhouse:8123/${CLICKHOUSE_DB:-gridtokenx}
       INFLUXDB_URL: http://influxdb:8086
       INFLUXDB_TOKEN: your-influxdb-token
       INFLUXDB_ORG: ${INFLUXDB_ORG}
@@ -841,8 +805,6 @@ services:
       kafka-market:
         condition: service_healthy
       kafka-audit:
-        condition: service_healthy
-      clickhouse:
         condition: service_healthy
       influxdb:
         condition: service_healthy
@@ -963,8 +925,6 @@ services:
         condition: service_healthy
       kafka-audit:
         condition: service_healthy
-      clickhouse:
-        condition: service_healthy
     restart: unless-stopped
 
   # Node Exporter (Host Metrics)
@@ -1059,22 +1019,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # Kafka Schema Registry (Confluent)
-  schema-registry:
-    image: confluentinc/cp-schema-registry:7.6.0
-    container_name: gridtokenx-schema-registry
-    ports:
-      - "${KAFKA_SCHEMA_REGISTRY_PORT:-9010}:8081"
-    environment:
-      SCHEMA_REGISTRY_HOST_NAME: schema-registry
-      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: "PLAINTEXT://kafka-cmd:29001,PLAINTEXT://kafka-market:29002,PLAINTEXT://kafka-audit:29003"
-    networks:
-      - gridtokenx-network
-    depends_on:
-      kafka-cmd:
-        condition: service_healthy
-    restart: unless-stopped
-
 networks:
   gridtokenx-network:
     driver: bridge
@@ -1097,7 +1041,6 @@ volumes:
   kafka_cmd_data:
   kafka_market_data:
   kafka_audit_data:
-  clickhouse_data:
   rabbitmq_data:
   minio_data:
   prometheus_data:
