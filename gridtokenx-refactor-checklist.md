@@ -39,7 +39,7 @@
 
 ## Cross-cutting follow-ups (open)
 
-- [ ] thread NATS envelope `correlation_id` into audit entries (currently `""`).
+- [x] thread NATS envelope `correlation_id` into audit entries (was `""`). `sign_and_submit` + `record_audit` gained a `correlation_id: &str` param; NATS path threads `envelope.correlation_id`, gRPC path passes `""` (no envelope id). Tests updated, 97 passed / 12 ignored.
 - [ ] apply `migrations/0001_audit_log.sql` to shared IAM DB (chain-bridge has no migration runner).
 - [ ] `git add gridtokenx-telemetry/` in superproject (plain dir, not yet a submodule).
 - [ ] commit `gridtokenx-refactor-plan.md` + this checklist in the superproject.
@@ -72,10 +72,10 @@ Run per service (`cd <service>` first — independent Cargo workspaces, never `c
 
 ### Regression gates before any E4b / further crate work
 
-- [ ] `cargo build --release --bin gridtokenx-chain-bridge` from service root succeeds (Dockerfile parity).
-- [ ] `cargo test` from service root: 97 passed / 12 ignored (no regression).
-- [ ] one signing path preserved — no second site touches Vault or submits a tx.
-- [ ] `key_id == "platform_admin"` gate intact; identity from L4 (SPIFFE/mTLS), not L7.
+- [x] `cargo build --release --bin gridtokenx-chain-bridge` from service root succeeds (Dockerfile parity). *(8m41s, 865 crates, exit 0 — 2026-06-07)*
+- [x] `cargo test` from service root: 97 passed / 12 ignored (no regression). *(verified after correlation_id threading)*
+- [x] one signing path preserved — no second site touches Vault or submits a tx.
+- [x] `key_id == "platform_admin"` gate intact; identity from L4 (SPIFFE/mTLS), not L7.
 
 ### Not yet automated (manual / infra-dependent)
 
