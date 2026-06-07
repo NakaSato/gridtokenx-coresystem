@@ -15,6 +15,7 @@ default:
     @echo "  just orb-down           - Stop all OrbStack services"
     @echo "  just fmt                - Format all code"
     @echo "  just clippy             - Run clippy lints on all services"
+    @echo "  just verify-conns       - Probe Trading Service dependency connections"
 
 # Check all codebases
 check-all:
@@ -159,6 +160,10 @@ migrate-info:
 # Run oracle-bridge locally
 run-oracle:
     (cd gridtokenx-oracle-bridge; cargo run)
+
+# Verify Trading Service can reach all its internal dependencies (Postgres, Redis, Chain Bridge gRPC, NATS, IAM, Kafka)
+verify-conns:
+    (cd gridtokenx-trading-service; cargo run --quiet --bin verify-connections)
 
 # Run trading engine performance benchmarks (Criterion)
 benchmark:

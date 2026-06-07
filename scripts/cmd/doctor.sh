@@ -66,6 +66,38 @@ check_performance_tuning() {
     fi
 }
 
+check_trading_connections() {
+    log_info "Verifying Trading Service dependency connections..."
+
+    local trading_dir="$PROJECT_ROOT/gridtokenx-trading-service"
+    if [ ! -d "$trading_dir" ]; then
+        log_warn "Trading service submodule not found at $trading_dir. Run: git submodule update --init --recursive"
+        return 0
+    fi
+    if [ ! -f "$trading_dir/.env" ]; then
+        log_warn "No $trading_dir/.env — skipping connection probe (binary needs DATABASE_URL, REDIS_URL, ...)."
+        return 0
+    fi
+
+    # Prefer a prebuilt binary; fall back to cargo run so doctor still works pre-build.
+    local runner
+    if [ -x "$trading_dir/target/release/verify-connections" ]; then
+        runner="$trading_dir/target/release/verify-connections"
+    elif [ -x "$trading_dir/target/debug/verify-connections" ]; then
+        runner="$trading_dir/target/debug/verify-connections"
+    else
+        log_info "verify-connections binary not built; running via cargo (first run compiles)..."
+        runner="cargo run --quiet --bin verify-connections"
+    fi
+
+    # Run from the trading dir so dotenvy loads its .env.
+    if (cd "$trading_dir" && eval "$runner"); then
+        log_success "Trading Service connections OK."
+    else
+        log_error "One or more Trading Service connections FAILED (see table above)."
+    fi
+}
+
 cmd_doctor() {
     show_banner
     log_info "Running GridTokenX System Doctor..."
@@ -95,7 +127,10 @@ cmd_doctor() {
 
     echo ""
     check_performance_tuning
-    
+
+    echo ""
+    check_trading_connections
+
     echo ""
     log_info "Diagnostic complete!"
 }
