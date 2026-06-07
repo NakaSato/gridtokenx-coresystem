@@ -607,6 +607,11 @@ services:
       KAFKA_MARKET_BROKERS: kafka-market:9002
       KAFKA_AUDIT_BROKERS: kafka-audit:9003
       KAFKA_BROKERS: kafka-cmd:9001
+      # Publish domain events to Kafka (off by default → Redis Streams only).
+      # noti-service consumes `${KAFKA_TOPIC_PREFIX}.triggers` for price alerts.
+      KAFKA_EVENTS_ENABLED: "true"
+      KAFKA_BOOTSTRAP_SERVERS: kafka-cmd:9001
+      KAFKA_TOPIC_PREFIX: trading
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-gridtokenx}:${RABBITMQ_DEFAULT_PASS:-rabbitmq_secret_2025}@rabbitmq:5672
       RUST_LOG: debug,librdkafka=warn
       JWT_SECRET: ${JWT_SECRET}
