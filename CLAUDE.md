@@ -3,7 +3,7 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 > Also auto-read by other LLM coding assistants.
-> Last reviewed: 2026-06-05
+> Last reviewed: 2026-06-07
 
 ---
 
@@ -15,6 +15,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Each service = **independent Cargo workspace** — no root `Cargo.toml`. Don't `cargo` from repo root; `cd` into the service first.
 - IAM Service = **modular monolith** with 6 sub-crates. Others: layered modules, single crate.
 - Two interconnected platforms: **Exchange** (IAM + Trading, direct blockchain) and **Infrastructure** (Oracle Bridge + edge, produces validated telemetry). Gateways: **APISIX** (`:4001`, user-facing) and **Envoy** (`:4002`, IoT/mTLS edge); **API orchestrator** at `:4000`.
+
+---
+
+## Documentation Harness
+
+The repo **is** the agent's environment — docs live here, version with the code, and are
+verified, not vibes. Read in this order before touching anything non-trivial:
+
+1. [`ARCHITECTURE.md`](ARCHITECTURE.md) — system map. **§8 indexes every component's `ARCHITECTURE.md`** (the per-folder entry points).
+2. The target component's own `<component>/ARCHITECTURE.md` — scoped to that folder only.
+3. [`docs/design-docs/core-beliefs.md`](docs/design-docs/core-beliefs.md) — why the system is shaped this way; [`docs/glossary.md`](docs/glossary.md) for domain terms.
+
+Rules that keep the harness trustworthy:
+
+- **Cite, don't assert.** Back architectural claims with `path:line` (e.g. Chain Bridge binds `0.0.0.0`, verified `main.rs:102`). A claim with no citation is a hypothesis.
+- **Edit the doc next to the code you change.** Submodule docs live in the submodule — commit there, bump the pointer here.
+- **The doc-lint gate is enforced.** `just lint-docs` (CI: `.github/workflows/docs.yml`) fails on broken relative links and stale `path:line` citations. Run it before committing doc changes.
 
 ---
 

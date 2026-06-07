@@ -1,6 +1,6 @@
 # GridTokenX Grafana Dashboards
 
-> ⚠️ **Prerequisite**: OrbStack must be running. See [Setup Guide](../../docs/ORBSTACK_MIGRATION.md).
+> ⚠️ **Prerequisite**: OrbStack must be running. See [Setup Guide](../../README.md).
 
 ## ✅ Auto-Generated Dashboards (Like SigNoz)
 

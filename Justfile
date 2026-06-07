@@ -75,6 +75,10 @@ e2e-suite name="00_harness":
     chmod +x tests/e2e/run.sh
     bash tests/e2e/run.sh {{name}}
 
+# Lint docs harness: broken relative links + stale path:line citations
+lint-docs:
+    python3 scripts/lint-docs.py
+
 # Run migrations (IAM Service)
 migrate:
     (cd gridtokenx-iam-service; sqlx migrate run)

@@ -223,5 +223,5 @@ Before submitting a PR, ensure:
 - **Architecture questions**: See [ARCHITECTURE.md](ARCHITECTURE.md)
 - **Coding conventions**: See [CLAUDE.md](CLAUDE.md)
 - **Domain terms**: See [docs/glossary.md](docs/glossary.md)
-- **Dev workflows**: See [.agent/workflows/](.agent/workflows/)
+- **Dev workflows**: See [.agents/workflows/](.agents/workflows/)
 - **Service deep dives**: See each service's `README.md` or [ARCHITECTURE.md](ARCHITECTURE.md)

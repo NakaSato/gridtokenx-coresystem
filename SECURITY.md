@@ -83,5 +83,6 @@ GridTokenX implements defense-in-depth across all layers:
 
 ## References
 
-- [system-architecture.md](docs/architecture/specs/system-architecture.md) — Key invariants and security plane details
+- [ARCHITECTURE.md](ARCHITECTURE.md) — System map, hard architecture rules, component index
+- [docs/SECURITY.md](docs/SECURITY.md) — Security plane details and invariants
 - [gridtokenx-iam-service/README.md](gridtokenx-iam-service/README.md) — IAM security model

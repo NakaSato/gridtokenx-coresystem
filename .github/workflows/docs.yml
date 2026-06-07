@@ -1,0 +1,37 @@
+name: docs
+
+# Doc-lint gate: keeps the docs harness honest so broken links and stale
+# `path:line` citations fail the PR instead of rotting (this is what let the
+# 127.0.0.1 claim and deleted-file links survive before).
+#
+# Cheap and self-contained: no submodule checkout, no services, no network.
+# The linter skips links INTO submodules (their file lives in the submodule,
+# not checked out here) and the vendored `.agents/**` bundle. Each submodule
+# lints its own docs. See scripts/lint-docs.py.
+
+on:
+  pull_request:
+    paths:
+      - '**.md'
+      - 'scripts/lint-docs.py'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-docs:
+    name: doc-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        # No submodules: the linter does not read submodule-internal files.
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Lint docs (links + path:line)
+        run: python3 scripts/lint-docs.py
