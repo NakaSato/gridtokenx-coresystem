@@ -15,6 +15,10 @@ Checks, over superproject-tracked Markdown only:
                                linked in root `ARCHITECTURE.md` (the §8 component
                                index). Catches a doc added but never indexed.
 
+Advisory (opt-in, never fails the build):
+  - `--warn-stale DAYS` prints a note for any doc whose `Last reviewed: YYYY-MM-DD`
+    is older than DAYS. A stale doc is a nudge, not a broken link — exit stays 0.
+
 Deliberately out of scope (no false positives, no network):
   - http(s):// / mailto: / pure #anchor links, and `scheme://host:port` in backticks.
   - Links INTO a git submodule (file lives in the submodule, which CI's cheap lint
@@ -26,14 +30,16 @@ Deliberately out of scope (no false positives, no network):
     submodule shorthand (the file is real, just not checked out here).
 
 Usage:
-    scripts/lint-docs.py                 # all tracked superproject .md
-    scripts/lint-docs.py FILE [FILE...]  # only these files
-Exit 0 = clean, 1 = findings.
+    scripts/lint-docs.py                       # all tracked superproject .md
+    scripts/lint-docs.py FILE [FILE...]        # only these files
+    scripts/lint-docs.py --root PATH           # lint a checked-out submodule
+    scripts/lint-docs.py --warn-stale 180      # + advisory stale-review notes
+Exit 0 = clean, 1 = findings (stale-review notes never affect the exit code).
 """
 
 from __future__ import annotations
 
-import os
+import datetime
 import re
 import subprocess
 import sys
@@ -55,6 +61,8 @@ PATHLINE_RE = re.compile(r"`([^`\s]+/[^`\s]+\.[A-Za-z0-9_]+:\d+)`")
 FENCE_RE = re.compile(r"^\s*(```|~~~)")
 # A link target pointing at a one-level component ARCHITECTURE.md (root §8 index).
 ARCH_LINK_RE = re.compile(r"\(([^)\s]+/ARCHITECTURE\.md)(?:#[^)]*)?\)")
+# `Last reviewed: 2026-06-07` freshness marker (advisory).
+REVIEW_RE = re.compile(r"Last reviewed:\s*(\d{4})-(\d{2})-(\d{2})")
 
 
 def submodule_paths() -> set[str]:
@@ -111,6 +119,25 @@ def check_arch_index() -> list[str]:
         if rel not in listed:
             findings.append(f"ARCHITECTURE.md: component doc not indexed in §8 -> {rel}")
     return findings
+
+
+def stale_notes(files: list[Path], days: int, today: datetime.date) -> list[str]:
+    """Advisory: docs whose `Last reviewed:` date is older than `days`."""
+    notes = []
+    for md in files:
+        if not md.exists():
+            continue
+        m = REVIEW_RE.search(md.read_text(errors="replace"))
+        if not m:
+            continue
+        try:
+            reviewed = datetime.date(int(m[1]), int(m[2]), int(m[3]))
+        except ValueError:
+            continue
+        age = (today - reviewed).days
+        if age > days:
+            notes.append(f"{rel(md)}: reviewed {reviewed} ({age}d ago, > {days}d)")
+    return notes
 
 
 def check_file(md: Path, subs: set[str]) -> list[str]:
@@ -180,18 +207,38 @@ def rel(p: Path) -> str:
 
 def main(argv: list[str]) -> int:
     global REPO
-    args = list(argv)
-    if args and args[0] == "--root":
-        if len(args) < 2:
-            print("doc-lint: --root needs a path", file=sys.stderr)
-            return 2
-        REPO = Path(args[1]).resolve()
-        args = args[2:]
+    warn_stale: int | None = None
+    today: datetime.date | None = None
+    positional: list[str] = []
+
+    it = iter(argv)
+    for a in it:
+        if a == "--root":
+            val = next(it, None)
+            if val is None:
+                print("doc-lint: --root needs a path", file=sys.stderr)
+                return 2
+            REPO = Path(val).resolve()
+        elif a == "--warn-stale":
+            val = next(it, None)
+            if val is None or not val.isdigit():
+                print("doc-lint: --warn-stale needs a day count", file=sys.stderr)
+                return 2
+            warn_stale = int(val)
+        elif a == "--today":  # test hook; default is the real date
+            val = next(it, None)
+            try:
+                today = datetime.date.fromisoformat(val or "")
+            except ValueError:
+                print("doc-lint: --today needs YYYY-MM-DD", file=sys.stderr)
+                return 2
+        else:
+            positional.append(a)
 
     subs = submodule_paths()
     all_findings: list[str] = []
-    if args:
-        files = [Path(a).resolve() for a in args]
+    if positional:
+        files = [Path(a).resolve() for a in positional]
     else:
         files = tracked_md()
         # Index check only in full-tree mode (explicit-file runs target one doc).
@@ -203,6 +250,14 @@ def main(argv: list[str]) -> int:
         all_findings.extend(check_file(md, subs))
 
     label = REPO.name
+
+    if warn_stale is not None:
+        notes = stale_notes(files, warn_stale, today or datetime.date.today())
+        for note in notes:
+            print(f"doc-lint [{label}] note: {note}", file=sys.stderr)
+        if notes:
+            print(f"doc-lint [{label}]: {len(notes)} stale-review note(s) (advisory)", file=sys.stderr)
+
     if all_findings:
         print(f"doc-lint [{label}]: {len(all_findings)} finding(s)\n", file=sys.stderr)
         for f in all_findings:

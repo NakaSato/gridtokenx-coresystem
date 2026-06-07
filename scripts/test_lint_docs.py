@@ -109,6 +109,30 @@ class DocLintTest(unittest.TestCase):
             self.assertIn("comp-b/ARCHITECTURE.md", r.stderr)
             self.assertNotIn("comp-a/ARCHITECTURE.md", r.stderr)
 
+    def test_stale_review_is_advisory(self):
+        # Old `Last reviewed` -> note on stderr, but exit stays 0 (advisory).
+        with tempfile.TemporaryDirectory() as d:
+            md = self._md(Path(d), "# Doc\n> Last reviewed: 2020-01-01\n")
+            r = subprocess.run(
+                [sys.executable, str(LINTER), "--warn-stale", "30",
+                 "--today", "2026-06-07", str(md)],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            self.assertIn("stale-review note", r.stderr)
+            self.assertIn("reviewed 2020-01-01", r.stderr)
+
+    def test_fresh_review_no_note(self):
+        with tempfile.TemporaryDirectory() as d:
+            md = self._md(Path(d), "# Doc\n> Last reviewed: 2026-06-01\n")
+            r = subprocess.run(
+                [sys.executable, str(LINTER), "--warn-stale", "180",
+                 "--today", "2026-06-07", str(md)],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertNotIn("stale-review note", r.stderr)
+
     def test_root_flag_retargets_and_labels(self):
         # --root sets the resolution base so a path:line resolves against it.
         with tempfile.TemporaryDirectory() as d:
