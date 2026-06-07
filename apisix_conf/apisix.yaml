@@ -2,6 +2,7 @@ plugin_configs:
   - id: 1 # Shared JWT auth + user-id extraction + CORS
     plugins:
       jwt-auth:
+        key_claim_name: iss
         store_in_ctx: true
       serverless-post-function:
         phase: access
@@ -26,6 +27,10 @@ routes:
       - /api/v1/auth/verify
       - /api/v1/auth/forgot-password
       - /api/v1/auth/reset-password
+      - /api/v1/auth/logout
+      - /api/v1/auth/refresh
+      - /api/v1/auth/resend-verification
+      - /api/v1/auth/wallet/verify
       - /api/v1/system/config
     plugins:
       proxy-rewrite:
@@ -86,10 +91,17 @@ routes:
       - /api/v1/analytics/*
       - /api/v1/trades
       - /api/v1/trades/*
+      - /api/v1/price-alerts
+      - /api/v1/price-alerts/*
       - /api/v1/transactions
       - /api/v1/carbon/*
       - /api/v1/settlement/*
       - /api/v1/wallets/*/balance
+      - /api/v1/markets/config
+      - /api/v1/markets/matching-status
+      - /api/v1/markets/settlement-stats
+      - /api/v1/markets/orderbook
+      - /api/v1/markets/p2p/*
     plugin_config_id: 1
     upstream:
       type: roundrobin
@@ -177,6 +189,20 @@ routes:
     plugins:
       proxy-rewrite:
         regex_uri: ["^/api/v1/users/me/notifications(.*)", "/api/v1/notifications$1"]
+    upstream:
+      type: roundrobin
+      nodes:
+        "noti-service:8080": 1
+        "host.docker.internal:5050": 1
+
+  - id: 32 # Notification Service - Frontend /noti Alias Rewrite
+    uris:
+      - /api/v1/noti
+      - /api/v1/noti/*
+    plugin_config_id: 1
+    plugins:
+      proxy-rewrite:
+        regex_uri: ["^/api/v1/noti(.*)", "/api/v1/notifications$1"]
     upstream:
       type: roundrobin
       nodes:
@@ -290,6 +316,31 @@ routes:
       nodes:
         "smartmeter-simulator:8080": 1
         "host.docker.internal:12010": 1
+
+  - id: 50 # Solana JSON-RPC proxy (browser web3.js reads/writes)
+    uris:
+      - /api/v1/rpc
+    plugins:
+      proxy-rewrite:
+        regex_uri: ["^/api/v1/rpc$", "/"]
+      cors: {}
+    upstream:
+      type: roundrobin
+      nodes:
+        "host.docker.internal:8899": 1
+
+  - id: 51 # Solana JSON-RPC WebSocket proxy
+    uris:
+      - /api/v1/rpc-ws
+    enable_websocket: true
+    plugins:
+      proxy-rewrite:
+        regex_uri: ["^/api/v1/rpc-ws$", "/"]
+      cors: {}
+    upstream:
+      type: roundrobin
+      nodes:
+        "host.docker.internal:8002": 1
 
 consumers:
   - username: gridtokenx_user
