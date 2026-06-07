@@ -1,13 +1,15 @@
 name: docs
 
-# Doc-lint gate: keeps the docs harness honest so broken links and stale
-# `path:line` citations fail the PR instead of rotting (this is what let the
-# 127.0.0.1 claim and deleted-file links survive before).
+# Two-tier doc-lint, mirroring e2e.yml:
+#   doc-lint        — cheap, every PR. Superproject docs only; no submodules,
+#                     no services, no network. Self-tests the linter first.
+#   submodule-docs  — heavy, main-push / nightly / manual. Checks out every
+#                     submodule and validates its docs (incl. code-anchored
+#                     path:line claims) against its own tree.
 #
-# Cheap and self-contained: no submodule checkout, no services, no network.
-# The linter skips links INTO submodules (their file lives in the submodule,
-# not checked out here) and the vendored `.agents/**` bundle. Each submodule
-# lints its own docs. See scripts/lint-docs.py.
+# Keeps the docs harness honest so broken links and stale `path:line` citations
+# fail instead of rotting (this is what let the 127.0.0.1 claim and deleted-file
+# links survive before). See scripts/lint-docs.py + scripts/lint-docs-all.sh.
 
 on:
   pull_request:
@@ -15,7 +17,13 @@ on:
       - '**.md'
       - 'scripts/lint-docs.py'
       - 'scripts/test_lint_docs.py'
+      - 'scripts/lint-docs-all.sh'
       - '.github/workflows/docs.yml'
+  push:
+    branches: [main]
+  schedule:
+    # Nightly: catches submodule-pointer bumps that brought in broken docs.
+    - cron: '30 2 * * *'
   workflow_dispatch:
 
 concurrency:
@@ -39,3 +47,24 @@ jobs:
 
       - name: Lint docs (links + path:line)
         run: python3 scripts/lint-docs.py
+
+  # --------------------------------------------------------------------- #
+  # Tier 2 — superproject + every submodule. Validates code-anchored       #
+  # path:line claims against the tree where the file lives. Heavy: needs   #
+  # submodule checkout. main-push / nightly / manual only.                 #
+  # --------------------------------------------------------------------- #
+  submodule-docs:
+    name: doc-lint (all submodules)
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Lint superproject + all submodules
+        run: bash scripts/lint-docs-all.sh
