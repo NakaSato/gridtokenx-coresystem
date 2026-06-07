@@ -99,4 +99,6 @@ submodule; commit them there, then bump the pointer here.
 | Trading frontend | [`gridtokenx-trading/ARCHITECTURE.md`](gridtokenx-trading/ARCHITECTURE.md) | Next.js |
 | WASM module | [`gridtokenx-wasm/ARCHITECTURE.md`](gridtokenx-wasm/ARCHITECTURE.md) | Rust→WASM |
 | Explorer frontend | [`gridtokenx-explorer/README.md`](gridtokenx-explorer/README.md) | Next.js (README only) |
-| APISIX gateway | [`apisix_conf/ARCHITECTURE.md`](apisix_conf/ARCHITECTURE.md) | Gateway config |
+| Telemetry (shared lib) | [`gridtokenx-telemetry/ARCHITECTURE.md`](gridtokenx-telemetry/ARCHITECTURE.md) | Rust crate |
+| APISIX gateway (user) | [`apisix_conf/ARCHITECTURE.md`](apisix_conf/ARCHITECTURE.md) | Gateway config |
+| Envoy gateway (edge) | [`envoy_conf/ARCHITECTURE.md`](envoy_conf/ARCHITECTURE.md) | Gateway config (dev stub) |
