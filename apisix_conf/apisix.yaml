@@ -342,6 +342,72 @@ routes:
       nodes:
         "host.docker.internal:8002": 1
 
+# Dev-only self-signed TLS so OrbStack can proxy https://apisix.<proj>.orb.local
+# (and wss://) to APISIX :9443. Regenerate (raw files gitignored under certs/):
+#   openssl req -x509 -newkey rsa:2048 -nodes -days 3650 \
+#     -keyout apisix_conf/certs/apisix-dev.key -out apisix_conf/certs/apisix-dev.crt \
+#     -subj "/CN=apisix.gridtokenx-coresystem.orb.local" \
+#     -addext "subjectAltName=DNS:apisix.gridtokenx-coresystem.orb.local,DNS:*.orb.local,DNS:localhost"
+# then inline the PEMs below. Same dev-secret tier as the jwt-auth secret in this file.
+ssls:
+  - id: 1
+    snis:
+      - "apisix.gridtokenx-coresystem.orb.local"
+      - "*.orb.local"
+      - "localhost"
+    cert: |
+      -----BEGIN CERTIFICATE-----
+      MIIDkDCCAnigAwIBAgIUGvGDhWmidF48i1evg4uGzLu59oswDQYJKoZIhvcNAQEL
+      BQAwMTEvMC0GA1UEAwwmYXBpc2l4LmdyaWR0b2tlbngtY29yZXN5c3RlbS5vcmIu
+      bG9jYWwwHhcNMjYwNjA3MTYzMTMwWhcNMzYwNjA0MTYzMTMwWjAxMS8wLQYDVQQD
+      DCZhcGlzaXguZ3JpZHRva2VueC1jb3Jlc3lzdGVtLm9yYi5sb2NhbDCCASIwDQYJ
+      KoZIhvcNAQEBBQADggEPADCCAQoCggEBAM6y86L82S5rBFl/0Ax9TOrHP75H54Cw
+      oALXqSqizbXExuJqQutDVb3rxvCPB5+YLEbbgu5wL3c7BlrbhCvzrf7s1Q/o0L7b
+      7AhApeu5QApUo+B9h6oii0symKji2kOm1yQBnG/0qWJXfP68P30CqEHnJbQMVft/
+      8K5vgZ7XxIBaoTq6yog1mD9W9NlbTeYd/Uh2G3XBU7LRee9kikjaPpk3x3MNQoXk
+      eAhNWtyjHJW6WbXLVg2OaQSeoPiAseUFWEV8d2MuucfhOfsXhGWMnamxxegwtPTc
+      fsTiNBPYVoStV4IOmee4ghnx5g8d38BA1WThjoxLUVvF1SRk9UquDHECAwEAAaOB
+      nzCBnDAdBgNVHQ4EFgQUx/hmlocXzL7J69fnWm65UnXMsaQwHwYDVR0jBBgwFoAU
+      x/hmlocXzL7J69fnWm65UnXMsaQwDwYDVR0TAQH/BAUwAwEB/zBJBgNVHREEQjBA
+      giZhcGlzaXguZ3JpZHRva2VueC1jb3Jlc3lzdGVtLm9yYi5sb2NhbIILKi5vcmIu
+      bG9jYWyCCWxvY2FsaG9zdDANBgkqhkiG9w0BAQsFAAOCAQEAgY43XQz+ltqOcX2+
+      vVYxaEC1HIDLJhf+5CpOBcZEehsn50Phwo4R0pLAxyRDdAvTWWD9vA4H5026MwVV
+      4t6ZiHXNu/Q3vzv8q7r7h2mgXl60GjHWh1+NS8Hp80BAd4TehOpqyfizitJEPnNG
+      7MwnMa8/yfdNY7c2pMKT6B1EkxvIhbFZev/W6QB6d6O8/eCbLV3MDQsuvqaNyvM/
+      hhEpUbqLk0yQx4W5N48BclRC3Y1v9lUE7gB1wWpRqVcZIyBTighN54dVHaQKnZCi
+      ZvgZqOSAR2JQi5j/szleTDFFPKvz/59eytD3JCM07Y2uOFv9WuqFQHkAFP3WSYyh
+      GTyxdg==
+      -----END CERTIFICATE-----
+    key: |
+      -----BEGIN PRIVATE KEY-----
+      MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDOsvOi/NkuawRZ
+      f9AMfUzqxz++R+eAsKAC16kqos21xMbiakLrQ1W968bwjwefmCxG24LucC93OwZa
+      24Qr863+7NUP6NC+2+wIQKXruUAKVKPgfYeqIotLMpio4tpDptckAZxv9KliV3z+
+      vD99AqhB5yW0DFX7f/Cub4Ge18SAWqE6usqINZg/VvTZW03mHf1Idht1wVOy0Xnv
+      ZIpI2j6ZN8dzDUKF5HgITVrcoxyVulm1y1YNjmkEnqD4gLHlBVhFfHdjLrnH4Tn7
+      F4RljJ2pscXoMLT03H7E4jQT2FaErVeCDpnnuIIZ8eYPHd/AQNVk4Y6MS1FbxdUk
+      ZPVKrgxxAgMBAAECggEAYfJjyE7X3Yqhv4V1AY4YtkJfvtvU5GMOF/q483a9Uw6h
+      jiX7ev9n8Hz7QwAMBUD3bkZTx4hKvc2vB7vw6GDrCRuSJR1WWbLeKNT1qvuYUKzm
+      ERl7AZCoACTEOXdyJU+4sBvBVT4TTAIYPZ/X1/W75KrTb3vO/MQWOZqmSi6Fs6oj
+      2+mk12Ak1uBudjmzulqiSFyZ4oVLcdWL9ebufllzacxR/0qD9kZsEpIMXX8UYfxP
+      Ise7ftTjUUIiV/fmzUVCoxMj/R+KH+c1/2oV2FpA482hK4eWoil+KW1dk8NmI8ia
+      RZDVITQbNPoqETSbda+D6Ybb2Vlfl+zri6kLDTRIRwKBgQD60nbsJgQoQxE8sbOK
+      je2J3JQSnKknG0OUWJsRVgH+Ws/LyhzdOK2GWHxunjV4WktTbvwaGHmjJ2zxSYAX
+      N6IzoHZiWySSKn0PTgajjHPtXwQRxoHT9rTPZrUCOIySAGMuX9h6tUFHU+pqis4B
+      kl+H4kne3QNOiEuDdSJmJ/U6owKBgQDS906bjQE9vgh8O6b42v7Eb8mAHYQ6TLBL
+      MTr4pcD4PZWEQkKkJnrz3w64JETDk6kD4qNPxQT+dhyoILVgsDbXGvZrWmcFlCO3
+      nF5RYtuWVlJxNPyf0KWVFsCPcAz91cfw0n1SYjaQ0hPwEN8Mc1rZehyvTtMUiMwm
+      jyB5tZDB2wKBgCSVhCEHnn2c4qu+o5hnASmlkbdxQD7i/CVsExohOGM4Lazkyvb9
+      aFn7GBMuYlAuo2QFASJxRXSlsH81IEjCpZbwJbRM5PWo2trbn55FQzdxL2/ES3V2
+      O4Mw0OAFDYPSKKU/95xWSbI0rDFkE44pImP4fpvSEsRmntUKxbyuwVcPAoGARhgz
+      fw1vnyMX0KdFSCQDSCNYUP/9oh0+6gzWai0wm4pitkoJuF6stYCkdFxgmJbkLk1M
+      M8HjceSuitIrUY/a+MeVnn+wATOCVoxW7jWpfh76T3DqivMZQRsJKd9yAZjZUNOv
+      HgNR2/Zg93+zjIB7bAzdoQXQrl7xbdJaWPYRvccCgYANNi2PHnD6nb8An/n6xdPq
+      /SUFONGjh5P1nPvJ/hluOruT8xBKnOVF0XQaEVIsgyxbIn9fppO8ph0L8v9AFAIs
+      JYTaTuFFAINnrJ+230MmBA//Fgn+Cybp/K5HfxIeSodSOwT4T9cyPIVnTNFe8+ae
+      wZjyx/Dlj6YesuIA3PRrsQ==
+      -----END PRIVATE KEY-----
+
 consumers:
   - username: gridtokenx_user
     plugins:

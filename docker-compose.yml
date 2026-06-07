@@ -459,7 +459,7 @@ services:
       APISIX_STAND_ALONE: "true"
     ports:
       - "4001:9080" # User Proxy HTTP
-      - "8443:9443" # User Proxy HTTPS
+      - "8443:9443" # User Proxy HTTPS (self-signed dev cert, see apisix.yaml ssl)
       - "8001:9180" # Admin HTTP
     volumes:
       - ./apisix_conf/apisix.yaml:/usr/local/apisix/conf/apisix.yaml:ro
