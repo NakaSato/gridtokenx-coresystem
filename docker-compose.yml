@@ -675,6 +675,7 @@ services:
       GRIDTOKENX_API_KEYS: ${ENGINEERING_API_KEY:-engineering-department-api-key-2025},e2e-test-key
       SETTLEMENT_API_URL: http://apisix:9080
       ORACLE_BRIDGE_SIGNING_KEY: /app/oracle-bridge-signing-key.bin
+      NATS_URL: nats://nats:4222
       KAFKA_BOOTSTRAP_SERVERS: kafka-market:9002
       KAFKA_TOPIC_METER_READINGS: meter.readings
     volumes:
@@ -683,6 +684,10 @@ services:
       redis:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      kafka-market:
         condition: service_healthy
     networks:
       - gridtokenx-network
