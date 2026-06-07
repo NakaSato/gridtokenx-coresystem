@@ -106,6 +106,15 @@ jobs:
           ./scripts/app.sh start
           ./scripts/app.sh init
 
+      - name: Verify dependency connections (preflight)
+        env:
+          CHAIN_BRIDGE_INSECURE: 'true'
+        # Advisory: surfaces the connection table before the heavy suite.
+        # Non-blocking because trading's .env may be absent in CI (the binary
+        # exits 2 on config load); promote to a hard gate once env is guaranteed.
+        continue-on-error: true
+        run: just verify-conns
+
       - name: Run E2E suite
         env:
           CHAIN_BRIDGE_INSECURE: 'true'
