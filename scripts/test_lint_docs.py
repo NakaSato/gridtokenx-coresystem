@@ -87,6 +87,21 @@ class DocLintTest(unittest.TestCase):
             r = run(md)
             self.assertEqual(r.returncode, 0, r.stderr)
 
+    def test_root_flag_retargets_and_labels(self):
+        # --root sets the resolution base so a path:line resolves against it.
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            (d / "sub").mkdir()
+            (d / "sub" / "x.rs").write_text("a\nb\n")  # 2 lines
+            md = self._md(d, "Ref `sub/x.rs:50`.\n")
+            r = subprocess.run(
+                [sys.executable, str(LINTER), "--root", str(d), str(md)],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(r.returncode, 1)
+            self.assertIn(f"[{d.name}]", r.stderr)
+            self.assertIn("stale path:line", r.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

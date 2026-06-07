@@ -36,6 +36,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+# Repo root the linter resolves against. Defaults to this script's superproject;
+# `--root PATH` retargets it so the SAME linter can lint a checked-out submodule
+# (where its code-anchored `path:line` claims actually resolve). Reassigned in main().
 REPO = Path(__file__).resolve().parent.parent
 
 # Vendored skill/agent bundles with their own link conventions — not our harness.
@@ -149,9 +152,18 @@ def rel(p: Path) -> str:
 
 
 def main(argv: list[str]) -> int:
+    global REPO
+    args = list(argv)
+    if args and args[0] == "--root":
+        if len(args) < 2:
+            print("doc-lint: --root needs a path", file=sys.stderr)
+            return 2
+        REPO = Path(args[1]).resolve()
+        args = args[2:]
+
     subs = submodule_paths()
-    if argv:
-        files = [Path(a).resolve() for a in argv]
+    if args:
+        files = [Path(a).resolve() for a in args]
     else:
         files = tracked_md()
 
@@ -161,12 +173,13 @@ def main(argv: list[str]) -> int:
             continue
         all_findings.extend(check_file(md, subs))
 
+    label = REPO.name
     if all_findings:
-        print(f"doc-lint: {len(all_findings)} finding(s)\n", file=sys.stderr)
+        print(f"doc-lint [{label}]: {len(all_findings)} finding(s)\n", file=sys.stderr)
         for f in all_findings:
             print(f, file=sys.stderr)
         return 1
-    print(f"doc-lint: clean ({len(files)} files)")
+    print(f"doc-lint [{label}]: clean ({len(files)} files)")
     return 0
 
 
