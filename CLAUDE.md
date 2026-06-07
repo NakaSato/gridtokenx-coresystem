@@ -86,9 +86,9 @@ just simnet                            # Mainnet sim with Studio + hot-reload
 just simnet-ci                         # CI mode (no UI, fast startup)
 just simnet-down                       # Kill running Surfpool
 
-# Smart-meter telemetry into Oracle Bridge
+# Smart-meter telemetry into Oracle Bridge (DLMS/COSEM egress; needs bridge + Redis up)
 just auto-meter-send meters="5" interval="15"
-just send-meter-reading meter_id="METER-001" count="1"
+just send-meter-reading meters="1" interval="15"
 ```
 
 > **macOS Apple Silicon Warning**: Running `solana-test-validator` natively on M-series chips will panic with a "Too many open files" error under load. The `app.sh` scripts handle this automatically via `ulimit -n 65536`. If you run the validator manually outside these scripts, you MUST tune the system limits first.

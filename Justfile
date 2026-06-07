@@ -197,13 +197,15 @@ simnet-down:
 
 # --- Smart Meter Automation ---
 
-# Auto-send smartmeter data to oracle-bridge with blockchain linking
+# Stream signed smartmeter readings into the Oracle Bridge (DLMS/COSEM egress).
+# Needs the bridge IoT gateway (:4030) + Redis (:7010) up (`just orb-up`). Loops
+# until Ctrl-C; each tick POSTs signed OBIS frames -> /v1/private-network/ingest.
 auto-meter-send meters="5" interval="15":
-    gridtokenx-smartmeter-simulator/backend/.venv/bin/python scripts/auto-send-smartmeter-to-oracle.py --meters {{meters}} --interval {{interval}}
+    (cd gridtokenx-smartmeter-simulator/backend; with-env {ORACLE_DLMS_ENABLED: "true", ORACLE_BRIDGE_URL: "http://localhost:4030", REDIS_URL: "redis://localhost:7010"} { uv run cli --mode standalone --meters {{meters}} --interval {{interval}} })
 
-# Send single smartmeter reading to oracle-bridge
-send-meter-reading meter_id="METER-001" count="1":
-    gridtokenx-smartmeter-simulator/backend/.venv/bin/python scripts/send-smartmeter-to-oracle.py --meter-id {{meter_id}} --count {{count}}
+# Single-meter egress burst into the Oracle Bridge (quick smoke test; Ctrl-C to stop).
+send-meter-reading meters="1" interval="15":
+    (cd gridtokenx-smartmeter-simulator/backend; with-env {ORACLE_DLMS_ENABLED: "true", ORACLE_BRIDGE_URL: "http://localhost:4030", REDIS_URL: "redis://localhost:7010"} { uv run cli --mode standalone --meters {{meters}} --interval {{interval}} })
 
 
 
