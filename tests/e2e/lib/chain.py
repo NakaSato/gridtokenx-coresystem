@@ -25,6 +25,11 @@ ROLE = os.getenv("CHAIN_BRIDGE_ROLE", "admin")
 
 # SPL Token + Associated-Token programs (fixed on every Solana cluster).
 TOKEN_PROGRAM_ID = Pubkey.from_string("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
+# Token-2022 — the GRID / energy-token mint is a Token-2022 mint (the on-chain
+# mint instruction `build_mint_to_wallet_instruction` derives the destination ATA
+# under spl_token_2022::id()), so GRID ATA reads MUST use this program id, not the
+# classic TOKEN_PROGRAM_ID above.
+TOKEN_2022_PROGRAM_ID = Pubkey.from_string("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb")
 ASSOCIATED_TOKEN_PROGRAM_ID = Pubkey.from_string("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL")
 
 
@@ -80,23 +85,36 @@ def get_token_account_balance(token_account: str) -> dict:
     }
 
 
-def ata(owner: str, mint: str) -> str:
+def ata(owner: str, mint: str, token_program: Pubkey = TOKEN_2022_PROGRAM_ID) -> str:
     """Derive the Associated Token Account address for (owner, mint).
 
     Mirrors spl-associated-token-account: PDA of
-    [owner, TOKEN_PROGRAM_ID, mint] under the ATA program.
+    [owner, token_program, mint] under the ATA program. Defaults to Token-2022
+    because the GRID / energy-token mint is a Token-2022 mint; pass
+    TOKEN_PROGRAM_ID explicitly for a classic SPL-Token mint.
     """
     pda, _bump = Pubkey.find_program_address(
-        [bytes(Pubkey.from_string(owner)), bytes(TOKEN_PROGRAM_ID), bytes(Pubkey.from_string(mint))],
+        [bytes(Pubkey.from_string(owner)), bytes(token_program), bytes(Pubkey.from_string(mint))],
         ASSOCIATED_TOKEN_PROGRAM_ID,
     )
     return str(pda)
 
 
-def token_balance_of(owner: str, mint: str) -> int:
+def grid_mint_pda(energy_token_program_id: str) -> str:
+    """Derive the GRID (energy-token) mint PDA = find_program_address([b"mint_2022"],
+    energy_token_program_id). The mint is a program-derived account, so given the
+    energy-token program id it is resolvable without bootstrap output (matches
+    blockchain-core build_mint_to_wallet_instruction get_mint_pda)."""
+    pda, _bump = Pubkey.find_program_address(
+        [b"mint_2022"], Pubkey.from_string(energy_token_program_id)
+    )
+    return str(pda)
+
+
+def token_balance_of(owner: str, mint: str, token_program: Pubkey = TOKEN_2022_PROGRAM_ID) -> int:
     """Convenience: base-unit GRID balance held by `owner` for `mint` (0 if the
-    ATA does not exist yet)."""
+    ATA does not exist yet). Defaults to the Token-2022 ATA derivation."""
     try:
-        return get_token_account_balance(ata(owner, mint))["amount"]
+        return get_token_account_balance(ata(owner, mint, token_program))["amount"]
     except ChainBridgeError:
         return 0
