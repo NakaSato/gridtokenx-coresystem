@@ -345,7 +345,7 @@ Each Rust service builds independently. Trading Service and Edge Gateway are kep
 | `gridtokenx-iam-service` | Identity & Access Management | Modular monolith, 6 sub-crates |
 | `gridtokenx-trading-service` | Trading Engine & Matching | Separate workspace (BPF target) |
 | `gridtokenx-oracle-bridge` | Edge Validation & IoT | — |
-| `gridtokenx-chain-bridge` | Decentralized Signing | Binds `127.0.0.1` only |
+| `gridtokenx-chain-bridge` | Decentralized Signing | Binds `0.0.0.0`; isolated by mTLS + RBAC |
 | `gridtokenx-noti-service` | Notifications Dispatcher | — |
 | `gridtokenx-blockchain-core` | Shared Blockchain Utilities | — |
 | `gridtokenx-wasm` | WebAssembly | — |
@@ -370,12 +370,10 @@ Each Rust service builds independently. Trading Service and Edge Gateway are kep
 
 Detailed specifications are located in the `/docs` directory:
 
--   [Data Flow Documentation](docs/DATA_FLOW.md)
--   [National Control Plane Design](docs/National.md)
--   [Layered System Architecture](docs/LAYERED_SYSTEM_ARCHITECTURE.md)
--   [Minting E2E Flow](docs/MINTING_E2E_FLOW.md)
--   [gTHB Issuer Service Spec](docs/gTHB_ISSUER_SERVICE.md)
--   [Platform Documentation Overview](docs/Overview.md)
+-   [National Control Plane Design](docs/product-specs/National.md)
+-   [gTHB Issuer Service Spec](docs/product-specs/gTHB_ISSUER_SERVICE.md)
+-   [System Architecture](ARCHITECTURE.md)
+-   [Documentation Map](docs/DESIGN.md)
 -   [Glossary](docs/glossary.md)
 
 ---

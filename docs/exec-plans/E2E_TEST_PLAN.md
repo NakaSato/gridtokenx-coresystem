@@ -70,7 +70,7 @@ Suite: `20_oracle/test_telemetry.py` (7P/0skip).
 
 ## 5. Settlement & Minting (Oracle → Trading/Settlement → Chain Bridge → Anchor)
 
-Reference: `docs/MINTING_E2E_FLOW.md`. Suite: `30_settlement/test_settlement.py`. **Generation-mint handler is in trading-service** (`execute_generation_mint`, REST `:8093/api/v1/settlement/generation-mint`); Oracle posts to platform `:4000` which forwards. Full path needs out-of-repo `:4000`.
+Reference: `docs/product-specs/MINTING_E2E_FLOW.md`. Suite: `30_settlement/test_settlement.py`. **Generation-mint handler is in trading-service** (`execute_generation_mint`, REST `:8093/api/v1/settlement/generation-mint`); Oracle posts to platform `:4000` which forwards. Full path needs out-of-repo `:4000`.
 
 - [~] **Telemetry → mint GRID/REC** — on-chain GRID balance delta WIRED (`test_onchain_balance_increase`: reads prosumer GRID ATA before/after a backdated generation settlement, asserts growth). Assert-when-reachable; skips when `:4000` down / mint pubkey unknown / Chain Bridge mTLS-only. *(2026-06-07)*
 - [ ] **Message bus path (NATS JetStream)** — `chain.tx.submit` submit+ack not directly asserted.

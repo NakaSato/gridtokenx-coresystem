@@ -90,7 +90,7 @@ Build before settlement since §5/§6 depend on it.
 
 ## Phase 4 — Settlement & Minting Suite (`30_settlement/`)
 
-Reference `docs/MINTING_E2E_FLOW.md`. Depends Phase 2 + 3.
+Reference `docs/product-specs/MINTING_E2E_FLOW.md`. Depends Phase 2 + 3.
 
 - [~] Telemetry → mint: aggregated reading → settlement → mint via Chain Bridge → on-chain balance increases. *(on-chain balance delta WIRED 2026-06-07 — `test_onchain_balance_increase` reads the prosumer GRID ATA via Chain Bridge before/after a backdated generation settlement and asserts growth; assert-when-reachable, skips when platform :4000 down / mint pubkey unknown / Chain Bridge mTLS-only)*
 - [ ] NATS JetStream path assert (submit + ack).

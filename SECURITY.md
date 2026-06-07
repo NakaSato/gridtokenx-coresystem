@@ -62,7 +62,9 @@ GridTokenX implements defense-in-depth across all layers:
 - **Vault-encrypted PII** at rest
 
 ### Infrastructure Security
-- **Chain Bridge binds to 127.0.0.1 only** — no external network exposure
+- **Chain Bridge isolation is mTLS + role/RBAC, not bind address** — it binds `0.0.0.0`
+  (verified `main.rs:102`); network exposure is gated by mutual TLS and per-role authorization,
+  not by a loopback-only bind
 - **No debug logging of keys or instructions** in production
 - **Rate limiting** at gateway (APISIX) and service level
 - **CORS** properly configured per environment

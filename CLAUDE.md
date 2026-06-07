@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Quick Orientation
 
 - This repo is a **superproject**: every `gridtokenx-*` service is a **git submodule** (see `.gitmodules`). After clone or branch switch run `git submodule update --init --recursive`. A `git status` showing modified submodule pointers is normal — commit the pointer in the superproject, the code inside the submodule.
-- Read [README.md](README.md) for the full architecture diagram, service list, and port table. No root `ARCHITECTURE.md` exists; per-service detail lives in `<service>/ARCHITECTURE.md` (IAM and Noti have one).
+- Read [README.md](README.md) for the full architecture diagram, service list, and port table. The root [`ARCHITECTURE.md`](ARCHITECTURE.md) is the top-level system map; its §8 indexes every per-component `<component>/ARCHITECTURE.md`. Per-component detail lives in those files (most `gridtokenx-*` services, plus `apisix_conf/`).
 - Read [docs/glossary.md](docs/glossary.md) for domain terms (GRID, GRX, REC, VPP, CDA, PDA, etc.).
 - Each service = **independent Cargo workspace** — no root `Cargo.toml`. Don't `cargo` from repo root; `cd` into the service first.
 - IAM Service = **modular monolith** with 6 sub-crates. Others: layered modules, single crate.
@@ -302,7 +302,8 @@ just benchmark
 - **Only** service that directly touches Solana RPC.
 - Signs transactions using Vault Transit (not local keypair files — dev mode supports keypair path).
 - NATS JetStream for async tx submission; gRPC for synchronous reads.
-- Binds to `127.0.0.1` only (never `0.0.0.0`).
+- Binds `0.0.0.0` (verified `main.rs:102`). The trust boundary is **mTLS + role/RBAC**, not the
+  bind address. Dev reads need `CHAIN_BRIDGE_INSECURE=true`.
 
 <!-- code-review-graph MCP tools -->
 ## MCP Tools: code-review-graph
