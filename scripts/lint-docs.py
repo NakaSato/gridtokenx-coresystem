@@ -11,6 +11,9 @@ Checks, over superproject-tracked Markdown only:
   2. Stale path:line refs    — backtick refs `` `dir/file.rs:NN` `` (path contains
                                a slash) whose file is missing, or whose line number
                                is past end-of-file.
+  3. §8 index drift          — every present `<component>/ARCHITECTURE.md` must be
+                               linked in root `ARCHITECTURE.md` (the §8 component
+                               index). Catches a doc added but never indexed.
 
 Deliberately out of scope (no false positives, no network):
   - http(s):// / mailto: / pure #anchor links, and `scheme://host:port` in backticks.
@@ -50,6 +53,8 @@ LINK_RE = re.compile(r"\[[^\]]*\]\(\s*<?([^)\s>]+)>?(?:\s+\"[^\"]*\")?\s*\)")
 PATHLINE_RE = re.compile(r"`([^`\s]+/[^`\s]+\.[A-Za-z0-9_]+:\d+)`")
 # Fenced code block fence (skip link/ref scanning inside code samples).
 FENCE_RE = re.compile(r"^\s*(```|~~~)")
+# A link target pointing at a one-level component ARCHITECTURE.md (root §8 index).
+ARCH_LINK_RE = re.compile(r"\(([^)\s]+/ARCHITECTURE\.md)(?:#[^)]*)?\)")
 
 
 def submodule_paths() -> set[str]:
@@ -84,6 +89,28 @@ def in_submodule(rel_target: str, subs: set[str]) -> bool:
 def line_count(p: Path) -> int:
     with p.open("rb") as f:
         return sum(1 for _ in f)
+
+
+def check_arch_index() -> list[str]:
+    """Every present `<component>/ARCHITECTURE.md` must be linked in root §8.
+
+    Catches a component doc that was added but never indexed. Submodule docs are
+    only visible when checked out, so a bare superproject run checks the in-tree
+    components (apisix_conf, envoy_conf, gridtokenx-telemetry) and lint-docs-all /
+    the recursive CI job extends the check to every submodule.
+    """
+    root_arch = REPO / "ARCHITECTURE.md"
+    if not root_arch.exists():
+        return []
+    listed = {m.split("#", 1)[0] for m in ARCH_LINK_RE.findall(root_arch.read_text(errors="replace"))}
+    findings = []
+    for doc in sorted(REPO.glob("*/ARCHITECTURE.md")):
+        rel = doc.relative_to(REPO).as_posix()
+        if rel.startswith(EXCLUDE_PREFIXES):
+            continue
+        if rel not in listed:
+            findings.append(f"ARCHITECTURE.md: component doc not indexed in §8 -> {rel}")
+    return findings
 
 
 def check_file(md: Path, subs: set[str]) -> list[str]:
@@ -162,12 +189,14 @@ def main(argv: list[str]) -> int:
         args = args[2:]
 
     subs = submodule_paths()
+    all_findings: list[str] = []
     if args:
         files = [Path(a).resolve() for a in args]
     else:
         files = tracked_md()
+        # Index check only in full-tree mode (explicit-file runs target one doc).
+        all_findings.extend(check_arch_index())
 
-    all_findings: list[str] = []
     for md in files:
         if not md.exists():
             continue

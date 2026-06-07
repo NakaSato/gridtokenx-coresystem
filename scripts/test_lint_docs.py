@@ -87,6 +87,28 @@ class DocLintTest(unittest.TestCase):
             r = run(md)
             self.assertEqual(r.returncode, 0, r.stderr)
 
+    def test_arch_index_drift_flagged(self):
+        # A component ARCHITECTURE.md present but absent from root §8 -> finding.
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            subprocess.run(["git", "init", "-q", str(d)], check=True)
+            (d / "ARCHITECTURE.md").write_text(
+                "# Root\n## 8. Components\n- [a](comp-a/ARCHITECTURE.md)\n"
+            )
+            for c in ("comp-a", "comp-b"):
+                (d / c).mkdir()
+                (d / c / "ARCHITECTURE.md").write_text("# " + c + "\n")
+            subprocess.run(["git", "-C", str(d), "add", "-A"], check=True)
+            # No file args -> full-tree mode, runs the index check.
+            r = subprocess.run(
+                [sys.executable, str(LINTER), "--root", str(d)],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+            self.assertIn("not indexed in §8", r.stderr)
+            self.assertIn("comp-b/ARCHITECTURE.md", r.stderr)
+            self.assertNotIn("comp-a/ARCHITECTURE.md", r.stderr)
+
     def test_root_flag_retargets_and_labels(self):
         # --root sets the resolution base so a path:line resolves against it.
         with tempfile.TemporaryDirectory() as d:
