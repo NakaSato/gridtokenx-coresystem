@@ -557,6 +557,8 @@ services:
       SOLANA_ORACLE_PROGRAM_ID: ${SOLANA_ORACLE_PROGRAM_ID}
       SOLANA_GOVERNANCE_PROGRAM_ID: ${SOLANA_GOVERNANCE_PROGRAM_ID}
       SOLANA_ENERGY_TOKEN_PROGRAM_ID: ${SOLANA_ENERGY_TOKEN_PROGRAM_ID}
+      ENERGY_TOKEN_MINT: ${ENERGY_TOKEN_MINT}
+      CURRENCY_TOKEN_MINT: ${CURRENCY_TOKEN_MINT}
       SOLANA_CLUSTER: ${SOLANA_CLUSTER:-localnet}
       AUTHORITY_WALLET_PATH: /app/dev-wallet.json
       SMTP_HOST: mailpit
@@ -568,7 +570,7 @@ services:
       EMAIL_VERIFICATION_BASE_URL: http://localhost:4001
       OWS_VAULT_PATH: /var/lib/gridtokenx/ows-vault
     volumes:
-      - ./infra/solana/dev-wallet.json:/app/dev-wallet.json
+      - ./dev-wallet.json:/app/dev-wallet.json
       - iam_ows_vault:/var/lib/gridtokenx/ows-vault
     depends_on:
       pgbouncer:
@@ -597,7 +599,7 @@ services:
       - "${TRADING_GRPC_PORT:-5020}:8092"
       - "${TRADING_HTTP_PORT:-4020}:8093"
     volumes:
-      - ./infra/solana/dev-wallet.json:/app/dev-wallet.json
+      - ./dev-wallet.json:/app/dev-wallet.json
     environment:
       DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgbouncer:5432/gridtokenx
       REDIS_URL: redis://redis:6379
