@@ -691,7 +691,7 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka-market:9002
       KAFKA_TOPIC_METER_READINGS: meter.readings
     volumes:
-      - ./infra/oracle/signing-key.bin:/app/aggregator-bridge-signing-key.bin:ro
+      - ./infra/aggregator-bridge/signing-key.bin:/app/aggregator-bridge-signing-key.bin:ro
     depends_on:
       redis:
         condition: service_healthy
