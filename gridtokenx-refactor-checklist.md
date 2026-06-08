@@ -12,7 +12,7 @@
 - [x] **P1.1** `api.rs` (1667L) → `api/{provider,service}.rs` + `api/tests.rs`; `mod.rs` re-exports shared `use super::*`. *(commit `3eab5c4`)*
 - [x] **P1.2** `nats_consumer.rs` (913L) → `nats_consumer/{mod,consumer,dedup,tests}.rs` (consumer 447L). *(commit `3eab5c4`)*
 
-## Phase 2 — oracle-bridge single crate → 4-layer
+## Phase 2 — aggregator-bridge single crate → 4-layer
 
 - [x] **P2.1** workspace `crates/` = `oracle-{core,persistence,logic,protocol,api}`. *(already on `main`)*
 - [x] **P2.3** extract `oracle-stacks` crate (dlms/sunspec/ocpp/openadr). *(already on `main`)*
@@ -54,7 +54,7 @@ Run per service (`cd <service>` first — independent Cargo workspaces, never `c
 | Service | Command | Result (this session) |
 | --- | --- | --- |
 | chain-bridge | `cargo test` (from service root; virtual workspace → all members) | ✅ **97 passed / 12 ignored** (10 suites) |
-| oracle-bridge | `cargo check` | ✅ 0 errors (slice A) — full `cargo test` not run this session |
+| aggregator-bridge | `cargo check` | ✅ 0 errors (slice A) — full `cargo test` not run this session |
 | trading-service | `cargo check` | ✅ 0 errors (slice D) — full `cargo test` not run this session |
 | iam-service | `cargo test` | not run this session |
 | blockchain-core | `cargo test` | covered transitively by consumers; not run standalone this session |

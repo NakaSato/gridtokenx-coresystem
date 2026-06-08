@@ -40,7 +40,7 @@ def sign_telemetry(private_key, meter_id: str, kwh, timestamp_ms: int) -> str:
 
 def keypair_base58_pubkey(private_key) -> str:
     """Base58-encoded Ed25519 public key (Solana pubkey form) for an Ed25519
-    private key. Use to set trading's ORACLE_BRIDGE_PUBLIC_KEY to a key the test
+    private key. Use to set trading's AGGREGATOR_BRIDGE_PUBLIC_KEY to a key the test
     holds, so the test can sign generation-mint requests trading will accept."""
     return base58.b58encode(private_key.public_key().public_bytes_raw()).decode("utf-8")
 

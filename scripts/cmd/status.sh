@@ -39,7 +39,7 @@ cmd_status() {
         "OTEL Collector:docker:gridtokenx-otel-collector"
         "IAM Service:process:gridtokenx-iam-service"
         "Trading Service:process:trading-service"
-        "Oracle Bridge:process:gridtokenx-oracle-bridge"
+        "Aggregator Bridge:process:gridtokenx-aggregator-bridge"
         "Noti Service:process:noti-server"
         "Chain Bridge:process:gridtokenx-chain-bridge"
         "Solana Validator:process:solana-test-validator"

@@ -1,10 +1,10 @@
 ---
-description: Working with and troubleshooting the GridTokenX Oracle Bridge
+description: Working with and troubleshooting the GridTokenX Aggregator Bridge
 ---
 
-# Oracle Bridge Workflow
+# Aggregator Bridge Workflow
 
-The **Oracle Bridge** is the high-performance ingestion layer for the GridTokenX VPP. it validates incoming IoT telemetry and bridges it to the VPP Optimization engine and the HyperEVM blockchain.
+The **Aggregator Bridge** is the high-performance ingestion layer for the GridTokenX VPP. it validates incoming IoT telemetry and bridges it to the VPP Optimization engine and the HyperEVM blockchain.
 
 ## Data Flow Architecture
 
@@ -33,7 +33,7 @@ If telemetry is not appearing in the platform, check the bridge logs for signatu
 
 ```bash
 # View recent oracle bridge logs
-tail -f gridtokenx-oracle-bridge/oracle.log | grep -E "✅|🚫|❌"
+tail -f gridtokenx-aggregator-bridge/oracle.log | grep -E "✅|🚫|❌"
 ```
 
 ### Redis Stream Status

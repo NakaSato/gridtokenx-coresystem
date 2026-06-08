@@ -55,7 +55,7 @@
         "textMode": "auto"
       },
       "targets": [
-        { "expr": "sum(rate(oracle_ingestion_requests_total[1m]))", "refId": "A" }
+        { "expr": "sum(rate(aggregator_ingestion_requests_total[1m]))", "refId": "A" }
       ],
       "title": "Current Ingest Rate",
       "type": "stat"
@@ -84,7 +84,7 @@
         "reduceOptions": { "calcs": [ "lastNotNull" ] }
       },
       "targets": [
-        { "expr": "oracle_queue_depth", "refId": "A" }
+        { "expr": "aggregator_queue_depth", "refId": "A" }
       ],
       "title": "Batcher Queue Depth",
       "type": "stat"
@@ -111,8 +111,8 @@
         "tooltip": { "mode": "multi" }
       },
       "targets": [
-        { "expr": "sum(rate(oracle_ingestion_requests_total{success='true'}[1m]))", "legendFormat": "Success", "refId": "A" },
-        { "expr": "sum(rate(oracle_ingestion_requests_total{success='false'}[1m]))", "legendFormat": "Failure", "refId": "B" }
+        { "expr": "sum(rate(aggregator_ingestion_requests_total{success='true'}[1m]))", "legendFormat": "Success", "refId": "A" },
+        { "expr": "sum(rate(aggregator_ingestion_requests_total{success='false'}[1m]))", "legendFormat": "Failure", "refId": "B" }
       ],
       "title": "Ingestion Success vs Failure",
       "type": "timeseries"
@@ -131,7 +131,7 @@
         "legend": { "displayMode": "list", "placement": "bottom" }
       },
       "targets": [
-        { "expr": "histogram_quantile(0.95, sum(rate(oracle_ingestion_request_duration_ms_bucket[5m])) by (le, device_type))", "legendFormat": "{{device_type}} p95", "refId": "A" }
+        { "expr": "histogram_quantile(0.95, sum(rate(aggregator_ingestion_request_duration_ms_bucket[5m])) by (le, device_type))", "legendFormat": "{{device_type}} p95", "refId": "A" }
       ],
       "title": "Ingestion Latency by Device",
       "type": "timeseries"
@@ -163,7 +163,7 @@
         "orientation": "horizontal"
       },
       "targets": [
-        { "expr": "histogram_quantile(0.95, sum(rate(oracle_blockchain_submission_duration_ms_bucket[5m])) by (le)) / 1000", "refId": "A" }
+        { "expr": "histogram_quantile(0.95, sum(rate(aggregator_blockchain_submission_duration_ms_bucket[5m])) by (le)) / 1000", "refId": "A" }
       ],
       "title": "p95 Settlement Latency",
       "type": "gauge"
@@ -183,8 +183,8 @@
       "gridPos": { "h": 8, "w": 10, "x": 6, "y": 12 },
       "id": 6,
       "targets": [
-        { "expr": "sum(rate(oracle_blockchain_submissions_total{success='true'}[1m]))", "legendFormat": "Success", "refId": "A" },
-        { "expr": "sum(rate(oracle_blockchain_submissions_total{success='false'}[1m]))", "legendFormat": "Failure", "refId": "B" }
+        { "expr": "sum(rate(aggregator_blockchain_submissions_total{success='true'}[1m]))", "legendFormat": "Success", "refId": "A" },
+        { "expr": "sum(rate(aggregator_blockchain_submissions_total{success='false'}[1m]))", "legendFormat": "Failure", "refId": "B" }
       ],
       "title": "On-chain Settlement Outcomes",
       "type": "timeseries"
@@ -199,7 +199,7 @@
       "gridPos": { "h": 8, "w": 8, "x": 16, "y": 12 },
       "id": 7,
       "targets": [
-        { "expr": "oracle_batch_size", "legendFormat": "Batch Size", "refId": "A" }
+        { "expr": "aggregator_batch_size", "legendFormat": "Batch Size", "refId": "A" }
       ],
       "title": "Batch Size Distribution",
       "type": "histogram"
@@ -208,7 +208,7 @@
   "refresh": "5s",
   "schemaVersion": 38,
   "style": "dark",
-  "tags": [ "gridtokenx", "oracle" ],
+  "tags": [ "gridtokenx", "aggregator" ],
   "templating": {
     "list": []
   },
@@ -218,7 +218,7 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "GridTokenX - Oracle Bridge Overview",
-  "uid": "oracle-bridge-overview",
+  "title": "GridTokenX - Aggregator Bridge Overview",
+  "uid": "aggregator-bridge-overview",
   "version": 2
 }

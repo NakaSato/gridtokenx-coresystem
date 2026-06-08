@@ -29,7 +29,7 @@ graph TD
         APISIX -->|ConnectRPC| APIS[API Services Orchestrator :4000]
         APIS <-->|gRPC| IAM[IAM Service :4010/5010]
         APIS <-->|gRPC| Trading[Trading Service :4020/5020]
-        APIS <-->|gRPC| OracleB[Oracle Bridge :4030/5030]
+        APIS <-->|gRPC| OracleB[Aggregator Bridge :4030/5030]
         Envoy -->|HTTP/gRPC| OracleB
     end
 
@@ -61,7 +61,7 @@ GridTokenX is architected as **two distinct but interconnected platforms**:
 | **Blockchain Access** | ✅ Direct (IAM, Trading) | ❌ Indirect (signs only) |
 | **Data Direction** | Receives validated data | Produces validated data |
 | **Scaling Factor** | Trading volume / User count | Device count / Telemetry volume |
-| **Key Services** | API Services, IAM, Trading | Edge Gateway, Oracle Bridge |
+| **Key Services** | API Services, IAM, Trading | Edge Gateway, Aggregator Bridge |
 
 ### Edge-to-Blockchain Data Flow
 
@@ -144,7 +144,7 @@ User/Web → APISIX (User Gateway) ───────────────
 -   **Complexity**: 587-line startup file, 1883-line gRPC implementation (40+ RPCs)
 -   **Blockchain**: Trading + Energy Token programs
 
-### 4. Oracle Bridge (`gridtokenx-oracle-bridge`) — Cryptographic Trust Layer
+### 4. Aggregator Bridge (`gridtokenx-aggregator-bridge`) — Cryptographic Trust Layer
 -   **Port**: 4030 (Unified gRPC/HTTP)
 -   **Role**: Validates Ed25519 signatures from Edge Gateways, performs zone-based partitioning, aggregates 15-minute settlement windows. Bridges physical energy data to digital markets.
 -   **Blockchain**: Oracle Program
@@ -155,7 +155,7 @@ User/Web → APISIX (User Gateway) ───────────────
 
 ### 6. Edge Gateway (`gridtokenx-edge-gateway`) — Edge Aggregation
 -   **Role**: Local aggregation, buffering, protocol translation, Ed25519 signing. Hardware-specific (RPi, rppal, MQTT).
--   **Communication**: Sends validated telemetry to Oracle Bridge via Envoy (mTLS)
+-   **Communication**: Sends validated telemetry to Aggregator Bridge via Envoy (mTLS)
 
 ---
 
@@ -271,7 +271,7 @@ grx prepare   # sqlx prepare (offline query preparation)
 | **Envoy Gateway** | `4002` | — | Edge / IoT Gateway |
 | **IAM Service** | `4010` | `5010` | Identity, Auth & KYC |
 | **Trading Service** | `8093` | `8092` | Matching & Settlement |
-| **Oracle Bridge** | — | `4030` | Telemetry Validation |
+| **Aggregator Bridge** | — | `4030` | Telemetry Validation |
 | **Chain Bridge** | — | `5040` | Solana Signing Authority |
 | **Noti Service** | — | `5050` | Notifications Dispatcher |
 | **Simulator API** | `12010` | — | IoT Simulation Backend |
@@ -308,7 +308,7 @@ Each `gridtokenx-*` entry below is a **git submodule** with its own Cargo worksp
 gridtokenx-coresystem/                # superproject (git submodules)
 ├── gridtokenx-iam-service/          # Identity, Auth, KYC, Registry (Rust)
 ├── gridtokenx-trading-service/      # Order Matching, Settlement (Rust)
-├── gridtokenx-oracle-bridge/        # Edge Validation, IoT Ingestion (Rust)
+├── gridtokenx-aggregator-bridge/        # Edge Validation, IoT Ingestion (Rust)
 ├── gridtokenx-chain-bridge/         # Decentralized Signing Authority (Rust)
 ├── gridtokenx-noti-service/         # Notifications Dispatcher (Rust)
 ├── gridtokenx-anchor/               # Solana Anchor Programs
@@ -344,7 +344,7 @@ Each Rust service builds independently. Trading Service and Edge Gateway are kep
 |-------|-------------|-----------|
 | `gridtokenx-iam-service` | Identity & Access Management | Modular monolith, 6 sub-crates |
 | `gridtokenx-trading-service` | Trading Engine & Matching | Separate workspace (BPF target) |
-| `gridtokenx-oracle-bridge` | Edge Validation & IoT | — |
+| `gridtokenx-aggregator-bridge` | Edge Validation & IoT | — |
 | `gridtokenx-chain-bridge` | Decentralized Signing | Binds `0.0.0.0`; isolated by mTLS + RBAC |
 | `gridtokenx-noti-service` | Notifications Dispatcher | — |
 | `gridtokenx-blockchain-core` | Shared Blockchain Utilities | — |

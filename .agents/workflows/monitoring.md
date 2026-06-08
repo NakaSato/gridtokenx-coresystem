@@ -80,7 +80,7 @@ GridTokenX uses tracing to follow a request from the **API Gateway** → **IAM S
 | **API services** | http://localhost:4000/health |
 | **IAM Service** | http://localhost:50052/health | (gRPC Health) |
 | **Trading Service**| http://localhost:50053/health | (gRPC Health) |
-| **Oracle Bridge** | http://localhost:4010/health |
+| **Aggregator Bridge** | http://localhost:4010/health |
 
 ## Related Workflows
 - [Grafana Stack](./grafana-stack.md) - Deep dive into LGT configuration.

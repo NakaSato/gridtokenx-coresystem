@@ -25,7 +25,7 @@ start_core_services() {
     else
         docker-compose up -d postgres redis mailpit apisix envoy rabbitmq kafka-cmd
         # Ensure Docker versions of application services are stopped to prevent port conflicts (native execution preferred)
-        docker stop gridtokenx-trading-service gridtokenx-iam-service gridtokenx-oracle-bridge gridtokenx-noti-service >/dev/null 2>&1 || true
+        docker stop gridtokenx-trading-service gridtokenx-iam-service gridtokenx-aggregator-bridge gridtokenx-noti-service >/dev/null 2>&1 || true
     fi
 
     wait_for_postgres
@@ -148,14 +148,14 @@ _start_native_services() {
         "$PROJECT_ROOT" \
         "$PROJECT_ROOT/scripts/logs/trading.log"
 
-    # Oracle Bridge enforces Ed25519 telemetry signature verification fail-CLOSED by
-    # default (rejects tampered/unknown/wrong-key); set ORACLE_ALLOW_UNVERIFIED_TELEMETRY=true
+    # Aggregator Bridge enforces Ed25519 telemetry signature verification fail-CLOSED by
+    # default (rejects tampered/unknown/wrong-key); set AGGREGATOR_ALLOW_UNVERIFIED_TELEMETRY=true
     # only to disable it in trusted dev. See docs/E2E_IMPL_PLAN.md.
-    run_in_background "Oracle Bridge" \
-        "IAM_SERVICE_URL=http://127.0.0.1:4010 GRIDTOKENX_API_KEYS=\"$GRIDTOKENX_API_KEYS\" RUST_LOG=info $PROJECT_ROOT/gridtokenx-oracle-bridge/target/debug/gridtokenx-oracle-bridge" \
+    run_in_background "Aggregator Bridge" \
+        "IAM_SERVICE_URL=http://127.0.0.1:4010 GRIDTOKENX_API_KEYS=\"$GRIDTOKENX_API_KEYS\" RUST_LOG=info $PROJECT_ROOT/gridtokenx-aggregator-bridge/target/debug/gridtokenx-aggregator-bridge" \
         "$PROJECT_ROOT" \
-        "$PROJECT_ROOT/scripts/logs/oracle-bridge.log"
-    wait_for_port "Oracle Bridge" 4030 30
+        "$PROJECT_ROOT/scripts/logs/aggregator-bridge.log"
+    wait_for_port "Aggregator Bridge" 4030 30
 
     run_in_background "Noti Service" \
         "DATABASE_URL=$NOTI_DATABASE_URL REDIS_URL=$REDIS_URL RUST_LOG=info $PROJECT_ROOT/gridtokenx-noti-service/target/debug/noti-server" \
@@ -188,12 +188,12 @@ _start_terminal_services() {
         "$PROJECT_ROOT"
     wait_for_port "Trading gRPC" 8092 60
 
-    # Oracle Bridge enforces telemetry signature verification fail-CLOSED by default
-    # (see above / docs). ORACLE_ALLOW_UNVERIFIED_TELEMETRY=true disables it for dev.
-    run_in_terminal "Oracle Bridge" \
-        "IAM_SERVICE_URL=http://127.0.0.1:4010 GRIDTOKENX_API_KEYS=\"$GRIDTOKENX_API_KEYS\" RUST_LOG=info $PROJECT_ROOT/gridtokenx-oracle-bridge/target/debug/gridtokenx-oracle-bridge > $PROJECT_ROOT/scripts/logs/oracle-bridge.log 2>&1" \
+    # Aggregator Bridge enforces telemetry signature verification fail-CLOSED by default
+    # (see above / docs). AGGREGATOR_ALLOW_UNVERIFIED_TELEMETRY=true disables it for dev.
+    run_in_terminal "Aggregator Bridge" \
+        "IAM_SERVICE_URL=http://127.0.0.1:4010 GRIDTOKENX_API_KEYS=\"$GRIDTOKENX_API_KEYS\" RUST_LOG=info $PROJECT_ROOT/gridtokenx-aggregator-bridge/target/debug/gridtokenx-aggregator-bridge > $PROJECT_ROOT/scripts/logs/aggregator-bridge.log 2>&1" \
         "$PROJECT_ROOT"
-    wait_for_port "Oracle Bridge" 4030 30
+    wait_for_port "Aggregator Bridge" 4030 30
 
     run_in_terminal "Noti Service" \
         "DATABASE_URL=$NOTI_DATABASE_URL REDIS_URL=$REDIS_URL RUST_LOG=info $PROJECT_ROOT/gridtokenx-noti-service/target/debug/noti-server > $PROJECT_ROOT/scripts/logs/noti.log 2>&1" \
@@ -293,7 +293,7 @@ cmd_start() {
     solana_validator_stop
     pkill -f "api-services" 2>/dev/null || true
     pkill -f "gridtokenx-trading-service" 2>/dev/null || true
-    pkill -f "gridtokenx-oracle-bridge" 2>/dev/null || true
+    pkill -f "gridtokenx-aggregator-bridge" 2>/dev/null || true
     pkill -f "gridtokenx-iam-service" 2>/dev/null || true
     pkill -f "uvicorn" 2>/dev/null || true
     pkill -f "uv run start" 2>/dev/null || true
@@ -370,7 +370,7 @@ _show_start_summary() {
     echo "  • API Services:   http://localhost:4001/api/v1"
     echo "  • IAM Service:   http://localhost:4001/iam"
     echo "  • Trading API:   http://localhost:4001/trading"
-    echo "  • Oracle Bridge: http://localhost:4001/oracle"
+    echo "  • Aggregator Bridge: http://localhost:4001/oracle"
     echo "  • Solana RPC:    http://localhost:4001/solana"
     echo "  • Simulator API: http://localhost:4001/simulator"
     echo "  • Metrics:       http://localhost:4001/metrics-admin"
@@ -389,7 +389,7 @@ _show_start_summary() {
     echo "  • API Services:   $PROJECT_ROOT/scripts/logs/api-services.log"
     echo "  • IAM Service:   $PROJECT_ROOT/scripts/logs/iam.log"
     echo "  • Trading Svc:   $PROJECT_ROOT/scripts/logs/trading.log"
-    echo "  • Oracle Bridge: $PROJECT_ROOT/scripts/logs/oracle-bridge.log"
+    echo "  • Aggregator Bridge: $PROJECT_ROOT/scripts/logs/aggregator-bridge.log"
     if [ "$skip_ui" = false ]; then
         echo "  • Trading UI:    $PROJECT_ROOT/scripts/logs/trading-ui.log"
         echo "  • Explorer UI:   $PROJECT_ROOT/scripts/logs/explorer-ui.log"

@@ -14,7 +14,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Read [docs/glossary.md](docs/glossary.md) for domain terms (GRID, GRX, REC, VPP, CDA, PDA, etc.).
 - Each service = **independent Cargo workspace** — no root `Cargo.toml`. Don't `cargo` from repo root; `cd` into the service first.
 - IAM Service = **modular monolith** with 6 sub-crates. Others: layered modules, single crate.
-- Two interconnected platforms: **Exchange** (IAM + Trading, direct blockchain) and **Infrastructure** (Oracle Bridge + edge, produces validated telemetry). Gateways: **APISIX** (`:4001`, user-facing) and **Envoy** (`:4002`, IoT/mTLS edge); **API orchestrator** at `:4000`.
+- Two interconnected platforms: **Exchange** (IAM + Trading, direct blockchain) and **Infrastructure** (Aggregator Bridge + edge, produces validated telemetry). Gateways: **APISIX** (`:4001`, user-facing) and **Envoy** (`:4002`, IoT/mTLS edge); **API orchestrator** at `:4000`.
 
 ---
 
@@ -43,7 +43,7 @@ Rules that keep the harness trustworthy:
 # Check a single service (fast feedback)
 cd gridtokenx-iam-service && cargo check
 cd gridtokenx-trading-service && cargo check
-cd gridtokenx-oracle-bridge && cargo check
+cd gridtokenx-aggregator-bridge && cargo check
 cd gridtokenx-chain-bridge && cargo check
 
 # Run tests for a single service
@@ -103,7 +103,7 @@ just simnet                            # Mainnet sim with Studio + hot-reload
 just simnet-ci                         # CI mode (no UI, fast startup)
 just simnet-down                       # Kill running Surfpool
 
-# Smart-meter telemetry into Oracle Bridge (DLMS/COSEM egress; needs bridge + Redis up)
+# Smart-meter telemetry into Aggregator Bridge (DLMS/COSEM egress; needs bridge + Redis up)
 just auto-meter-send meters="5" interval="15"
 just send-meter-reading meters="1" interval="15"
 ```
@@ -309,7 +309,7 @@ just benchmark
 - Settlement through Chain Bridge, not direct Solana RPC.
 - `src/startup/` has `ServiceBuilder` pattern for wiring deps.
 
-### Oracle Bridge
+### Aggregator Bridge
 - Validates Ed25519 signatures from Edge Gateways. Device identity verified cryptographically.
 - 15-minute aggregation windows for energy data before settlement.
 - InfluxDB for time-series storage (not Postgres).

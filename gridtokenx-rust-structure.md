@@ -6,8 +6,8 @@
 
 ## TL;DR
 
-- **Keep your current top-level multi-repo layout** (`gridtokenx-iam-service/`, `gridtokenx-chain-bridge/`, `gridtokenx-oracle-bridge/`, etc.) — each repo is a self-contained Cargo workspace. This matches what you have working today and avoids a disruptive monorepo migration.
-- **Standardize every service on the 4-layer crate pattern** you already use in IAM and Notification: `{svc}-core` (no async, pure domain), `{svc}-persistence` (DB/Redis/MQ adapters), `{svc}-logic` (orchestration), `{svc}-api` (transport: connectrpc + buffa + axum). This is your proven convention — apply it consistently to oracle-bridge, trading-service, and settlement-engine.
+- **Keep your current top-level multi-repo layout** (`gridtokenx-iam-service/`, `gridtokenx-chain-bridge/`, `gridtokenx-aggregator-bridge/`, etc.) — each repo is a self-contained Cargo workspace. This matches what you have working today and avoids a disruptive monorepo migration.
+- **Standardize every service on the 4-layer crate pattern** you already use in IAM and Notification: `{svc}-core` (no async, pure domain), `{svc}-persistence` (DB/Redis/MQ adapters), `{svc}-logic` (orchestration), `{svc}-api` (transport: connectrpc + buffa + axum). This is your proven convention — apply it consistently to aggregator-bridge, trading-service, and settlement-engine.
 - **Promote `gridtokenx-blockchain-core` to a true shared kernel** distributed via Cargo's `[patch.crates-io]` or a private git registry (you already depend on it across IAM, Notification, and chain-bridge). It's the cross-repo lingua franca for Solana types, shard math (`shard_for`), and the IAM CLAUDE.md invariants.
 - **Scale in three tiers** mapped to concrete code changes: Tier 1 (Koh Tao, 10k TPS — current state, modular monoliths per service), Tier 2 (multi-province, 50k TPS — extract zone-sharded matching engine, NATS leaf nodes at substation edges), Tier 3 (national, 200k+ TPS — database-per-service with Citus, NATS supercluster, SPIFFE federation across PEA/MEA/EGAT trust domains).
 - **Close the three identified chain-bridge gaps** before ERC Sandbox Phase 2: instruction-level transaction policy engine (declarative DSL), tamper-evident audit log (hash-chain + Merkle-anchor to Solana), and pre-sign transaction simulation (LiteSVM in-process).
@@ -33,7 +33,7 @@ gridtokenx/                                    # superproject (you are here)
 │
 ├── gridtokenx-chain-bridge/                    # Vault signing + Solana submission
 ├── gridtokenx-iam-service/                     # identity, RBAC, SPIFFE issuance
-├── gridtokenx-oracle-bridge/                   # IoT/meter ingestion (DLMS, OCPP, SunSpec, OpenADR)
+├── gridtokenx-aggregator-bridge/                   # IoT/meter ingestion (DLMS, OCPP, SunSpec, OpenADR)
 ├── gridtokenx-trading-service/                 # CDA order matching + zone markets
 ├── gridtokenx-trading/                         # (legacy — consolidate into trading-service)
 ├── gridtokenx-noti-service/                    # email, websocket, push notifications
@@ -180,13 +180,13 @@ gridtokenx-chain-bridge/
 
 **Why this matters**: the three gaps are not separable. The pre-sign simulator (`litesvm_sim.rs` in persistence) needs the policy engine (`policy_engine.rs` in logic) to know *what* to simulate, and the audit log (`postgres_audit.rs` + `audit_anchor.rs`) needs both to record what passed/failed. The crate boundary makes the data flow explicit: `submit.rs` calls policy → sim → sign → submit → audit, all via traits in `-core`.
 
-### 3.4 `gridtokenx-oracle-bridge` — refactor target
+### 3.4 `gridtokenx-aggregator-bridge` — refactor target
 
 **Current state** (from your `src/main.rs`): a single-crate flat module layout (`aggregator`, `auth`, `dispatch`, `grpc`, `handlers`, `infra`, `ingester`, `metrics`, `middleware`, `models`, `protocol`, `standards`, `router`, `state`, `telemetry`, `utils`, `zk`). It works, but `state.rs` is now an `AppState` god-struct with 12 fields including Kafka producer, RabbitMQ producer, signature verifier, settlement signer, meter registry, and four protocol stacks. That's the "God crate" anti-pattern starting to form.
 
 **Recommended refactor**:
 ```
-gridtokenx-oracle-bridge/
+gridtokenx-aggregator-bridge/
 ├── crates/
 │   ├── oracle-core/              # DeviceReading, DeviceMetrics, ProtocolStack trait, SignatureVerifier trait, MeterRegistry trait
 │   ├── oracle-persistence/       # Kafka/RabbitMQ producers, Redis cache, Postgres meter registry, Ed25519 verifier
@@ -388,7 +388,7 @@ gridtokenx-proto-shared/             # NEW: cross-service proto registry repo
 ├── proto/
 │   ├── gridtokenx/
 │   │   ├── chain/v1/chain.proto              # used by chain-bridge, IAM, trading-service
-│   │   ├── oracle/v1/oracle.proto            # used by oracle-bridge consumers
+│   │   ├── oracle/v1/oracle.proto            # used by aggregator-bridge consumers
 │   │   ├── trading/v1/trading.proto          # used by trading-service, api gateway
 │   │   ├── iam/v1/identity.proto             # used by all services that authenticate
 │   │   ├── noti/v1/noti.proto                # used by services that emit notifications
@@ -397,7 +397,7 @@ gridtokenx-proto-shared/             # NEW: cross-service proto registry repo
     └── buf-breaking.yml                       # CI gate: `buf breaking --against .git#branch=main`
 ```
 
-Each service `Cargo.toml` adds a `build-dependencies` entry that pulls the proto repo as a git submodule or tarball, then `tonic_build` (via the buffa codegen) emits `OUT_DIR/_<svc>_include.rs` that `{svc}-protocol/src/lib.rs` includes — exactly as your oracle-bridge `src/grpc/service.rs` already does:
+Each service `Cargo.toml` adds a `build-dependencies` entry that pulls the proto repo as a git submodule or tarball, then `tonic_build` (via the buffa codegen) emits `OUT_DIR/_<svc>_include.rs` that `{svc}-protocol/src/lib.rs` includes — exactly as your aggregator-bridge `src/grpc/service.rs` already does:
 
 ```rust
 pub mod proto {
@@ -415,9 +415,9 @@ Hierarchical, versioned, namespaced by service:
 ```
 gtx.<service>.<entity>.<event>.v<N>
 
-Examples (matching what oracle-bridge and chain-bridge already emit):
-  gtx.oracle.meter.reading.v1            # oracle-bridge → trading-service, settlement
-  gtx.oracle.zone.dispatch.v1            # oracle-bridge → flex dispatch consumers
+Examples (matching what aggregator-bridge and chain-bridge already emit):
+  gtx.aggregator.meter.reading.v1            # aggregator-bridge → trading-service, settlement
+  gtx.aggregator.zone.dispatch.v1            # aggregator-bridge → flex dispatch consumers
   gtx.trading.order.matched.v1           # trading-service → chain-bridge
   gtx.trading.batch.cleared.v1           # trading-service → settlement, reporting
   gtx.chain.tx.submitted.v1              # chain-bridge → settlement
@@ -466,7 +466,7 @@ Pattern: every saga uses an idempotency key from `gridtokenx-blockchain-core::id
 |---|---|
 | Database | **Citus** for trading_orders/order_matches sharding by zone_id; database-per-service for chain-bridge audit log; **TimescaleDB** separate instance for meter telemetry (your `gridtokenx:events:zone_N` Redis streams become long-term storage in Timescale) |
 | Cache | Redis Cluster OR DragonflyDB (drop-in) |
-| Messaging | NATS leaf nodes at substations (oracle-bridge edge gateways become NATS leaf nodes); hub-cluster mirrors |
+| Messaging | NATS leaf nodes at substations (aggregator-bridge edge gateways become NATS leaf nodes); hub-cluster mirrors |
 | CQRS | Extract reporting-service read model from explorer; populate via NATS events |
 | Leader election | Still advisory lock for chain-bridge; consider openraft for trading-service zone shards |
 | Identity | SPIFFE federation: `spiffe://pea.gridtokenx.th`, `spiffe://mea.gridtokenx.th` |
@@ -552,9 +552,9 @@ gridtokenx-telemetry/             # NEW: shared telemetry init crate (~200 LOC)
 │   └── propagation.rs            # NATS header ↔ traceparent injection/extraction
 ```
 
-Every service's `{svc}-api/src/main.rs` calls `let _g = gridtokenx_telemetry::init("oracle-bridge");` (you already do this in oracle-bridge via your `telemetry::init_telemetry()` — extract it to the shared crate).
+Every service's `{svc}-api/src/main.rs` calls `let _g = gridtokenx_telemetry::init("aggregator-bridge");` (you already do this in aggregator-bridge via your `telemetry::init_telemetry()` — extract it to the shared crate).
 
-**Correlation IDs across NATS**: extract the W3C `traceparent` from gRPC metadata, inject into NATS headers on publish, extract on consume. This is the missing piece in your current stack — a settlement saga spanning oracle-bridge → trading-service → chain-bridge → noti-service currently shows as 4 disconnected traces in Tempo. With proper propagation, it's one trace.
+**Correlation IDs across NATS**: extract the W3C `traceparent` from gRPC metadata, inject into NATS headers on publish, extract on consume. This is the missing piece in your current stack — a settlement saga spanning aggregator-bridge → trading-service → chain-bridge → noti-service currently shows as 4 disconnected traces in Tempo. With proper propagation, it's one trace.
 
 ---
 
@@ -596,13 +596,13 @@ pub struct AuditEntry {
 
 ## 11. Anti-Patterns to Avoid
 
-1. **God `AppState` struct** — your oracle-bridge `src/state.rs::AppState` is already at 12 fields. Split into `IngressState`, `DispatchState`, `BlockchainState` injected separately.
+1. **God `AppState` struct** — your aggregator-bridge `src/state.rs::AppState` is already at 12 fields. Split into `IngressState`, `DispatchState`, `BlockchainState` injected separately.
 2. **Async in `-core`** — `tokio::sync::RwLock` in a domain crate is a smell. Use `parking_lot::RwLock` if you need sync mutability, or move it to `-persistence`.
 3. **Proto types leaking into `-logic`** — always map prost/buffa DTOs to `-core` domain types in the `-api` handler. Your IAM service does this correctly; your chain-bridge has some drift (proto types reach `transaction.rs`).
 4. **Invariant duplication** — `shard_for` is defined in your chain-bridge AND the Registry Anchor program. Move it to `gridtokenx-blockchain-core::shard` and import in both.
 5. **Premature microservice split** — don't extract `trading-matching` as a separate binary until Tier 2 load justifies it. Today it's a crate; tomorrow it's a deployable.
 6. **Bare advisory lock for leadership** — Postgres advisory locks alone don't guarantee exactly-one-writer under network partitions. Always pair with a fencing token enforced by the protected resource.
-7. **`unwrap()` in production code** — your workspace lints should `deny` it. Today you have `unwrap_or_else` patterns in `oracle-bridge/src/main.rs` for env vars; those are fine, but production hot paths should not have them.
+7. **`unwrap()` in production code** — your workspace lints should `deny` it. Today you have `unwrap_or_else` patterns in `aggregator-bridge/src/main.rs` for env vars; those are fine, but production hot paths should not have them.
 
 ---
 
@@ -610,8 +610,8 @@ pub struct AuditEntry {
 
 | Phase | Target | Concrete deliverables |
 |---|---|---|
-| **0 — Today** | Koh Tao monolithic services | Status: working. IAM and Notification use 4-layer; chain-bridge and oracle-bridge are flat. |
-| **1 — PEA Hackathon** | Standardize internal layouts | Refactor `chain-bridge` to 4-layer + close 3 gaps. Refactor `oracle-bridge` to extract `oracle-stacks` crate. Extract `gridtokenx-telemetry` shared crate. |
+| **0 — Today** | Koh Tao monolithic services | Status: working. IAM and Notification use 4-layer; chain-bridge and aggregator-bridge are flat. |
+| **1 — PEA Hackathon** | Standardize internal layouts | Refactor `chain-bridge` to 4-layer + close 3 gaps. Refactor `aggregator-bridge` to extract `oracle-stacks` crate. Extract `gridtokenx-telemetry` shared crate. |
 | **2 — TED Fund** | Shared kernel + supply chain | Move `gridtokenx-blockchain-core` to git-tagged dep. Add `cargo-deny`, `cargo-vet`, `cargo-auditable` across all repos. Centralize `gridtokenx-proto-shared`. |
 | **3 — ERC Sandbox Phase 2** | Audit + compliance surface | Tamper-evident audit log live; SPIFFE/SPIRE single trust domain in K8s; Merkle anchor program deployed. |
 | **4 — Multi-province (Tier 2)** | Scale-out architecture | Citus on trading DB; TimescaleDB for meter telemetry; NATS leaf nodes at substations; Linkerd service mesh; `gridtokenx-api` edge service. |
@@ -623,6 +623,6 @@ pub struct AuditEntry {
 
 1. **`gridtokenx-trading` vs `gridtokenx-trading-service`** — you have both repos. The legacy one should be consolidated into trading-service before Tier 2; the split is currently an invariant-drift risk.
 2. **`gridtokenx-explorer` vs reporting-service** — is the explorer the read model, or do you need a separate reporting service? Recommend: explorer = public-facing read UI; reporting-service = internal analytics. Different security postures.
-3. **WASM compute (`gridtokenx-wasm`)** — what runs WASM today? If it's meter-side compute (NILM inference), it belongs as a sub-crate of oracle-bridge. If it's on-chain compute supplementing Anchor, it's its own concern. Worth a separate ADR.
+3. **WASM compute (`gridtokenx-wasm`)** — what runs WASM today? If it's meter-side compute (NILM inference), it belongs as a sub-crate of aggregator-bridge. If it's on-chain compute supplementing Anchor, it's its own concern. Worth a separate ADR.
 4. **Federation broker for cross-utility data** — at what tier do we need an X-Road-style broker? My recommendation: Tier 3, when ERC mandates cross-utility data exchange.
 5. **The 3 chain-bridge pre-production gaps** — the policy DSL needs a design decision (declarative YAML rules vs. Rust functions vs. WASM-loaded plugins). I'd start with declarative YAML evaluated by a small rule engine in `chain-bridge-logic/src/policy_engine.rs`; revisit if expressiveness needs grow.

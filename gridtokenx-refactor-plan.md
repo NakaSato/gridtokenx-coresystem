@@ -19,7 +19,7 @@
 |---|---|---|
 | iam, noti | done | ✅ done (4-layer) |
 | trading-service | refactor target | ✅ already done — `trading-engine` + `trading-{core,persistence,logic,api,protocol,infra}` + compat shims |
-| oracle-bridge | refactor target | ✅ **DONE** — 6-crate workspace `oracle-{core,persistence,logic,protocol,api}` + `oracle-stacks` (the "single crate, 555L" claim was stale at writing; split already on `main`). |
+| aggregator-bridge | refactor target | ✅ **DONE** — 6-crate workspace `oracle-{core,persistence,logic,protocol,api}` + `oracle-stacks` (the "single crate, 555L" claim was stale at writing; split already on `main`). |
 | chain-bridge | flat `rpc::{account,...}` | ✅ **DONE** — multi-crate workspace (root = virtual manifest); binary+lib in `crates/chain-bridge-api` (god-files split into `api/` + `nats_consumer/`); ports in `chain-bridge-core`, adapters in `chain-bridge-persistence`. edition 2024. |
 | blockchain-core | thin types kernel | ❌ fat behavior lib (auth/config/rpc/wallet/policy/instructions); consumed by all 5 services; trading **forked** it into `blockchain-core-compat` = real drift |
 
@@ -36,7 +36,7 @@ Debunked doc claims: no `shard_for` fn anywhere (anti-pattern #4 fabricated); §
 4. Gaps incrementally: policy engine, audit hash-chain, LiteSVM pre-sign sim (partial sim already at `api.rs:284`).
 - ⚠️ edition 2024 — keep.
 
-## Phase 2 — oracle-bridge (single → 4-layer) ✅ DONE (2.4-deep deferred)
+## Phase 2 — aggregator-bridge (single → 4-layer) ✅ DONE (2.4-deep deferred)
 1. Workspace `crates/`: oracle-{core,persistence,logic,protocol,api}.
 2. Move: models+traits→core; `infra/`(kafka,rabbitmq,crypto,meter_registry)→persistence; `ingester/`+`dispatch/`+`aggregator`→logic; `grpc/`→protocol+api; handlers/router/main→api.
 3. Extract `oracle-stacks` crate from `protocol/stacks/` (dlms/sunspec/ocpp/openadr).
@@ -67,8 +67,8 @@ Phase 1 → 3 (cheap drift kill) → 2 → 4. Verify `cargo check && cargo test`
 |---|---|---|
 | P1.1 | chain-bridge `api.rs` (1667L) god-file split → `api/{provider,service}.rs` + `api/tests.rs`. `provider.rs` = `SolanaProvider` trait + Real/Surfpool impls + `BlockhashCache`; `service.rs` = `ChainBridgeGrpcService` (gRPC handlers + `extract_role` + `sign_and_submit`). `mod.rs` re-exports shared `use super::*` imports. Mechanical, no behavior change. Landed in commit `3eab5c4`. | ✅ 2026-06-07 |
 | P1.2 | chain-bridge `nats_consumer.rs` (913L) god-file split → `nats_consumer/{mod,consumer,dedup,tests}.rs`. `consumer.rs` (447L) = `NatsConsumer` subscribe loop + `handle_{submit,simulate,cancel}` + `claim_or_replay`; `dedup.rs` = `DedupRecord`/`DedupState`; `mod.rs` = struct + shared imports. Mechanical, no behavior change. Landed in commit `3eab5c4`. | ✅ 2026-06-07 |
-| P2 | oracle-bridge single crate → 6-crate workspace `oracle-{core,persistence,logic,protocol,api}` + bonus `oracle-stacks` (plan 2.3 dlms/sunspec/ocpp/openadr). `src/` = `main.rs` only; `oracle-api` re-exports logic/persistence/protocol/stacks/core. **Already committed to `main`** (predates this plan — plan's "single crate, biggest 555L" reality was stale at writing; that 555L file is now `oracle-api/src/ingester/zone_ingester.rs`). AppState prune (2.4) = slice A (13→9). Deeper IngressState/BlockchainState split = not done, optional polish. | ✅ pre-existing |
-| A | oracle-bridge AppState prune: removed ocpp/sunspec/openadr_stack + settlement_signer dead fields (13→9 fields). `cargo check` 0 errors. | ✅ 2026-06-07 |
+| P2 | aggregator-bridge single crate → 6-crate workspace `oracle-{core,persistence,logic,protocol,api}` + bonus `oracle-stacks` (plan 2.3 dlms/sunspec/ocpp/openadr). `src/` = `main.rs` only; `oracle-api` re-exports logic/persistence/protocol/stacks/core. **Already committed to `main`** (predates this plan — plan's "single crate, biggest 555L" reality was stale at writing; that 555L file is now `oracle-api/src/ingester/zone_ingester.rs`). AppState prune (2.4) = slice A (13→9). Deeper IngressState/BlockchainState split = not done, optional polish. | ✅ pre-existing |
+| A | aggregator-bridge AppState prune: removed ocpp/sunspec/openadr_stack + settlement_signer dead fields (13→9 fields). `cargo check` 0 errors. | ✅ 2026-06-07 |
 | D | trading-service iam-protocol-compat deleted; repointed to real `iam-protocol` cross-workspace path dep. `cargo check` 0 errors. | ✅ 2026-06-07 |
 | B | gridtokenx-telemetry shared crate (fmt-only, JSON default + `LOG_FORMAT=pretty`). New sibling crate; path dep into all 5 services; per-service `telemetry` modules → thin re-export shims; chain-bridge `fmt::init()` → `gridtokenx_telemetry::init`. All 5 `cargo check` 0 errors. | ✅ 2026-06-07 |
 | C | NATS W3C traceparent propagation | ⏸ deferred — needs OTLP spans + collector (none exist). Revisit with E or Tier 2. |

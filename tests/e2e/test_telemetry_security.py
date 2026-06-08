@@ -16,8 +16,8 @@ import oracle_pb2_grpc
 
 # Configuration
 METER_ID = "0xTEST"
-ORACLE_BRIDGE_GRPC = os.getenv("ORACLE_BRIDGE_GRPC", "localhost:5030")
-ORACLE_BRIDGE_REST = os.getenv("ORACLE_BRIDGE_REST", "http://localhost:4030")
+AGGREGATOR_BRIDGE_GRPC = os.getenv("AGGREGATOR_BRIDGE_GRPC", "localhost:5030")
+AGGREGATOR_BRIDGE_REST = os.getenv("AGGREGATOR_BRIDGE_REST", "http://localhost:4030")
 
 def sign_telemetry(private_key, meter_id, kwh, timestamp_ms):
     """
@@ -29,7 +29,7 @@ def sign_telemetry(private_key, meter_id, kwh, timestamp_ms):
     return base58.b58encode(signature_bytes).decode('utf-8')
 
 def test_grpc_ingestion(private_key, public_key_hex):
-    print(f"--- 📡 Testing gRPC Secure Ingestion (Target: {ORACLE_BRIDGE_GRPC}) ---")
+    print(f"--- 📡 Testing gRPC Secure Ingestion (Target: {AGGREGATOR_BRIDGE_GRPC}) ---")
     
     # Register the key first (simulation)
     print(f"[*] Registering test identity {METER_ID}...")
@@ -38,7 +38,7 @@ def test_grpc_ingestion(private_key, public_key_hex):
     register_script = os.path.join(root_dir, "scripts/register-edge-key.sh")
     os.system(f"bash {register_script} {METER_ID} {public_key_hex}")
 
-    channel = grpc.insecure_channel(ORACLE_BRIDGE_GRPC)
+    channel = grpc.insecure_channel(AGGREGATOR_BRIDGE_GRPC)
     stub = oracle_pb2_grpc.OracleServiceStub(channel)
 
     timestamp = int(time.time() * 1000)
@@ -75,7 +75,7 @@ def test_grpc_ingestion(private_key, public_key_hex):
     return True
 
 def test_rest_ingestion(private_key, public_key_hex):
-    print(f"\n--- 🌐 Testing REST Secure Ingestion (Target: {ORACLE_BRIDGE_REST}) ---")
+    print(f"\n--- 🌐 Testing REST Secure Ingestion (Target: {AGGREGATOR_BRIDGE_REST}) ---")
     
     timestamp = int(time.time() * 1000)
     import datetime
@@ -100,7 +100,7 @@ def test_rest_ingestion(private_key, public_key_hex):
         }
     }
 
-    url = f"{ORACLE_BRIDGE_REST}/v1/private-network/ingest"
+    url = f"{AGGREGATOR_BRIDGE_REST}/v1/private-network/ingest"
     try:
         response = requests.post(url, json=payload, timeout=5)
         if response.status_code == 202 or response.status_code == 200:

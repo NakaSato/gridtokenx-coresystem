@@ -1,6 +1,6 @@
 """GridTokenX E2E — Redis helpers for Oracle device registry + dissemination asserts.
 
-Key schemes (confirmed in gridtokenx-oracle-bridge):
+Key schemes (confirmed in gridtokenx-aggregator-bridge):
   device pubkey   : gridtokenx:devices:{meter_id}:pubkey   = <hex pubkey>
   meter -> user   : gridtokenx:meters:{serial}:user_id     = <uuid>
   dissemination   : gridtokenx:events:zone_{idx}           = Redis Stream (XADD)

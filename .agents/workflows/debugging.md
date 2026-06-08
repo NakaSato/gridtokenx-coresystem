@@ -51,9 +51,9 @@ If a request is slow or failing deep in the stack:
 - **Issue**: Wallet generation fails.
 - **Cause**: Typically an incorrect or missing `ENCRYPTION_MASTER_SECRET` in `.env`.
 
-### Oracle Bridge (IoT)
+### Aggregator Bridge (IoT)
 - **Issue**: Telemetry not appearing in dashboards.
-- **Check**: `docker logs gridtokenx-oracle-bridge`.
+- **Check**: `docker logs gridtokenx-aggregator-bridge`.
 - **Cause**: Signature verification failure (Ed25519) or Kafka producer backlog.
 
 ### Solana Blockchain

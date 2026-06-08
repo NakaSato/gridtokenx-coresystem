@@ -9,7 +9,7 @@
 | Asset | Why it matters | Primary control |
 | :--- | :--- | :--- |
 | Wallet private keys | Control of user funds/energy assets | AES-256-GCM at rest; Vault Transit signing in prod |
-| Telemetry integrity | False readings → false money | Ed25519 sig verified at Oracle Bridge |
+| Telemetry integrity | False readings → false money | Ed25519 sig verified at Aggregator Bridge |
 | On-chain settlement | Final value movement | Single door (Chain Bridge); idempotent tx |
 | PII | PDPA / legal | Tagged at ingest; Vault-encrypted; erasure tooling |
 | Service identity | Lateral movement | SPIFFE/SVID + mTLS |

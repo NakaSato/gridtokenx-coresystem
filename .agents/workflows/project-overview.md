@@ -17,7 +17,7 @@ graph TD
     end
 
     subgraph "Infrastructure Platform"
-        EdgeGW -- Signed Telemetry --> Oracle[Oracle Bridge]
+        EdgeGW -- Signed Telemetry --> Oracle[Aggregator Bridge]
         Oracle -- Validated Data --> Kafka[(Kafka)]
     end
 
@@ -51,7 +51,7 @@ graph TD
 | `gridtokenx-api/` | API Services | Orchestration, ConnectRPC Gateway, Background workers |
 | `gridtokenx-iam-service/` | IAM Service | User Identity, Wallet Encryption, Registry Program |
 | `gridtokenx-trading-service/` | Trading Service | Matching Engine, CDA/Batch, Trading Program |
-| `gridtokenx-oracle-bridge/` | Oracle Bridge | Telemetry Validation (Ed25519), Kafka Ingestion |
+| `gridtokenx-aggregator-bridge/` | Aggregator Bridge | Telemetry Validation (Ed25519), Kafka Ingestion |
 | `gridtokenx-anchor/` | Smart Contracts | Anchor Programs (Registry, Trading, Energy Token) |
 | `gridtokenx-edge-gateway/` | Edge Gateway | IoT Protocol Translation (DLMS, HPLC, OCPP) |
 | `gridtokenx-trading/` | Trading UI | User-facing dashboard (Next.js) |

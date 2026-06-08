@@ -23,13 +23,13 @@ its own independent Cargo workspace. There is no root `Cargo.toml`.
 | Blockchain access | Direct (IAM, Trading) | Indirect (signs only) |
 | Data direction | Receives validated data | Produces validated data |
 | Scaling factor | Trading volume / user count | Device count / telemetry volume |
-| Key services | API Services, IAM, Trading | Edge Gateway, Oracle Bridge |
+| Key services | API Services, IAM, Trading | Edge Gateway, Aggregator Bridge |
 
 ## 3. Four-Layer Cyber-Physical Model
 
 ```
 I.   Smart Meter        → Ed25519-sign telemetry at source
-II.  Ingestion          → Oracle Bridge verifies sig → Kafka event log
+II.  Ingestion          → Aggregator Bridge verifies sig → Kafka event log
 III. Exchange           → CDA matching engine → atomic settlement gateway
 IV.  Distributed Ledger → Solana programs: Registry, Settlement, Energy Asset Ledger
 ```
@@ -41,7 +41,7 @@ IV.  Distributed Ledger → Solana programs: Registry, Settlement, Energy Asset 
 | API Services Orchestrator | Rust | 4000 | — | Public ConnectRPC entry / fan-out |
 | IAM Service | Rust | 4010 | 5010 | Identity, wallets, on-chain registration |
 | Trading Service | Rust | 4020 | 5020 | CDA matching, settlement |
-| Oracle Bridge | Rust | 4030 | 5030 | Telemetry verify + aggregation |
+| Aggregator Bridge | Rust | 4030 | 5030 | Telemetry verify + aggregation |
 | Chain Bridge | Rust | — | 5040 | **Only** service touching Solana RPC |
 | Noti Service | Rust | — | — | Notification delivery |
 | Smartmeter Simulator | Python | — | — | Telemetry generation / load test |
@@ -65,7 +65,7 @@ See [`CLAUDE.md`](CLAUDE.md) for the enforced conventions behind these rules.
 - **RabbitMQ** `:5672` — task queues.
 - **Redis** — live pub/sub + telemetry streams.
 - **PostgreSQL 17** `:7001` — IAM + Trading relational state.
-- **InfluxDB 2.7** — Oracle Bridge time-series telemetry.
+- **InfluxDB 2.7** — Aggregator Bridge time-series telemetry.
 - **ClickHouse** — Trading analytics.
 
 Port scheme: 4000s gateways · 5000s gRPC mesh · 7000s persistence · 9000s messaging.
@@ -93,7 +93,7 @@ submodule; commit them there, then bump the pointer here.
 | Chain Bridge | [`gridtokenx-chain-bridge/ARCHITECTURE.md`](gridtokenx-chain-bridge/ARCHITECTURE.md) | Rust service |
 | IAM Service | [`gridtokenx-iam-service/ARCHITECTURE.md`](gridtokenx-iam-service/ARCHITECTURE.md) | Rust service |
 | Noti Service | [`gridtokenx-noti-service/ARCHITECTURE.md`](gridtokenx-noti-service/ARCHITECTURE.md) | Rust service |
-| Oracle Bridge | [`gridtokenx-oracle-bridge/ARCHITECTURE.md`](gridtokenx-oracle-bridge/ARCHITECTURE.md) | Rust service |
+| Aggregator Bridge | [`gridtokenx-aggregator-bridge/ARCHITECTURE.md`](gridtokenx-aggregator-bridge/ARCHITECTURE.md) | Rust service |
 | Trading Service | [`gridtokenx-trading-service/ARCHITECTURE.md`](gridtokenx-trading-service/ARCHITECTURE.md) | Rust service |
 | Smartmeter Simulator | [`gridtokenx-smartmeter-simulator/ARCHITECTURE.md`](gridtokenx-smartmeter-simulator/ARCHITECTURE.md) | Python |
 | Trading frontend | [`gridtokenx-trading/ARCHITECTURE.md`](gridtokenx-trading/ARCHITECTURE.md) | Next.js |

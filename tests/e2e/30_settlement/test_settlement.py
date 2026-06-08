@@ -28,11 +28,11 @@ import crypto
 import dlogs
 import redis_util
 
-ORACLE_REST = os.getenv("ORACLE_BRIDGE_REST", "http://localhost:4030")
+ORACLE_REST = os.getenv("AGGREGATOR_BRIDGE_REST", "http://localhost:4030")
 API_SERVICES_URL = os.getenv("API_SERVICES_URL", "http://localhost:4000")
 INGEST_URL = f"{ORACLE_REST}/v1/private-network/ingest"
 
-ORACLE_CONTAINER = os.getenv("ORACLE_CONTAINER", "gridtokenx-oracle-bridge")
+AGGREGATOR_CONTAINER = os.getenv("AGGREGATOR_CONTAINER", "gridtokenx-aggregator-bridge")
 CHAIN_CONTAINER = os.getenv("CHAIN_CONTAINER", "gridtokenx-chain-bridge")
 
 # GRID (energy-token) mint that generation settlement credits. Bootstrap-generated,
@@ -122,8 +122,8 @@ def test_backdated_generation_triggers_settlement(gen_device):
     if not _platform_up():
         pytest.skip(f"platform/api-services not up at {API_SERVICES_URL} (separate repo) — "
                     "generation-mint endpoint unavailable")
-    if not dlogs.container_running(ORACLE_CONTAINER):
-        pytest.skip(f"{ORACLE_CONTAINER} not a running docker container — cannot scrape logs")
+    if not dlogs.container_running(AGGREGATOR_CONTAINER):
+        pytest.skip(f"{AGGREGATOR_CONTAINER} not a running docker container — cannot scrape logs")
 
     meter, priv = gen_device["meter_id"], gen_device["priv"]
     # Timestamp ~25 min in the past => its 15-min window already ended.
@@ -133,7 +133,7 @@ def test_backdated_generation_triggers_settlement(gen_device):
         assert r.status_code in (200, 202), f"reading {i} rejected: {r.status_code} {r.text}"
 
     # SettlementEngine logs when it flushes completed bins.
-    flushed = dlogs.wait_for_log(ORACLE_CONTAINER, "completed billing bins",
+    flushed = dlogs.wait_for_log(AGGREGATOR_CONTAINER, "completed billing bins",
                                  timeout=SETTLE_TIMEOUT)
     assert flushed, ("no 'completed billing bins' log within timeout — bin not flushed "
                      "(check zone_ingester is consuming Redis streams + settlement tick)")

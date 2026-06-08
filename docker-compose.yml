@@ -647,7 +647,7 @@ services:
       EMAIL_VERIFICATION_BASE_URL: http://localhost:4001
       AES_KEY_BASE64: ${AES_KEY_BASE64}
       PAYER_PRIVATE_KEY: ${PAYER_PRIVATE_KEY}
-      ORACLE_BRIDGE_PUBLIC_KEY: ${ORACLE_BRIDGE_PUBLIC_KEY:-}
+      AGGREGATOR_BRIDGE_PUBLIC_KEY: ${AGGREGATOR_BRIDGE_PUBLIC_KEY:-}
     depends_on:
       pgbouncer:
         condition: service_started
@@ -663,12 +663,12 @@ services:
       - gridtokenx-network
     restart: unless-stopped
 
-  # Oracle Bridge + IoT Ingestion Gateway
-  oracle-bridge:
+  # Aggregator Bridge + IoT Ingestion Gateway
+  aggregator-bridge:
     build:
       context: ./
-      dockerfile: gridtokenx-oracle-bridge/Dockerfile
-    container_name: gridtokenx-oracle-bridge
+      dockerfile: gridtokenx-aggregator-bridge/Dockerfile
+    container_name: gridtokenx-aggregator-bridge
     ports:
       - "${IOT_GATEWAY_PORT:-4030}:4010" # REST API
       - "${GRPC_PORT:-50051}:50051" # gRPC ingestion (smart meter simulator)
@@ -686,12 +686,12 @@ services:
       TRADING_GRPC_URL: http://apisix:9080
       GRIDTOKENX_API_KEYS: ${ENGINEERING_API_KEY:-engineering-department-api-key-2025},e2e-test-key
       SETTLEMENT_API_URL: http://apisix:9080
-      ORACLE_BRIDGE_SIGNING_KEY: /app/oracle-bridge-signing-key.bin
+      AGGREGATOR_BRIDGE_SIGNING_KEY: /app/aggregator-bridge-signing-key.bin
       NATS_URL: nats://nats:4222
       KAFKA_BOOTSTRAP_SERVERS: kafka-market:9002
       KAFKA_TOPIC_METER_READINGS: meter.readings
     volumes:
-      - ./infra/oracle/signing-key.bin:/app/oracle-bridge-signing-key.bin:ro
+      - ./infra/oracle/signing-key.bin:/app/aggregator-bridge-signing-key.bin:ro
     depends_on:
       redis:
         condition: service_healthy
@@ -839,12 +839,12 @@ services:
       INFLUXDB_BUCKET: ${INFLUXDB_BUCKET}
       DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgbouncer:5432/gridtokenx
       API_SERVICES_URL: ${API_SERVICES_URL}
-      # Transport Configuration - Send telemetry to Oracle Bridge via gRPC
+      # Transport Configuration - Send telemetry to Aggregator Bridge via gRPC
       TRANSPORT_TYPE: grpc
-      GRPC_GATEWAY_HOST: oracle-bridge
+      GRPC_GATEWAY_HOST: aggregator-bridge
       GRPC_GATEWAY_PORT: 50051
     depends_on:
-      oracle-bridge:
+      aggregator-bridge:
         condition: service_started
       kafka-cmd:
         condition: service_healthy

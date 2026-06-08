@@ -10,7 +10,7 @@
 ## 1. What This Is
 
 Envoy is intended as the **device/edge gateway** (`:4002`) — terminating mutual TLS from IoT
-hardware and forwarding verified traffic to Oracle Bridge. It is the IoT-side counterpart to
+hardware and forwarding verified traffic to Aggregator Bridge. It is the IoT-side counterpart to
 **APISIX** (`apisix_conf/`, user-facing `:4001`).
 
 > ⚠️ **Current state: dev stub, not a real edge.** The checked-in `envoy.yaml` is a **minimal
@@ -55,12 +55,12 @@ Replace the stub with config that:
 
 1. **Terminates mTLS** — `transport_socket` with `DownstreamTlsContext`, `require_client_certificate:
    true`, and a CA bundle for device certs (per-device identity).
-2. **Routes to Oracle Bridge** — define an upstream cluster for the bridge ingest endpoint instead
+2. **Routes to Aggregator Bridge** — define an upstream cluster for the bridge ingest endpoint instead
    of `direct_response`.
-3. **Preserves device identity** — forward the client-cert subject downstream so Oracle Bridge can
+3. **Preserves device identity** — forward the client-cert subject downstream so Aggregator Bridge can
    tie traffic to a device before Ed25519 verification.
 
-> Device telemetry integrity ultimately rests on **Ed25519 signatures verified at Oracle Bridge**;
+> Device telemetry integrity ultimately rests on **Ed25519 signatures verified at Aggregator Bridge**;
 > the edge mTLS here is transport-level defense-in-depth, not the integrity guarantee.
 
 ## 6. Related
@@ -69,4 +69,4 @@ Replace the stub with config that:
 | :--- | :--- |
 | `../apisix_conf/ARCHITECTURE.md` | The other gateway — user-facing (APISIX, `:4001`) |
 | `../docker-compose.yml` (`envoy:` block) | Image, ports, mount, healthcheck |
-| `../gridtokenx-oracle-bridge/` | The intended upstream — telemetry verification + ingest |
+| `../gridtokenx-aggregator-bridge/` | The intended upstream — telemetry verification + ingest |

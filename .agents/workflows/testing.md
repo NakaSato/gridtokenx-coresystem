@@ -21,7 +21,7 @@ just test
 cd gridtokenx-api && cargo test
 cd gridtokenx-iam-service && cargo test
 cd gridtokenx-trading-service && cargo test
-cd gridtokenx-oracle-bridge && cargo test
+cd gridtokenx-aggregator-bridge && cargo test
 
 # Run Anchor smart contract tests
 cd gridtokenx-anchor && anchor test
@@ -59,7 +59,7 @@ anchor test --skip-build
 ```
 
 ### 5. Platform E2E Tests
-Simulates a full cycle from **Edge Ingestion** → **Oracle Bridge** → **Trading Matching** → **Solana Settlement**.
+Simulates a full cycle from **Edge Ingestion** → **Aggregator Bridge** → **Trading Matching** → **Solana Settlement**.
 
 | Script | Purpose |
 |--------|---------|

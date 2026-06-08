@@ -30,7 +30,7 @@ The `./scripts/app.sh` script is the "one true way" to start the platform. It ha
 2. **Infrastructure**: Launches PostgreSQL, Redis, Kafka, and RabbitMQ via Docker.
 3. **Solana**: Starts the local validator with the required programs pre-loaded.
 4. **Bootstrap**: Initializes the energy token mint and registers authority keys.
-5. **Services**: Launches API, IAM, Trading, and Oracle Bridge services.
+5. **Services**: Launches API, IAM, Trading, and Aggregator Bridge services.
 6. **Frontend**: Launches Trading UI and Explorer.
 
 ## Service Access Map

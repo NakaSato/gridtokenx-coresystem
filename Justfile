@@ -21,7 +21,7 @@ default:
 check-all:
     (cd gridtokenx-iam-service; cargo check)
     (cd gridtokenx-trading-service; cargo check)
-    (cd gridtokenx-oracle-bridge; cargo check)
+    (cd gridtokenx-aggregator-bridge; cargo check)
     (cd gridtokenx-chain-bridge; cargo check)
     (cd gridtokenx-noti-service; cargo check)
     (cd gridtokenx-blockchain-core; cargo check)
@@ -30,7 +30,7 @@ check-all:
 build-all:
     (cd gridtokenx-iam-service; cargo build)
     (cd gridtokenx-trading-service; cargo build)
-    (cd gridtokenx-oracle-bridge; cargo build)
+    (cd gridtokenx-aggregator-bridge; cargo build)
     (cd gridtokenx-chain-bridge; cargo build)
     (cd gridtokenx-noti-service; cargo build)
 
@@ -38,7 +38,7 @@ build-all:
 build-release:
     (cd gridtokenx-iam-service; cargo build --release)
     (cd gridtokenx-trading-service; cargo build --release)
-    (cd gridtokenx-oracle-bridge; cargo build --release)
+    (cd gridtokenx-aggregator-bridge; cargo build --release)
     (cd gridtokenx-chain-bridge; cargo build --release)
     (cd gridtokenx-noti-service; cargo build --release)
 
@@ -46,7 +46,7 @@ build-release:
 test:
     (cd gridtokenx-iam-service; cargo test)
     (cd gridtokenx-trading-service; cargo test)
-    (cd gridtokenx-oracle-bridge; cargo test)
+    (cd gridtokenx-aggregator-bridge; cargo test)
     (cd gridtokenx-chain-bridge; cargo test)
     (cd gridtokenx-noti-service; cargo test)
     (cd gridtokenx-blockchain-core; cargo test)
@@ -141,7 +141,7 @@ orb-rebuild:
 clean-all:
     (cd gridtokenx-iam-service; cargo clean)
     (cd gridtokenx-trading-service; cargo clean)
-    (cd gridtokenx-oracle-bridge; cargo clean)
+    (cd gridtokenx-aggregator-bridge; cargo clean)
     (cd gridtokenx-chain-bridge; cargo clean)
     (cd gridtokenx-noti-service; cargo clean)
     (cd gridtokenx-blockchain-core; cargo clean)
@@ -152,7 +152,7 @@ clean-all:
 fmt:
     (cd gridtokenx-iam-service; cargo fmt)
     (cd gridtokenx-trading-service; cargo fmt)
-    (cd gridtokenx-oracle-bridge; cargo fmt)
+    (cd gridtokenx-aggregator-bridge; cargo fmt)
     (cd gridtokenx-chain-bridge; cargo fmt)
     (cd gridtokenx-noti-service; cargo fmt)
     (cd gridtokenx-blockchain-core; cargo fmt)
@@ -161,7 +161,7 @@ fmt:
 clippy:
     (cd gridtokenx-iam-service; cargo clippy -- -D warnings)
     (cd gridtokenx-trading-service; cargo clippy -- -D warnings)
-    (cd gridtokenx-oracle-bridge; cargo clippy -- -D warnings)
+    (cd gridtokenx-aggregator-bridge; cargo clippy -- -D warnings)
     (cd gridtokenx-chain-bridge; cargo clippy -- -D warnings)
     (cd gridtokenx-noti-service; cargo clippy -- -D warnings)
     (cd gridtokenx-blockchain-core; cargo clippy -- -D warnings)
@@ -170,9 +170,9 @@ clippy:
 migrate-info:
     (cd gridtokenx-iam-service; sqlx migrate info)
 
-# Run oracle-bridge locally
+# Run aggregator-bridge locally
 run-oracle:
-    (cd gridtokenx-oracle-bridge; cargo run)
+    (cd gridtokenx-aggregator-bridge; cargo run)
 
 # Verify Trading Service can reach all its internal dependencies (Postgres, Redis, Chain Bridge gRPC, NATS, IAM, Kafka)
 verify-conns:
@@ -210,15 +210,15 @@ simnet-down:
 
 # --- Smart Meter Automation ---
 
-# Stream signed smartmeter readings into the Oracle Bridge (DLMS/COSEM egress).
+# Stream signed smartmeter readings into the Aggregator Bridge (DLMS/COSEM egress).
 # Needs the bridge IoT gateway (:4030) + Redis (:7010) up (`just orb-up`). Loops
 # until Ctrl-C; each tick POSTs signed OBIS frames -> /v1/private-network/ingest.
 auto-meter-send meters="5" interval="15":
-    (cd gridtokenx-smartmeter-simulator/backend; with-env {ORACLE_DLMS_ENABLED: "true", ORACLE_BRIDGE_URL: "http://localhost:4030", REDIS_URL: "redis://localhost:7010"} { uv run python scripts/send_to_oracle_bridge.py --meters {{meters}} --interval {{interval}} --onboard })
+    (cd gridtokenx-smartmeter-simulator/backend; with-env {AGGREGATOR_DLMS_ENABLED: "true", AGGREGATOR_BRIDGE_URL: "http://localhost:4030", REDIS_URL: "redis://localhost:7010"} { uv run python scripts/send_to_aggregator_bridge.py --meters {{meters}} --interval {{interval}} --onboard })
 
-# Single-meter egress burst into the Oracle Bridge (quick smoke test; Ctrl-C to stop).
+# Single-meter egress burst into the Aggregator Bridge (quick smoke test; Ctrl-C to stop).
 send-meter-reading meters="1" interval="15":
-    (cd gridtokenx-smartmeter-simulator/backend; with-env {ORACLE_DLMS_ENABLED: "true", ORACLE_BRIDGE_URL: "http://localhost:4030", REDIS_URL: "redis://localhost:7010"} { uv run python scripts/send_to_oracle_bridge.py --meters {{meters}} --interval {{interval}} --onboard })
+    (cd gridtokenx-smartmeter-simulator/backend; with-env {AGGREGATOR_DLMS_ENABLED: "true", AGGREGATOR_BRIDGE_URL: "http://localhost:4030", REDIS_URL: "redis://localhost:7010"} { uv run python scripts/send_to_aggregator_bridge.py --meters {{meters}} --interval {{interval}} --onboard })
 
 
 

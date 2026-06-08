@@ -9,7 +9,7 @@
 ## 1. What This Is
 
 `gridtokenx-telemetry` is a **shared Rust library crate** (no binary). It unifies the per-service
-`init_telemetry` copies that previously lived independently in oracle-bridge, trading-service,
+`init_telemetry` copies that previously lived independently in aggregator-bridge, trading-service,
 iam-service, noti-service, and chain-bridge — one place to configure structured logging so every
 service emits the same shape.
 
@@ -51,7 +51,7 @@ machine-parseable across the mesh.
 
 ```rust
 // In a service's main(), before doing work:
-let _guard = gridtokenx_telemetry::init("oracle-bridge");
+let _guard = gridtokenx_telemetry::init("aggregator-bridge");
 // ... run the service; drop _guard (or call shutdown) on exit.
 ```
 
@@ -68,4 +68,4 @@ cargo clippy --all-targets
 | Path | Covers |
 | :--- | :--- |
 | `../CLAUDE.md` | Platform logging conventions (`tracing`, structured JSON, `#[instrument]`) |
-| Consuming services | oracle-bridge, trading-service, iam-service, noti-service, chain-bridge |
+| Consuming services | aggregator-bridge, trading-service, iam-service, noti-service, chain-bridge |

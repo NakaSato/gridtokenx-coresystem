@@ -27,8 +27,8 @@ def endpoints():
         "iam_grpc": os.getenv("IAM_GRPC", "localhost:5010"),
         "trading": os.getenv("TRADING_URL", "http://localhost:8093"),
         "trading_grpc": os.getenv("TRADING_GRPC", "localhost:8092"),
-        "oracle_rest": os.getenv("ORACLE_BRIDGE_REST", "http://localhost:4030"),
-        "oracle_grpc": os.getenv("ORACLE_BRIDGE_GRPC", "localhost:5030"),
+        "oracle_rest": os.getenv("AGGREGATOR_BRIDGE_REST", "http://localhost:4030"),
+        "oracle_grpc": os.getenv("AGGREGATOR_BRIDGE_GRPC", "localhost:5030"),
         "chain_grpc": os.getenv("CHAIN_BRIDGE_GRPC", "localhost:5040"),
         "noti_grpc": os.getenv("NOTI_GRPC", "localhost:5050"),
     }

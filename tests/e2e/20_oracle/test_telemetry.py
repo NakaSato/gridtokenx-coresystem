@@ -18,8 +18,8 @@ import crypto
 import events
 import redis_util
 
-ORACLE_REST = os.getenv("ORACLE_BRIDGE_REST", "http://localhost:4030")
-ORACLE_GRPC = os.getenv("ORACLE_BRIDGE_GRPC", "localhost:5030")
+ORACLE_REST = os.getenv("AGGREGATOR_BRIDGE_REST", "http://localhost:4030")
+ORACLE_GRPC = os.getenv("AGGREGATOR_BRIDGE_GRPC", "localhost:5030")
 INGEST_URL = f"{ORACLE_REST}/v1/private-network/ingest"
 KAFKA_TOPIC = os.getenv("KAFKA_TOPIC_METER_READINGS", "meter.readings")
 
@@ -185,7 +185,7 @@ def test_grpc_valid_and_tampered(device):
     """Case 6: gRPC Ingest accepts a valid signed reading, rejects a tampered one.
 
     Service is `gridtokenx.oracle.v1.OracleService/Ingest(MeterReading)` (proto
-    in gridtokenx-oracle-bridge/proto/oracle.proto). The verifier reconstructs the
+    in gridtokenx-aggregator-bridge/proto/oracle.proto). The verifier reconstructs the
     canonical target `{meter_id}:{kwh}:{timestamp}`, so kwh on the wire must be the
     canonicalized form the signature was computed over.
     """

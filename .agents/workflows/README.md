@@ -31,7 +31,7 @@ New to GridTokenX? Follow these core steps:
 |----------|-------------|
 | [Database Migrations](./database-migrations.md) | Schema management with SQLx |
 | [Smart Meter Simulator](./smart-meter-simulator.md) | Simulate prosumer and consumer IoT devices |
-| [Oracle Bridge](./oracle-bridge.md) | Ingestion, signature verification, and batching |
+| [Aggregator Bridge](./aggregator-bridge.md) | Ingestion, signature verification, and batching |
 | [Energy Trading Agent](./agent-operations.md) | AI DCA accumulation & Grid Stability |
 | [Anchor Development](./anchor-development.md) | Smart contract development (Solana/Anchor) |
 

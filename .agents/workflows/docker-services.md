@@ -27,7 +27,7 @@ GridTokenX uses Docker Compose to orchestrate its infrastructure. **OrbStack** i
 | **Kafka** | `gridtokenx-kafka` | 9092 | Event-sourced telemetry |
 | **RabbitMQ** | `gridtokenx-rabbitmq` | 5672 | Task Queues & Retries |
 | **Kong Gateway**| `gridtokenx-kong` | 8000 | API entry point |
-| **Oracle Bridge**| `gridtokenx-oracle-bridge`| 4010 | IoT validation layer |
+| **Aggregator Bridge**| `gridtokenx-aggregator-bridge`| 4010 | IoT validation layer |
 
 ## Data Persistence
 

@@ -174,61 +174,61 @@ groups:
         description: "{{ $value }} DCA execution failures per 5 minutes. Users' recurring orders may not be executing."
 
   # =============================================================================
-  # Oracle Bridge & IoT Alerts
+  # Aggregator Bridge & IoT Alerts
   # =============================================================================
-  - name: gridtokenx.oracle_bridge.alerts
+  - name: gridtokenx.aggregator_bridge.alerts
     rules:
-    - alert: OracleRelayQueueSaturation
-      expr: oracle_queue_depth > 8000
+    - alert: AggregatorRelayQueueSaturation
+      expr: aggregator_queue_depth > 8000
       for: 5m
       labels:
         severity: critical
         team: grid-ops
-        component: oracle-bridge
+        component: aggregator-bridge
       annotations:
-        summary: "Oracle Bridge relay queue is near saturation!"
+        summary: "Aggregator Bridge relay queue is near saturation!"
         description: "Queue depth is {{ $value }} (limit 1024) for more than 5 minutes. Downstream blockchain submission is likely bottlenecked."
 
-    - alert: OracleHighSubmissionLatency
-      expr: histogram_quantile(0.95, sum(rate(oracle_blockchain_submission_duration_ms_bucket[5m])) by (le)) > 30000
+    - alert: AggregatorHighSubmissionLatency
+      expr: histogram_quantile(0.95, sum(rate(aggregator_blockchain_submission_duration_ms_bucket[5m])) by (le)) > 30000
       for: 10m
       labels:
         severity: warning
         team: grid-ops
-        component: oracle-bridge
+        component: aggregator-bridge
       annotations:
-        summary: "High oracle submission latency detected"
+        summary: "High aggregator submission latency detected"
         description: "The 95th percentile for Solana settlements is {{ $value | humanizeDuration }}. This exceeds the 30s threshold."
 
-    - alert: OracleSubmissionFailureSpike
-      expr: sum(rate(oracle_blockchain_submissions_total{success="false"}[5m])) / sum(rate(oracle_blockchain_submissions_total[5m])) > 0.05
+    - alert: AggregatorSubmissionFailureSpike
+      expr: sum(rate(aggregator_blockchain_submissions_total{success="false"}[5m])) / sum(rate(aggregator_blockchain_submissions_total[5m])) > 0.05
       for: 2m
       labels:
         severity: critical
         team: grid-ops
-        component: oracle-bridge
+        component: aggregator-bridge
       annotations:
-        summary: "High oracle submission failure rate!"
+        summary: "High aggregator submission failure rate!"
         description: "More than 5% of attestation batches are failing to settle on-chain in the last 2 minutes."
 
-    - alert: OracleNoIngestionActivity
-      expr: rate(oracle_ingestion_requests_total[5m]) == 0
+    - alert: AggregatorNoIngestionActivity
+      expr: rate(aggregator_ingestion_requests_total[5m]) == 0
       for: 5m
       labels:
         severity: critical
         team: grid-ops
-        component: oracle-bridge
+        component: aggregator-bridge
       annotations:
-        summary: "Zero ingestion activity from Oracle Bridge"
-        description: "No new attestation batches have been received in the last 5 minutes. Check Oracle Bridge health."
+        summary: "Zero ingestion activity from Aggregator Bridge"
+        description: "No new attestation batches have been received in the last 5 minutes. Check Aggregator Bridge health."
 
     - alert: SubmarineCableBottleneckCritical
-      expr: oracle_island_utilization_pct > 0.85
+      expr: aggregator_island_utilization_pct > 0.85
       for: 1m
       labels:
         severity: critical
         team: grid-ops
-        component: oracle-bridge
+        component: aggregator-bridge
       annotations:
         summary: "CRITICAL: Island Submarine Cable Bottleneck Detected!"
         description: "The submarine cable for {{ $labels.island }} is at {{ $value | humanizePercentage }} capacity. Autonomous VPP mitigation triggered."

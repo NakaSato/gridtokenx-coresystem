@@ -47,7 +47,7 @@ GridTokenX implements defense-in-depth across all layers:
 
 ### Edge Device Security
 - **mTLS** (Mutual TLS) enforced via Envoy for all IoT device connections
-- **Ed25519 signature verification** on every telemetry packet at the Oracle Bridge
+- **Ed25519 signature verification** on every telemetry packet at the Aggregator Bridge
 - **Device certificate management** with per-device identity
 
 ### Service Mesh Security

@@ -26,7 +26,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - **NATS JetStream Gateway**: High-throughput async transaction submission path with automatic retries and deduplication.
   - **Eight-Layer Defense**: Comprehensive security model (mTLS, SPIFFE, RBAC, Policy, Vault, Idempotency, Staleness, Retries).
 
-- **Oracle Bridge**:
+- **Aggregator Bridge**:
   - **Secure Protocol V4**: Implemented Secure DLMS-lite v4 binary protocol with AES-256-GCM encryption and CRC-32 integrity.
   - **Grid Dispatch Engine**: Real-time frequency monitoring from Kafka with automated VPP response triggers.
   - **Unified Telemetry Transport**: Optimized ingest path that bypasses legacy HTTP/gRPC in favor of direct Redis-to-Kafka streaming.
@@ -61,7 +61,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 #### Backend Services
 - **IAM Service** — Modular monolith (6 sub-crates), user registration, JWT auth, wallet custody, on-chain Registry PDA creation
 - **Trading Service** — CDA matching engine, order book, VPP aggregation, REC management, ClickHouse CQRS
-- **Oracle Bridge** — Ed25519 telemetry validation, 15-min aggregation, NILM, InfluxDB time-series, Registry sync
+- **Aggregator Bridge** — Ed25519 telemetry validation, 15-min aggregation, NILM, InfluxDB time-series, Registry sync
 - **Chain Bridge** — Vault Transit signing, NATS JetStream transaction submission, gRPC read path
 - **Notification Service** — Email delivery, templating, delivery tracking
 

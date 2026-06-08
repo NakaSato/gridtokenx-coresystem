@@ -24,8 +24,8 @@ gridtokenx-iam-service/.env
 gridtokenx-iam-service/.env.local
 gridtokenx-trading-service/.env
 gridtokenx-trading-service/.env.local
-gridtokenx-oracle-bridge/.env
-gridtokenx-oracle-bridge/.env.local
+gridtokenx-aggregator-bridge/.env
+gridtokenx-aggregator-bridge/.env.local
 gridtokenx-chain-bridge/.env
 gridtokenx-chain-bridge/.env.local
 gridtokenx-anchor/.env

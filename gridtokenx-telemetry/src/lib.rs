@@ -1,7 +1,7 @@
 //! Shared telemetry initialization for GridTokenX services.
 //!
 //! Unifies the per-service `init_telemetry` copies that previously lived in
-//! oracle-bridge, trading-service, iam-service, noti-service and chain-bridge.
+//! aggregator-bridge, trading-service, iam-service, noti-service and chain-bridge.
 //! Provides env-filtered structured logging — JSON by default (the documented
 //! service standard), `LOG_FORMAT=pretty` for human-readable dev output.
 //!

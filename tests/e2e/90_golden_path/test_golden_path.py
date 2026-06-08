@@ -30,7 +30,7 @@ import dlogs
 import redis_util
 
 IAM = os.getenv("IAM_URL", "http://localhost:4010")
-ORACLE = os.getenv("ORACLE_BRIDGE_REST", "http://localhost:4030")
+ORACLE = os.getenv("AGGREGATOR_BRIDGE_REST", "http://localhost:4030")
 TRADING = os.getenv("TRADING_URL", "http://localhost:8093")
 CHAIN_HTTP = os.getenv("CHAIN_BRIDGE_HTTP", "http://" + os.getenv("CHAIN_BRIDGE_GRPC", "localhost:5040"))
 NOTI_HTTP = os.getenv("NOTI_HTTP", "http://" + os.getenv("NOTI_GRPC", "localhost:5050"))
@@ -42,7 +42,7 @@ SECRET = os.getenv("GATEWAY_SECRET", "gridtokenx-gateway-secret-2025")
 ZONE = int(os.getenv("E2E_TRADING_ZONE", "1"))
 GW = {"x-gridtokenx-role": "api-gateway", "x-gridtokenx-gateway-secret": SECRET}
 
-ORACLE_CONTAINER = os.getenv("ORACLE_CONTAINER", "gridtokenx-oracle-bridge")
+AGGREGATOR_CONTAINER = os.getenv("AGGREGATOR_CONTAINER", "gridtokenx-aggregator-bridge")
 CHAIN_CONTAINER = os.getenv("CHAIN_CONTAINER", "gridtokenx-chain-bridge")
 
 
@@ -212,8 +212,8 @@ def test_golden_path():
             st.skip("dissemination", "Redis unavailable")
 
     # --- Stage 6: settlement -> mint (logs; needs platform) ------------
-    if meter and _up(API_SERVICES_URL) and dlogs.container_running(ORACLE_CONTAINER):
-        flushed = dlogs.wait_for_log(ORACLE_CONTAINER, "completed billing bins", timeout=150)
+    if meter and _up(API_SERVICES_URL) and dlogs.container_running(AGGREGATOR_CONTAINER):
+        flushed = dlogs.wait_for_log(AGGREGATOR_CONTAINER, "completed billing bins", timeout=150)
         st.ok("settlement engine flushed completed bin") if flushed else \
             st.fail("settlement flush", "no 'completed billing bins' log in 150s")
         if dlogs.container_running(CHAIN_CONTAINER):

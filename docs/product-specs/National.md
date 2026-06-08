@@ -10,7 +10,7 @@ GridTokenX is structured as a four-layer system. Each layer has a single respons
 |---|---|---|
 | **L4 — Application** | Web UI, mobile, operator console, partner APIs | Public TLS, JWT |
 | **L3 — Blockchain / Settlement** | Solana programs (Anchor), Chain Bridge, Vault | SPIFFE + Vault Transit |
-| **L2 — Core Services** | IAM, Trading, Oracle Bridge, Notification | SPIFFE mTLS |
+| **L2 — Core Services** | IAM, Trading, Aggregator Bridge, Notification | SPIFFE mTLS |
 | **L1 — Physical / Edge** | Smart meters, simulators, IoT devices | Device Ed25519 keys |
 
 The hard rule between L3 and everything below it: **no service holds a private key**. Signing is delegated to Vault Transit; identity is asserted via SPIFFE and verified at the Chain Bridge.
@@ -35,7 +35,7 @@ The hard rule between L3 and everything below it: **no service holds a private k
 │ L2 — CORE MICROSERVICES (Rust)                                          │
 │   iam-service           identity, JWT, wallet authority mapping         │
 │   trading-service       CDA matcher, escrow, zone markets, settlement   │
-│   oracle-bridge         zone-partitioned telemetry, signature verify    │
+│   aggregator-bridge         zone-partitioned telemetry, signature verify    │
 │   noti-service          email/WS/webhook dispatch (Kafka + RabbitMQ)    │
 └─────┬─────────────────────────────────────────┬─────────────────────────┘
       │                                         │
@@ -72,7 +72,7 @@ All workloads are issued SVIDs under the trust domain `spiffe://gridtokenx.th/pr
 | `…/iam-service` | `IamService` — identity authority |
 | `…/trading-service/api` | `TradingApi` — order intake |
 | `…/trading-service/matcher` | `TradingMatcher` — CDA engine |
-| `…/oracle-bridge` | `OracleBridge` — telemetry ingress |
+| `…/aggregator-bridge` | `AggregatorBridge` — telemetry ingress |
 | `…/settlement-service` | `SettlementService` — on-chain settlement worker |
 | `…/reporting-service` | `ReportingService` — analytics |
 | `…/admin` | `Admin` — break-glass operator |
@@ -84,11 +84,11 @@ Resolution happens at the request edge: SPIFFE identity is extracted from the mT
 The Chain Bridge enforces a second authorization gate at the instruction level. Before any transaction is signed, every instruction's program ID is checked against an allowlist keyed by the caller's SPIFFE identity:
 
 - `trading-service/*` may invoke: `trading`, `registry`, `energy-token`
-- `oracle-bridge` may invoke: `oracle` only
+- `aggregator-bridge` may invoke: `oracle` only
 - `iam-service` may invoke: `registry` (user onboarding)
 - All identities may invoke: `system_program` (account creation)
 
-This means a compromised Oracle Bridge cannot issue a token mint, and a compromised Trading Service cannot publish a forged meter reading. The policy is enforced before Vault is asked to sign — Vault never sees a transaction that would not be authorized to begin with.
+This means a compromised Aggregator Bridge cannot issue a token mint, and a compromised Trading Service cannot publish a forged meter reading. The policy is enforced before Vault is asked to sign — Vault never sees a transaction that would not be authorized to begin with.
 
 ### 3.3 Keys never leave Vault
 
@@ -115,7 +115,7 @@ On-chain state is sharded by **zone**: each microgrid zone gets its own `ZoneMar
 
 The settlement path supports both batch-cleared (`execute_batch`) and CDA-style (`submit_limit_order` → `match_orders`) flows. Fee, wheeling, and loss collectors are PDA token accounts under `market_authority`, so the off-chain settlement worker cannot redirect protocol revenue.
 
-### 4.3 `oracle-bridge`
+### 4.3 `aggregator-bridge`
 
 Telemetry ingress for smart meters and the GLM-based simulator. Runs in zone-partitioned mode (`IOT_NUM_ZONES`, default 10), with a dedicated `ZoneEventIngester` per zone so meter floods in one zone don't head-of-line block others. The pipeline is:
 
@@ -125,7 +125,7 @@ Telemetry ingress for smart meters and the GLM-based simulator. Runs in zone-par
    - **Redis Streams** — low-latency dissemination to in-process consumers.
    - **Kafka (Market tier)** — durable stream for the matcher and analytics.
    - **NATS** — telemetry forwarding to subscribers.
-4. The Dispatch Engine subscribes to a separate `gridtokenx.oracle.grid_status` topic and feeds the demand-response control loop.
+4. The Dispatch Engine subscribes to a separate `gridtokenx.aggregator.grid_status` topic and feeds the demand-response control loop.
 
 Supported edge stacks: DLMS/COSEM, OCPP, OpenADR, SunSpec.
 
@@ -186,7 +186,7 @@ The exclusive gateway to Solana. Its invariants:
 
 Three known production gaps remain ring-fenced:
 
-- Instruction-level transaction policy engine — the per-program allowlist exists, but a per-instruction parameter policy (e.g. "Oracle Bridge may publish readings ≤ 1 MWh/event") is not yet enforced.
+- Instruction-level transaction policy engine — the per-program allowlist exists, but a per-instruction parameter policy (e.g. "Aggregator Bridge may publish readings ≤ 1 MWh/event") is not yet enforced.
 - Tamper-evident audit log — current logs are append-only at the storage layer but not cryptographically chained.
 - Pre-sign transaction simulation — every transaction should be simulated against current state before signing, to catch state drift; this exists as a code path but is not yet on by default.
 
@@ -195,8 +195,8 @@ Three known production gaps remain ring-fenced:
 ### 8.1 Telemetry → Token Mint
 
 1. `smartmeter-simulator` (or a physical AMI device) generates an energy-generation reading and signs the payload with its device Ed25519 key.
-2. Payload arrives at `oracle-bridge` over mTLS gRPC, routed to the appropriate `ZoneEventIngester` by zone ID.
-3. `oracle-bridge` verifies the device signature against the registered meter pubkey, attaches a confidence score, and publishes to:
+2. Payload arrives at `aggregator-bridge` over mTLS gRPC, routed to the appropriate `ZoneEventIngester` by zone ID.
+3. `aggregator-bridge` verifies the device signature against the registered meter pubkey, attaches a confidence score, and publishes to:
    - Redis Streams (low-latency consumers)
    - Kafka Market tier (durable fanout)
 4. `trading-service` (or a settlement worker) consumes the reading, aggregates `surplus_kwh` per user, and stages a `Pending` row in Postgres.

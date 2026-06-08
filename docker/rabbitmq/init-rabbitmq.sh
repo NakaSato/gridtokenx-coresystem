@@ -19,7 +19,7 @@ rabbitmq-plugins enable rabbitmq_management
 # Declare exchanges
 rabbitmqadmin declare exchange name=notifications type=topic durable=true
 rabbitmqadmin declare exchange name=trading type=topic durable=true
-rabbitmqadmin declare exchange name=oracle type=topic durable=true
+rabbitmqadmin declare exchange name=aggregator type=topic durable=true
 rabbitmqadmin declare exchange name=scheduler type=topic durable=true
 rabbitmqadmin declare exchange name=integrations type=topic durable=true
 rabbitmqadmin declare exchange name=dlx.exchange type=direct durable=true

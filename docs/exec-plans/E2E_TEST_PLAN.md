@@ -49,12 +49,12 @@ Existing: `scripts/production-e2e.sh`, `scripts/test-registration-e2e.sh`. Suite
 - [ ] **Duplicate meter id** — not built.
 - [~] **Meter ↔ device identity (Ed25519)** — device pubkey at Redis `gridtokenx:devices:{id}:pubkey`; exercised by Oracle sig checks (§3).
 
-## 3. Oracle Bridge (`:5030` gRPC) + Telemetry Edge (Envoy `:4002`)
+## 3. Aggregator Bridge (`:5030` gRPC) + Telemetry Edge (Envoy `:4002`)
 
 Suite: `20_oracle/test_telemetry.py` (7P/0skip).
 
 - [x] **Valid signed reading accepted** — Ed25519-signed via REST `/v1/private-network/ingest` + gRPC `Ingest`. *(kwh float canonicalization fixed test-side, `lib/crypto.py rust_f64_str`)*
-- [x] **Invalid signature rejected** — tampered → reject. *(SECURITY: Oracle now fail-CLOSED by default, oracle-bridge `e7d82a0`; was fail-open prod-gated)*
+- [x] **Invalid signature rejected** — tampered → reject. *(SECURITY: Oracle now fail-CLOSED by default, aggregator-bridge `e7d82a0`; was fail-open prod-gated)*
 - [x] **Unknown device rejected** — meter not in registry → reject.
 - [x] **Wrong-key rejected** — sig by non-registered key → reject.
 - [~] **Replay protection** — **deferred** (gRPC UTT-H nonce, `service.rs:166`).

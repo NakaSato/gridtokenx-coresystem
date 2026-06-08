@@ -87,7 +87,7 @@ The project is organized into domain-specific microservices:
 | `gridtokenx-api/` | API Services | Central Gateway & Orchestrator |
 | `gridtokenx-iam-service/` | IAM Service | Identity & Blockchain Registry |
 | `gridtokenx-trading-service/`| Trading Service | Matching Engine & Settlement |
-| `gridtokenx-oracle-bridge/` | Oracle Bridge | Telemetry Validation & Kafka |
+| `gridtokenx-aggregator-bridge/` | Aggregator Bridge | Telemetry Validation & Kafka |
 | `gridtokenx-anchor/` | Smart Contracts | Solana Programs |
 | `gridtokenx-trading/` | Trading UI | Main User Interface |
 

@@ -88,7 +88,7 @@
 | **Kafka** | Distributed event streaming platform. GridTokenX uses 3 logical clusters: cmd-events (9001), market-data (9002), audit (9003). |
 | **RabbitMQ** | Message broker for task queues. Used for email notifications, settlement retries, and dead letter queues (DLQ). |
 | **ClickHouse** | Column-oriented OLAP database. Used as the CQRS read side for analytics queries. |
-| **InfluxDB** | Time-series database. Used by Oracle Bridge for storing raw meter readings. |
+| **InfluxDB** | Time-series database. Used by Aggregator Bridge for storing raw meter readings. |
 | **SQLx** | Rust SQL toolkit with compile-time query verification. Primary ORM for Postgres. |
 
 ---

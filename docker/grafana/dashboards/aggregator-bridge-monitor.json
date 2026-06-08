@@ -102,7 +102,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum(rate(oracle_disseminated_total[1m])) by (zone)",
+          "expr": "sum(rate(aggregator_disseminated_total[1m])) by (zone)",
           "legendFormat": "{{zone}}",
           "range": true,
           "refId": "A"
@@ -191,7 +191,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum(oracle_energy_reading_value_kwh_sum) by (device_id)",
+          "expr": "sum(aggregator_energy_reading_value_kwh_sum) by (device_id)",
           "legendFormat": "{{device_id}}",
           "range": true,
           "refId": "A"
@@ -255,7 +255,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "oracle_queue_depth",
+          "expr": "aggregator_queue_depth",
           "range": true,
           "refId": "A"
         }
@@ -280,8 +280,8 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "Oracle Bridge Monitoring",
-  "uid": "oracle-bridge",
+  "title": "Aggregator Bridge Monitoring",
+  "uid": "aggregator-bridge",
   "version": 1,
   "weekStart": ""
 }

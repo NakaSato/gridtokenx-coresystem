@@ -17,7 +17,7 @@ The Smart Meter Simulator is a Python-based utility that generates synthetic ene
 
 ## Architecture
 
-The simulator mimics real-world energy patterns and signs telemetry using Ed25519 keys (for the **Oracle Bridge**).
+The simulator mimics real-world energy patterns and signs telemetry using Ed25519 keys (for the **Aggregator Bridge**).
 
 | Component | Port | Technology |
 |-----------|------|------------|
@@ -26,7 +26,7 @@ The simulator mimics real-world energy patterns and signs telemetry using Ed2551
 
 ### Data Flow
 ```
-Simulator → Oracle Bridge (Validation) → Kafka → API services → PostgreSQL
+Simulator → Aggregator Bridge (Validation) → Kafka → API services → PostgreSQL
 ```
 
 ## Management (uv)
@@ -68,17 +68,17 @@ The simulator configuration is located in `gridtokenx-smartmeter-simulator/.env`
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `KAFKA_BOOTSTRAP_SERVERS` | `kafka:9092` | Where to push raw readings |
-| `ORACLE_BRIDGE_URL` | `http://oracle-bridge:4010` | Where to send readings for signing |
+| `AGGREGATOR_BRIDGE_URL` | `http://aggregator-bridge:4010` | Where to send readings for signing |
 | `METERS_COUNT` | `100` | Number of virtual devices |
 
 ## Troubleshooting
 
-- **No Data in Explorer**: Check if the `oracle-bridge` is running. The simulator sends data to the bridge first for crypto-validation.
+- **No Data in Explorer**: Check if the `aggregator-bridge` is running. The simulator sends data to the bridge first for crypto-validation.
 - **Kafka Timeout**: Ensure the `gridtokenx-kafka` container is healthy (`./scripts/app.sh status`).
 - **Python Errors**: Ensure you have `uv` installed and run `uv sync` in the simulator directory.
 
 ## Related Workflows
-- [Oracle Bridge](./oracle-bridge-development.md) - How readings are validated.
+- [Aggregator Bridge](./aggregator-bridge-development.md) - How readings are validated.
 - [Monitoring](./monitoring.md) - Visualizing simulator data in Grafana.
 - [Start Development](./start-dev.md) - Standard platform startup.
 tainers

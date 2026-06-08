@@ -16,9 +16,9 @@
 [submodule "gridtokenx-iam-service"]
 	path = gridtokenx-iam-service
 	url = https://github.com/NakaSato/gridtokenx-iam-service.git
-[submodule "gridtokenx-oracle-bridge"]
-	path = gridtokenx-oracle-bridge
-	url = https://github.com/NakaSato/gridtokenx-oracle-bridge.git
+[submodule "gridtokenx-aggregator-bridge"]
+	path = gridtokenx-aggregator-bridge
+	url = https://github.com/NakaSato/gridtokenx-aggregator-bridge.git
 [submodule "gridtokenx-trading-service"]
 	path = gridtokenx-trading-service
 	url = https://github.com/NakaSato/gridtokenx-trading-service.git

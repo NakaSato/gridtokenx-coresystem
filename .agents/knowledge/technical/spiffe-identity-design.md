@@ -23,7 +23,7 @@ All internal services in the GridTokenX platform utilize SPIFFE identities for m
 | **IAM Service** | Primary | `spiffe://gridtokenx.th/prod/iam-service` |
 | **Trading Service** | API Surface | `spiffe://gridtokenx.th/prod/trading-service/api` |
 | **Trading Service** | Matching Engine | `spiffe://gridtokenx.th/prod/trading-service/matcher` |
-| **Oracle Bridge** | Primary | `spiffe://gridtokenx.th/prod/oracle-bridge` |
+| **Aggregator Bridge** | Primary | `spiffe://gridtokenx.th/prod/aggregator-bridge` |
 | **Telemetry Ingest** | Primary | `spiffe://gridtokenx.th/prod/telemetry-ingest` |
 | **Chain Bridge** | Primary | `spiffe://gridtokenx.th/prod/chain-bridge` |
 | **Compliance Service** | Primary | `spiffe://gridtokenx.th/prod/compliance-service` |
@@ -58,9 +58,9 @@ GridTokenX operates on a **Zero-Trust** basis. Communication is permitted only w
 | Source | Destination | Purpose |
 | :--- | :--- | :--- |
 | `edge-gateway` | `telemetry-ingest` | Meter data ingest (mTLS) |
-| `oracle-bridge` | `chain-bridge` | Attestation submission |
-| `reporting-service` | `oracle-bridge` | Attestation state queries |
-| `compliance-service` | `oracle-bridge` | Data validation checks |
+| `aggregator-bridge` | `chain-bridge` | Attestation submission |
+| `reporting-service` | `aggregator-bridge` | Attestation state queries |
+| `compliance-service` | `aggregator-bridge` | Data validation checks |
 
 ### Chain & gTHB Issuer Domain
 

@@ -8,7 +8,7 @@ blockchain that can be slow or briefly unreachable.
 | Domain | Dominant failures | Posture |
 | :--- | :--- | :--- |
 | Edge / smart meters | Dropped, delayed, or spoofed telemetry | Reject unsigned; tolerate gaps; never invent readings |
-| Ingestion (Oracle Bridge) | Burst load, malformed frames, replays | Off-chain filter + dedup before Kafka |
+| Ingestion (Aggregator Bridge) | Burst load, malformed frames, replays | Off-chain filter + dedup before Kafka |
 | Service mesh | Partial outages, message redelivery | Idempotent consumers; at-least-once assumed |
 | Chain Bridge / Solana | RPC outage, congestion, nonce contention | Async submit via NATS JetStream; retry; idempotent tx |
 | Persistence | DB unavailability, partial writes | Outbox pattern; transactions; chain is source of truth |

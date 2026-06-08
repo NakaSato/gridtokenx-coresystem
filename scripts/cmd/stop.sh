@@ -10,7 +10,7 @@ cmd_stop() {
     docker stop gridtokenx-envoy 2>/dev/null && log_success "Envoy stopped" || log_warn "Envoy was not running"
     pkill -f "gridtokenx-iam-service" 2>/dev/null && log_success "IAM Service stopped" || log_warn "IAM Service was not running"
     pkill -f "gridtokenx-trading-service" 2>/dev/null && log_success "Trading Service stopped" || log_warn "Trading Service was not running"
-    pkill -f "gridtokenx-oracle-bridge" 2>/dev/null && log_success "Oracle Bridge stopped" || log_warn "Oracle Bridge was not running"
+    pkill -f "gridtokenx-aggregator-bridge" 2>/dev/null && log_success "Aggregator Bridge stopped" || log_warn "Aggregator Bridge was not running"
     pkill -f "bun run dev" 2>/dev/null || true
     pkill -f "vite" 2>/dev/null || true
     pkill -f "uvicorn" 2>/dev/null || true

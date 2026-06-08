@@ -67,10 +67,10 @@ propagate_program_ids() {
     [ -n "$registry_pda" ] && update_env_file "$iam_service_env" "REGISTRY_PDA" "$registry_pda"
     update_env_file "$iam_service_env" "SOLANA_RPC_URL" "$RPC_URL"
     
-    # Oracle Bridge
-    local oracle_bridge_env="$PROJECT_ROOT/gridtokenx-oracle-bridge/.env"
-    update_env_file "$oracle_bridge_env" "SOLANA_REGISTRY_PROGRAM_ID" "$registry_id"
-    update_env_file "$oracle_bridge_env" "SOLANA_ORACLE_PROGRAM_ID" "$oracle_id"
+    # Aggregator Bridge
+    local aggregator_bridge_env="$PROJECT_ROOT/gridtokenx-aggregator-bridge/.env"
+    update_env_file "$aggregator_bridge_env" "SOLANA_REGISTRY_PROGRAM_ID" "$registry_id"
+    update_env_file "$aggregator_bridge_env" "SOLANA_ORACLE_PROGRAM_ID" "$oracle_id"
     
     # Trading Service
     local trading_service_env="$PROJECT_ROOT/gridtokenx-trading-service/.env"
