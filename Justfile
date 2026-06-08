@@ -79,6 +79,15 @@ e2e-suite name="00_harness":
 lint-docs:
     python3 scripts/lint-docs.py
 
+# Lint docs across superproject + every checked-out submodule (validates
+# code-anchored path:line claims against the tree where the file lives)
+lint-docs-all:
+    bash scripts/lint-docs-all.sh
+
+# Advisory: list docs whose `Last reviewed:` date is older than days (default 180)
+lint-docs-stale days="180":
+    python3 scripts/lint-docs.py --warn-stale {{days}}
+
 # Run migrations (IAM Service)
 migrate:
     (cd gridtokenx-iam-service; sqlx migrate run)
@@ -205,11 +214,11 @@ simnet-down:
 # Needs the bridge IoT gateway (:4030) + Redis (:7010) up (`just orb-up`). Loops
 # until Ctrl-C; each tick POSTs signed OBIS frames -> /v1/private-network/ingest.
 auto-meter-send meters="5" interval="15":
-    (cd gridtokenx-smartmeter-simulator/backend; with-env {ORACLE_DLMS_ENABLED: "true", ORACLE_BRIDGE_URL: "http://localhost:4030", REDIS_URL: "redis://localhost:7010"} { uv run cli --mode standalone --meters {{meters}} --interval {{interval}} })
+    (cd gridtokenx-smartmeter-simulator/backend; with-env {ORACLE_DLMS_ENABLED: "true", ORACLE_BRIDGE_URL: "http://localhost:4030", REDIS_URL: "redis://localhost:7010"} { uv run python scripts/send_to_oracle_bridge.py --meters {{meters}} --interval {{interval}} --onboard })
 
 # Single-meter egress burst into the Oracle Bridge (quick smoke test; Ctrl-C to stop).
 send-meter-reading meters="1" interval="15":
-    (cd gridtokenx-smartmeter-simulator/backend; with-env {ORACLE_DLMS_ENABLED: "true", ORACLE_BRIDGE_URL: "http://localhost:4030", REDIS_URL: "redis://localhost:7010"} { uv run cli --mode standalone --meters {{meters}} --interval {{interval}} })
+    (cd gridtokenx-smartmeter-simulator/backend; with-env {ORACLE_DLMS_ENABLED: "true", ORACLE_BRIDGE_URL: "http://localhost:4030", REDIS_URL: "redis://localhost:7010"} { uv run python scripts/send_to_oracle_bridge.py --meters {{meters}} --interval {{interval}} --onboard })
 
 
 
