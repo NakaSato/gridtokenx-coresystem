@@ -197,6 +197,13 @@ services:
   redis:
     image: redis:7-alpine
     container_name: gridtokenx-redis
+    # AOF (appendonly) makes every write durable, not just periodic RDB
+    # snapshots — device pubkeys (gridtokenx:devices:*:pubkey) survive a hard
+    # restart instead of vanishing and 403-ing all signed telemetry until
+    # re-onboarding. RDB save points kept as a secondary checkpoint.
+    command: >-
+      redis-server --appendonly yes --appendfsync everysec
+      --save "3600 1 300 100 60 10000"
     environment:
       TZ: ${TZ}
     ports:
