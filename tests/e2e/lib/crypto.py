@@ -38,6 +38,17 @@ def sign_telemetry(private_key, meter_id: str, kwh, timestamp_ms: int) -> str:
     return base58.b58encode(private_key.sign(message)).decode("utf-8")
 
 
+def sign_raw(private_key, data: bytes) -> bytes:
+    """Raw 64-byte Ed25519 signature over `data`.
+
+    The bridge's bulk path (grpc/service.rs BulkRawIngest) verifies each frame's
+    signature as raw 64 bytes against the frame bytes —
+    `verify_telemetry_signature_batch` calls `Signature::from_bytes(&[u8; 64])`,
+    NOT the base58 decode the REST/single-Ingest path uses. So bulk frames must be
+    signed with this, not `sign_telemetry`."""
+    return private_key.sign(data)
+
+
 def keypair_base58_pubkey(private_key) -> str:
     """Base58-encoded Ed25519 public key (Solana pubkey form) for an Ed25519
     private key. Use to set trading's AGGREGATOR_BRIDGE_PUBLIC_KEY to a key the test

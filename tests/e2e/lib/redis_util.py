@@ -20,6 +20,16 @@ def register_device_key(meter_id: str, pubkey_hex: str):
     client().set(f"gridtokenx:devices:{meter_id}:pubkey", pubkey_hex)
 
 
+def register_enckey(meter_id: str, enckey_hex: str):
+    """Register the per-device AES-256 key (64-char hex = 32 bytes) the bridge
+    fetches to decrypt secure-v4 DLMS frames (DeviceKeyRegistry.get_device_aes_key)."""
+    client().set(f"gridtokenx:devices:{meter_id}:enckey", enckey_hex)
+
+
+def unregister_enckey(meter_id: str):
+    client().delete(f"gridtokenx:devices:{meter_id}:enckey")
+
+
 def register_meter(serial: str, user_id: str):
     """Map meter serial -> user_id for settlement resolution."""
     client().set(f"gridtokenx:meters:{serial}:user_id", user_id)
