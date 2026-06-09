@@ -220,6 +220,13 @@ auto-meter-send meters="5" interval="15":
 send-meter-reading meters="1" interval="15":
     (cd gridtokenx-smartmeter-simulator/backend; with-env {AGGREGATOR_DLMS_ENABLED: "true", AGGREGATOR_BRIDGE_URL: "http://localhost:4030", REDIS_URL: "redis://localhost:7010"} { uv run python scripts/send_to_aggregator_bridge.py --meters {{meters}} --interval {{interval}} --onboard })
 
+# Run the full smart-meter SERVER (UI + GLM engine) with Aggregator Bridge egress ON.
+# Sim egress is opt-in (AGGREGATOR_DLMS_ENABLED defaults false), so a plain
+# `--mode server` launch streams NOTHING to the bridge. This recipe forces it on
+# so the running app feeds the aggregator. Needs bridge (:4030) + Redis (:7010) up.
+meter-server port="8082" interval="5":
+    (cd gridtokenx-smartmeter-simulator/backend; with-env {AGGREGATOR_DLMS_ENABLED: "true", AGGREGATOR_BRIDGE_URL: "http://localhost:4030", REDIS_URL: "redis://localhost:7010"} { uv run python -m smart_meter_simulator.cli --mode server --port {{port}} --interval {{interval}} })
+
 
 
 
