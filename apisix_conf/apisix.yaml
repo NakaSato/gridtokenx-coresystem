@@ -66,14 +66,16 @@ routes:
         "iam-service:8080": 1
         "host.docker.internal:4010": 1
 
-  - id: 110 # IAM Private REST (User Private Prefix Rewrite)
+  - id: 110 # IAM Private REST (User Private surface)
+    # IAM serves these natively under /api/v1/users/me/* (see iam-service
+    # startup.rs: link_wallet, list_wallets, onchain-profile, get_me). Pass the
+    # path through UNMODIFIED — a prior regex_uri rewrite to /api/v1/me/* drifted
+    # against IAM's routes and 404'd the whole user-private surface (verified:
+    # POST /api/v1/users/me/wallets returned 404 via gateway, 200 direct-to-IAM).
     uris:
       - /api/v1/users/me
       - /api/v1/users/me/*
     plugin_config_id: 1
-    plugins:
-      proxy-rewrite:
-        regex_uri: ["^/api/v1/users/me(.*)", "/api/v1/me$1"]
     upstream:
       type: roundrobin
       nodes:
