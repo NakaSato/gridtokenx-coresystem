@@ -93,6 +93,19 @@ start_application_services() {
     export KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-"localhost:29001"}
     export KAFKA_BROKERS=${KAFKA_BROKERS:-"localhost:29001"}
     export CHAIN_BRIDGE_URL=${CHAIN_BRIDGE_URL:-"http://localhost:5040"}
+
+    # Chain Bridge mTLS material (run `just gen-certs`). Falls back to insecure
+    # dev mode when certs are absent, preserving prior native behavior.
+    if [ -f "$PROJECT_ROOT/infra/certs/ca.crt" ]; then
+        export CHAIN_BRIDGE_INSECURE=${CHAIN_BRIDGE_INSECURE:-"false"}
+        export CHAIN_BRIDGE_TLS_CERT=${CHAIN_BRIDGE_TLS_CERT:-"$PROJECT_ROOT/infra/certs/server.crt"}
+        export CHAIN_BRIDGE_TLS_KEY=${CHAIN_BRIDGE_TLS_KEY:-"$PROJECT_ROOT/infra/certs/server.key"}
+        export CHAIN_BRIDGE_TLS_CA=${CHAIN_BRIDGE_TLS_CA:-"$PROJECT_ROOT/infra/certs/ca.crt"}
+        export CHAIN_BRIDGE_CA_CERT=${CHAIN_BRIDGE_CA_CERT:-"$PROJECT_ROOT/infra/certs/ca.crt"}
+    else
+        log_warn "infra/certs/ca.crt missing — Chain Bridge will run INSECURE (run 'just gen-certs' to enable mTLS)"
+        export CHAIN_BRIDGE_INSECURE=${CHAIN_BRIDGE_INSECURE:-"true"}
+    fi
     export ENCRYPTION_SECRET=${ENCRYPTION_SECRET:-"supersecretencryptionkey"}
     export OWS_VAULT_PATH=${OWS_VAULT_PATH:-"$HOME/.local/share/gridtokenx/ows-vault"}
     export RABBITMQ_URL=${RABBITMQ_URL:-"amqp://gridtokenx:rabbitmq_secret_2025@localhost:9030"}
@@ -132,19 +145,19 @@ _start_native_services() {
     log_info "Starting services as native background processes..."
 
     run_in_background "Chain Bridge" \
-        "CHAIN_BRIDGE_INSECURE=true SOLANA_RPC_URL=$SOLANA_RPC_URL $PROJECT_ROOT/gridtokenx-chain-bridge/target/debug/gridtokenx-chain-bridge" \
+        "CHAIN_BRIDGE_INSECURE=$CHAIN_BRIDGE_INSECURE SOLANA_RPC_URL=$SOLANA_RPC_URL $PROJECT_ROOT/gridtokenx-chain-bridge/target/debug/gridtokenx-chain-bridge" \
         "$PROJECT_ROOT" \
         "$PROJECT_ROOT/scripts/logs/chain-bridge.log"
     wait_for_port "Chain Bridge" 5040 30
 
     run_in_background "IAM Service" \
-        "DATABASE_URL=$IAM_DATABASE_URL REDIS_URL=$REDIS_URL IAM_PORT=4010 OWS_VAULT_PATH=$OWS_VAULT_PATH ENCRYPTION_SECRET=$ENCRYPTION_SECRET $PROJECT_ROOT/gridtokenx-iam-service/target/debug/gridtokenx-iam-service" \
+        "DATABASE_URL=$IAM_DATABASE_URL REDIS_URL=$REDIS_URL IAM_PORT=4010 OWS_VAULT_PATH=$OWS_VAULT_PATH ENCRYPTION_SECRET=$ENCRYPTION_SECRET CHAIN_BRIDGE_CLIENT_CERT=$PROJECT_ROOT/infra/certs/clients/iam-service.crt CHAIN_BRIDGE_CLIENT_KEY=$PROJECT_ROOT/infra/certs/clients/iam-service.key $PROJECT_ROOT/gridtokenx-iam-service/target/debug/gridtokenx-iam-service" \
         "$PROJECT_ROOT" \
         "$PROJECT_ROOT/scripts/logs/iam.log"
     wait_for_port "IAM gRPC" 5010 30
 
     run_in_background "Trading Service" \
-        "DATABASE_URL=$TRADING_DATABASE_URL REDIS_URL=$REDIS_URL SOLANA_RPC_URL=$SOLANA_RPC_URL SOLANA_WS_URL=$SOLANA_WS_URL RUST_LOG=info ENABLE_SETTLEMENT_PROCESSOR=true $PROJECT_ROOT/gridtokenx-trading-service/target/debug/trading-service" \
+        "DATABASE_URL=$TRADING_DATABASE_URL REDIS_URL=$REDIS_URL SOLANA_RPC_URL=$SOLANA_RPC_URL SOLANA_WS_URL=$SOLANA_WS_URL RUST_LOG=info ENABLE_SETTLEMENT_PROCESSOR=true CHAIN_BRIDGE_CLIENT_CERT=$PROJECT_ROOT/infra/certs/clients/trading-service-api.crt CHAIN_BRIDGE_CLIENT_KEY=$PROJECT_ROOT/infra/certs/clients/trading-service-api.key $PROJECT_ROOT/gridtokenx-trading-service/target/debug/trading-service" \
         "$PROJECT_ROOT" \
         "$PROJECT_ROOT/scripts/logs/trading.log"
 
@@ -152,7 +165,7 @@ _start_native_services() {
     # default (rejects tampered/unknown/wrong-key); set AGGREGATOR_ALLOW_UNVERIFIED_TELEMETRY=true
     # only to disable it in trusted dev. See docs/E2E_IMPL_PLAN.md.
     run_in_background "Aggregator Bridge" \
-        "IAM_SERVICE_URL=http://127.0.0.1:4010 GRIDTOKENX_API_KEYS=\"$GRIDTOKENX_API_KEYS\" RUST_LOG=info $PROJECT_ROOT/gridtokenx-aggregator-bridge/target/debug/gridtokenx-aggregator-bridge" \
+        "IAM_SERVICE_URL=http://127.0.0.1:4010 GRIDTOKENX_API_KEYS=\"$GRIDTOKENX_API_KEYS\" RUST_LOG=info CHAIN_BRIDGE_CLIENT_CERT=$PROJECT_ROOT/infra/certs/clients/aggregator-bridge.crt CHAIN_BRIDGE_CLIENT_KEY=$PROJECT_ROOT/infra/certs/clients/aggregator-bridge.key CHAIN_BRIDGE_SERVICE_IDENTITY=spiffe://gridtokenx.th/prod/aggregator-bridge $PROJECT_ROOT/gridtokenx-aggregator-bridge/target/debug/gridtokenx-aggregator-bridge" \
         "$PROJECT_ROOT" \
         "$PROJECT_ROOT/scripts/logs/aggregator-bridge.log"
     wait_for_port "Aggregator Bridge" 4030 30
@@ -174,24 +187,24 @@ _start_terminal_services() {
     local skip_ui=$1
 
     run_in_terminal "Chain Bridge" \
-        "CHAIN_BRIDGE_INSECURE=true SOLANA_RPC_URL=$SOLANA_RPC_URL $PROJECT_ROOT/gridtokenx-chain-bridge/target/debug/gridtokenx-chain-bridge > $PROJECT_ROOT/scripts/logs/chain-bridge.log 2>&1" \
+        "CHAIN_BRIDGE_INSECURE=$CHAIN_BRIDGE_INSECURE SOLANA_RPC_URL=$SOLANA_RPC_URL $PROJECT_ROOT/gridtokenx-chain-bridge/target/debug/gridtokenx-chain-bridge > $PROJECT_ROOT/scripts/logs/chain-bridge.log 2>&1" \
         "$PROJECT_ROOT"
     wait_for_port "Chain Bridge" 5040 30
 
     run_in_terminal "IAM Service" \
-        "DATABASE_URL=$IAM_DATABASE_URL REDIS_URL=$REDIS_URL IAM_PORT=4010 OWS_VAULT_PATH=$OWS_VAULT_PATH ENCRYPTION_SECRET=$ENCRYPTION_SECRET $PROJECT_ROOT/gridtokenx-iam-service/target/debug/gridtokenx-iam-service > $PROJECT_ROOT/scripts/logs/iam.log 2>&1" \
+        "DATABASE_URL=$IAM_DATABASE_URL REDIS_URL=$REDIS_URL IAM_PORT=4010 OWS_VAULT_PATH=$OWS_VAULT_PATH ENCRYPTION_SECRET=$ENCRYPTION_SECRET CHAIN_BRIDGE_CLIENT_CERT=$PROJECT_ROOT/infra/certs/clients/iam-service.crt CHAIN_BRIDGE_CLIENT_KEY=$PROJECT_ROOT/infra/certs/clients/iam-service.key $PROJECT_ROOT/gridtokenx-iam-service/target/debug/gridtokenx-iam-service > $PROJECT_ROOT/scripts/logs/iam.log 2>&1" \
         "$PROJECT_ROOT"
     wait_for_port "IAM gRPC" 5010 30
 
     run_in_terminal "Trading Service" \
-        "DATABASE_URL=$TRADING_DATABASE_URL REDIS_URL=$REDIS_URL SOLANA_RPC_URL=$SOLANA_RPC_URL SOLANA_WS_URL=$SOLANA_WS_URL RUST_LOG=info ENABLE_SETTLEMENT_PROCESSOR=true $PROJECT_ROOT/gridtokenx-trading-service/target/debug/trading-service > $PROJECT_ROOT/scripts/logs/trading.log 2>&1" \
+        "DATABASE_URL=$TRADING_DATABASE_URL REDIS_URL=$REDIS_URL SOLANA_RPC_URL=$SOLANA_RPC_URL SOLANA_WS_URL=$SOLANA_WS_URL RUST_LOG=info ENABLE_SETTLEMENT_PROCESSOR=true CHAIN_BRIDGE_CLIENT_CERT=$PROJECT_ROOT/infra/certs/clients/trading-service-api.crt CHAIN_BRIDGE_CLIENT_KEY=$PROJECT_ROOT/infra/certs/clients/trading-service-api.key $PROJECT_ROOT/gridtokenx-trading-service/target/debug/trading-service > $PROJECT_ROOT/scripts/logs/trading.log 2>&1" \
         "$PROJECT_ROOT"
     wait_for_port "Trading gRPC" 8092 60
 
     # Aggregator Bridge enforces telemetry signature verification fail-CLOSED by default
     # (see above / docs). AGGREGATOR_ALLOW_UNVERIFIED_TELEMETRY=true disables it for dev.
     run_in_terminal "Aggregator Bridge" \
-        "IAM_SERVICE_URL=http://127.0.0.1:4010 GRIDTOKENX_API_KEYS=\"$GRIDTOKENX_API_KEYS\" RUST_LOG=info $PROJECT_ROOT/gridtokenx-aggregator-bridge/target/debug/gridtokenx-aggregator-bridge > $PROJECT_ROOT/scripts/logs/aggregator-bridge.log 2>&1" \
+        "IAM_SERVICE_URL=http://127.0.0.1:4010 GRIDTOKENX_API_KEYS=\"$GRIDTOKENX_API_KEYS\" RUST_LOG=info CHAIN_BRIDGE_CLIENT_CERT=$PROJECT_ROOT/infra/certs/clients/aggregator-bridge.crt CHAIN_BRIDGE_CLIENT_KEY=$PROJECT_ROOT/infra/certs/clients/aggregator-bridge.key CHAIN_BRIDGE_SERVICE_IDENTITY=spiffe://gridtokenx.th/prod/aggregator-bridge $PROJECT_ROOT/gridtokenx-aggregator-bridge/target/debug/gridtokenx-aggregator-bridge > $PROJECT_ROOT/scripts/logs/aggregator-bridge.log 2>&1" \
         "$PROJECT_ROOT"
     wait_for_port "Aggregator Bridge" 4030 30
 

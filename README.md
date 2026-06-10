@@ -177,6 +177,9 @@ cd platform
 # Copy environment configuration
 cp .env.example .env
 
+# Generate dev mTLS certs for Chain Bridge (CA + server + per-service SPIFFE client certs)
+just gen-certs
+
 # Start the unified infrastructure (PostgreSQL, Redis, Kafka, APISIX, Envoy, InfluxDB, Vault)
 ./scripts/app.sh start --docker-only
 

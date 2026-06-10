@@ -66,6 +66,26 @@ check_performance_tuning() {
     fi
 }
 
+check_mtls_certs() {
+    log_info "Checking Chain Bridge mTLS material (infra/certs/)..."
+
+    local cert_dir="$PROJECT_ROOT/infra/certs"
+    if [ ! -f "$cert_dir/ca.crt" ]; then
+        log_warn "No dev CA at $cert_dir/ca.crt — Chain Bridge will run INSECURE. Run: just gen-certs"
+        return 0
+    fi
+    if openssl x509 -in "$cert_dir/ca.crt" -checkend 2592000 >/dev/null 2>&1; then
+        log_success "Dev CA present and valid (>30 days)."
+    else
+        log_warn "Dev CA expires within 30 days. Run: just gen-certs --force"
+    fi
+    for f in server.crt server.key clients/iam-service.crt clients/trading-service-api.crt clients/aggregator-bridge.crt; do
+        if [ ! -f "$cert_dir/$f" ]; then
+            log_warn "Missing $cert_dir/$f. Run: just gen-certs"
+        fi
+    done
+}
+
 check_trading_connections() {
     log_info "Verifying Trading Service dependency connections..."
 
@@ -127,6 +147,9 @@ cmd_doctor() {
 
     echo ""
     check_performance_tuning
+
+    echo ""
+    check_mtls_certs
 
     echo ""
     check_trading_connections
