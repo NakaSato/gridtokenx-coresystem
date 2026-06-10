@@ -75,6 +75,11 @@ e2e-suite name="00_harness":
     chmod +x tests/e2e/run.sh
     bash tests/e2e/run.sh {{name}}
 
+# Generate dev mTLS CA + Chain Bridge server cert + per-SPIFFE-identity client certs into infra/certs/
+gen-certs:
+    chmod +x scripts/gen-certs.sh
+    bash scripts/gen-certs.sh
+
 # Lint docs harness: broken relative links + stale path:line citations
 lint-docs:
     python3 scripts/lint-docs.py
@@ -136,6 +141,14 @@ orb-down:
 orb-rebuild:
     docker compose build --no-cache
     docker compose up -d --force-recreate
+
+# Flag running service containers whose image predates its source (deploy drift)
+check-drift:
+    bash scripts/check-image-drift.sh
+
+# Rebuild + recreate only the service containers that are stale vs their source
+rebuild-stale:
+    bash scripts/check-image-drift.sh --fix
 
 # Clean all build artifacts
 clean-all:
