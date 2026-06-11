@@ -11,8 +11,8 @@ export API_URL="${API_URL:-http://localhost:4000}"            # orchestrator / h
 # --- Services ---
 export IAM_URL="${IAM_URL:-http://localhost:4010}"            # REST
 export IAM_GRPC="${IAM_GRPC:-localhost:5010}"
-export TRADING_URL="${TRADING_URL:-http://localhost:8093}"    # REST + settlement metrics
-export TRADING_GRPC="${TRADING_GRPC:-localhost:8092}"
+export TRADING_URL="${TRADING_URL:-http://localhost:4020}"    # REST + settlement metrics (docker host map 4020->8093)
+export TRADING_GRPC="${TRADING_GRPC:-localhost:5020}"          # docker host map 5020->8092
 export AGGREGATOR_BRIDGE_REST="${AGGREGATOR_BRIDGE_REST:-http://localhost:4030}"  # IoT gateway port (start.sh launches with IOT_GATEWAY_PORT=4030; the binary's internal 4010 default collides with IAM)
 export AGGREGATOR_BRIDGE_GRPC="${AGGREGATOR_BRIDGE_GRPC:-localhost:5030}"  # NOTE: telemetry test uses 5030
 export CHAIN_BRIDGE_GRPC="${CHAIN_BRIDGE_GRPC:-localhost:5040}"
