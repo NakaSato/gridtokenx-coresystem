@@ -25,6 +25,6 @@ fi
 # 3. End-to-end helper smoke: register+verify a throwaway user
 new_user >/dev/null 2>&1 || true; JWT="${E2E_JWT:-}"
 assert_nonempty "$JWT" "register+verify yields JWT (new_user helper)"
-assert_nonempty "${WALLET_ADDRESS:-}" "wallet provisioned on verify"
+assert_nonempty "${WALLET_ADDRESS:-}" "primary wallet linked (new_user helper)"
 
 suite_summary

@@ -110,8 +110,20 @@ def make_user(tag):
     assert v.status_code == 200, f"verify {tag} failed: {v.status_code} {v.text}"
     body = v.json()
     jwt = body.get("auth", {}).get("access_token")
+    # Since iam `8b84ccd` verify no longer provisions a custodial wallet — link a
+    # fresh keypair as primary, mirroring the real user flow.
+    wallet = body.get("wallet_address")
+    if not wallet:
+        from solders.keypair import Keypair
+        wallet = str(Keypair().pubkey())
+        lw = requests.post(f"{IAM}/api/v1/users/me/wallets",
+                           json={"wallet_address": wallet, "label": "E2E Primary",
+                                 "is_primary": True},
+                           headers={**GW, "Authorization": f"Bearer {jwt}"}, timeout=15)
+        assert lw.status_code in (200, 201), \
+            f"link primary wallet {tag} failed: {lw.status_code} {lw.text}"
     return {"jwt": jwt, "user_id": uid or _jwt_sub(jwt),
-            "wallet": body.get("wallet_address"), "username": uname}
+            "wallet": wallet, "username": uname}
 
 
 def _send_reading(meter, priv, generated, ts_ms):

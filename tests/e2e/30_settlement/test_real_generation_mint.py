@@ -214,6 +214,11 @@ def test_real_generation_mint_credits_exact_grid(new_user):
         pytest.skip("trading rejected the oracle signature (401) — bring-up mismatch: "
                     "trading's AGGREGATOR_BRIDGE_PUBLIC_KEY must equal pubkey "
                     f"{crypto.keypair_base58_pubkey(signing_key)}")
+    if r.status_code == 404:
+        pytest.skip("trading no longer exposes the external generation-mint REST API "
+                    "(removed in trading-service 63f59d2, Phase 5a — mint flow moved to "
+                    "aggregator-bridge UTT Path B via signed NATS envelopes to Chain Bridge). "
+                    "This test needs a rewrite against the new flow.")
     assert r.status_code == 200, f"batch gen-mint failed: {r.status_code} {r.text}"
     resp = r.json()
     assert resp.get("success") is True, f"batch not success: {resp}"

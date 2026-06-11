@@ -39,6 +39,9 @@ register_user() {
 
 # verify_user <user_id> — pulls real token from DB, hits /auth/verify.
 # Echoes JWT (.auth.access_token). Sets VERIFY_RESP, WALLET_ADDRESS. Needs lib/db.sh sourced.
+# Since iam `8b84ccd` verify no longer provisions a custodial wallet — the user links
+# their own primary wallet afterwards. Mirror that: generate a keypair and link it as
+# primary, so WALLET_ADDRESS stays populated for downstream cases (onboard needs it).
 verify_user() {
     local uid="$1" token
     token=$(db_verify_token "$uid")
@@ -46,7 +49,34 @@ verify_user() {
     VERIFY_RESP=$(http_json GET "$IAM_URL/api/v1/auth/verify" "" --get --data-urlencode "token=$token")
     WALLET_ADDRESS=$(echo "$VERIFY_RESP" | jq -r '.wallet_address // empty')
     E2E_JWT=$(echo "$VERIFY_RESP" | jq -r '.auth.access_token // empty')
+    if [ -z "$WALLET_ADDRESS" ] && [ -n "$E2E_JWT" ]; then
+        local pk
+        pk=$(gen_pubkey)
+        if [ -n "$pk" ]; then
+            local lw
+            lw=$(auth_json POST "$IAM_URL/api/v1/users/me/wallets" "$E2E_JWT" \
+                "{\"wallet_address\":\"$pk\",\"label\":\"E2E Primary\",\"is_primary\":true}")
+            case "$(hs)" in
+                200|201) WALLET_ADDRESS="$pk" ;;
+                *) log_warn "primary wallet link failed [$(hs)]: $lw" ;;
+            esac
+        else
+            log_warn "no keypair generator available (solana-keygen/solders) — WALLET_ADDRESS stays empty"
+        fi
+    fi
     echo "$E2E_JWT"
+}
+
+# gen_pubkey — echoes a fresh ed25519 base58 pubkey (solana-keygen, else venv solders).
+gen_pubkey() {
+    if command -v solana-keygen >/dev/null 2>&1; then
+        local kf; kf=$(mktemp -u).json
+        solana-keygen new --no-bip39-passphrase --silent -o "$kf" >/dev/null 2>&1 &&
+            solana-keygen pubkey "$kf" 2>/dev/null
+        rm -f "$kf"
+    else
+        python3 -c 'from solders.keypair import Keypair; print(Keypair().pubkey())' 2>/dev/null
+    fi
 }
 
 # login <username> <password> — echoes JWT or empty. Sets LOGIN_RESP.

@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "proto"))
 IAM_URL = os.getenv("IAM_URL", "http://localhost:4010")
 E2E_RUN_ID = os.getenv("E2E_RUN_ID", str(int(time.time())))
 E2E_PASSWORD = os.getenv("E2E_PASSWORD", "GRX-Secure-P@ss-2026-E2E")
+GATEWAY_SECRET = os.getenv("GATEWAY_SECRET", "gridtokenx-gateway-secret-2025")
 
 
 @pytest.fixture(scope="session")
@@ -49,12 +50,31 @@ def _register_and_verify():
     assert v.status_code == 200, f"verify failed: {v.status_code} {v.text}"
     body = v.json()
     jwt = body.get("auth", {}).get("access_token")
+    # Since iam `8b84ccd` verify no longer provisions a custodial wallet — the user
+    # links their own primary wallet afterwards. Mirror that flow: generate a fresh
+    # keypair and link it as primary so downstream suites (onboard, settlement,
+    # golden path) have a wallet to work with.
+    wallet = body.get("wallet_address")
+    if not wallet:
+        from solders.keypair import Keypair
+        wallet = str(Keypair().pubkey())
+        lw = requests.post(
+            f"{IAM_URL}/api/v1/users/me/wallets",
+            json={"wallet_address": wallet, "label": "E2E Primary", "is_primary": True},
+            headers={
+                "Authorization": f"Bearer {jwt}",
+                "x-gridtokenx-role": "api-gateway",
+                "x-gridtokenx-gateway-secret": GATEWAY_SECRET,
+            },
+            timeout=15,
+        )
+        assert lw.status_code in (200, 201), f"link primary wallet failed: {lw.status_code} {lw.text}"
     return {
         "jwt": jwt,
         "user_id": _jwt_sub(jwt),
         "username": username,
         "email": email,
-        "wallet": body.get("wallet_address"),
+        "wallet": wallet,
     }
 
 

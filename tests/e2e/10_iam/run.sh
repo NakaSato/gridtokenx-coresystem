@@ -16,7 +16,7 @@ new_user >/dev/null; JWT="$E2E_JWT"
 assert_nonempty "$E2E_USER_ID" "register returns user id"
 assert_contains "$(echo "$REG_RESP" | jq -r '.message // empty')" "verify" "register prompts email verification"
 assert_nonempty "$JWT" "verify yields access_token"
-assert_nonempty "${WALLET_ADDRESS:-}" "wallet_address provisioned on verify"
+assert_nonempty "${WALLET_ADDRESS:-}" "primary wallet linked post-verify (verify no longer provisions one — iam 8b84ccd)"
 assert_eq "$(echo "$VERIFY_RESP" | jq -r '.success')" "true" "verify success=true"
 
 # --- Case 2: Login happy path -------------------------------------------

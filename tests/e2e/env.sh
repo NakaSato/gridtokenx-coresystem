@@ -13,10 +13,10 @@ export IAM_URL="${IAM_URL:-http://localhost:4010}"            # REST
 export IAM_GRPC="${IAM_GRPC:-localhost:5010}"
 export TRADING_URL="${TRADING_URL:-http://localhost:8093}"    # REST + settlement metrics
 export TRADING_GRPC="${TRADING_GRPC:-localhost:8092}"
-export AGGREGATOR_BRIDGE_REST="${AGGREGATOR_BRIDGE_REST:-http://localhost:4010}"  # IoT gateway port (IOT_GATEWAY_PORT)
+export AGGREGATOR_BRIDGE_REST="${AGGREGATOR_BRIDGE_REST:-http://localhost:4030}"  # IoT gateway port (start.sh launches with IOT_GATEWAY_PORT=4030; the binary's internal 4010 default collides with IAM)
 export AGGREGATOR_BRIDGE_GRPC="${AGGREGATOR_BRIDGE_GRPC:-localhost:5030}"  # NOTE: telemetry test uses 5030
 export CHAIN_BRIDGE_GRPC="${CHAIN_BRIDGE_GRPC:-localhost:5040}"
-export NOTI_GRPC="${NOTI_GRPC:-localhost:5050}"
+export NOTI_GRPC="${NOTI_GRPC:-localhost:5060}"  # docker-compose publishes noti ConnectRPC at host 5060 (container 8090)
 export SIMULATOR_URL="${SIMULATOR_URL:-http://localhost:12010}"
 
 # --- Infra ---
