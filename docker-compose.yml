@@ -517,6 +517,9 @@ services:
       CHAIN_BRIDGE_TLS_CERT: /app/infra/certs/server.crt
       CHAIN_BRIDGE_TLS_KEY: /app/infra/certs/server.key
       CHAIN_BRIDGE_TLS_CA: /app/infra/certs/ca.crt
+      # Reject NATS envelopes without a valid mTLS-key signature. Default
+      # false = log-only rollout; flip to true once nats_auth_unsigned is zero.
+      CHAIN_BRIDGE_REQUIRE_SIGNED_NATS: "${CHAIN_BRIDGE_REQUIRE_SIGNED_NATS:-false}"
       SOLANA_RPC_URL: ${DOCKER_SOLANA_RPC_URL:-http://host.docker.internal:8899}
       NATS_URL: ${NATS_URL:-nats://nats:4222}
       VAULT_ADDR: http://vault:8200
