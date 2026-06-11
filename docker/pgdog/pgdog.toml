@@ -1,0 +1,45 @@
+# PgDog — connection pooler / load balancer for PostgreSQL (https://docs.pgdog.dev)
+# Runs alongside PgBouncer; services can opt in by pointing DATABASE_URL at
+# pgdog (container port 6432, host port ${PGDOG_PORT:-7003}).
+
+[general]
+host = "0.0.0.0"
+port = 6432
+pooler_mode = "transaction"
+default_pool_size = 20
+min_pool_size = 5
+# HTTP healthcheck endpoint (used by the compose healthcheck).
+healthcheck_port = 9000
+# Prometheus/OpenMetrics endpoint.
+openmetrics_port = 9090
+# Read/write split across primary + replica entries below. Conservative
+# strategy only routes statements PgDog can prove are read-only.
+load_balancing_strategy = "least_active_connections"
+read_write_strategy = "conservative"
+read_write_split = "include_primary"
+
+[[databases]]
+name = "gridtokenx"
+host = "postgres"
+port = 5432
+role = "primary"
+
+[[databases]]
+name = "gridtokenx"
+host = "postgres-replica"
+port = 5432
+role = "replica"
+read_only = true
+
+[[databases]]
+name = "gridtokenx_noti"
+host = "postgres"
+port = 5432
+role = "primary"
+
+[[databases]]
+name = "gridtokenx_noti"
+host = "postgres-replica"
+port = 5432
+role = "replica"
+read_only = true

@@ -100,6 +100,30 @@ services:
       timeout: 5s
       retries: 5
 
+  # PgDog - Rust connection pooler / load balancer / sharder (https://docs.pgdog.dev)
+  # Runs alongside PgBouncer; opt a service in by pointing its DATABASE_URL at
+  # pgdog:6432 (host: localhost:${PGDOG_PORT:-7003}).
+  pgdog:
+    image: ghcr.io/pgdogdev/pgdog:main
+    container_name: gridtokenx-pgdog
+    command: ["pgdog", "--config", "/etc/pgdog/pgdog.toml", "--users", "/etc/pgdog/users.toml"]
+    volumes:
+      - ./docker/pgdog/pgdog.toml:/etc/pgdog/pgdog.toml:ro
+      - ./docker/pgdog/users.toml:/etc/pgdog/users.toml:ro
+    ports:
+      - "${PGDOG_PORT:-7003}:6432"
+    networks:
+      - gridtokenx-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:9000/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   # PostgreSQL Database for API (Replica)
   postgres-replica:
     image: postgres:17-alpine
@@ -701,6 +725,9 @@ services:
       - "${GRPC_PORT:-50051}:50051" # gRPC ingestion (smart meter simulator)
     environment:
       RUST_LOG: debug,librdkafka=warn
+      # Container defaults GRPC_PORT=5030; pin to 50051 so the host port mapping
+      # above actually reaches the gRPC ingestion listener.
+      GRPC_PORT: 50051
       REDIS_URL: redis://redis:6379
       KAFKA_CMD_BROKERS: kafka-cmd:9001
       KAFKA_MARKET_BROKERS: kafka-market:9002
