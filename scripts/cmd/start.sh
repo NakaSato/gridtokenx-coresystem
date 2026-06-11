@@ -43,19 +43,29 @@ start_blockchain_services() {
 
     # Fund wallets
     log_info "Funding wallets..."
-    solana airdrop 10 $(solana address) --url "$RPC_URL" 2>/dev/null || true
+
+    # Resolve dev wallet path: env override > repo file > freshly generated.
+    # common.sh leaves DEV_WALLET empty by default, so anchor it here before use.
+    : "${DEV_WALLET:=$PROJECT_ROOT/dev-wallet.json}"
 
     if [ ! -f "$DEV_WALLET" ]; then
-        if [ -f "$PROJECT_ROOT/dev-wallet.json" ]; then
+        if [ -f "$PROJECT_ROOT/dev-wallet.json" ] \
+           && [ "$PROJECT_ROOT/dev-wallet.json" != "$DEV_WALLET" ]; then
             cp "$PROJECT_ROOT/dev-wallet.json" "$DEV_WALLET"
         else
             solana-keygen new --no-bip39-passphrase --outfile "$DEV_WALLET" 2>/dev/null
         fi
     fi
 
-    local dev_pubkey=$(solana-keygen pubkey "$DEV_WALLET")
-    solana airdrop 100 "$dev_pubkey" --url "$RPC_URL" 2>/dev/null || true
-    log_success "Wallets funded"
+    # Guard pubkey + airdrops: a missing/unfunded signer must not abort start (set -e).
+    local dev_pubkey
+    dev_pubkey=$(solana-keygen pubkey "$DEV_WALLET" 2>/dev/null || echo "")
+    if [ -n "$dev_pubkey" ]; then
+        solana airdrop 100 "$dev_pubkey" --url "$RPC_URL" 2>/dev/null || true
+        log_success "Wallets funded ($dev_pubkey)"
+    else
+        log_warn "Could not resolve dev wallet pubkey ($DEV_WALLET); skipping airdrop"
+    fi
 
     # Initialize blockchain
     cmd_init
