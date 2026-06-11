@@ -221,7 +221,7 @@ routes:
     upstream:
       type: roundrobin
       nodes:
-        "smartmeter-simulator:8080": 1
+        "smartmeter-simulator:8082": 1
         "host.docker.internal:12010": 1
 
   - id: 5 # Smart Meter Simulator - Meters (Public)
@@ -235,7 +235,7 @@ routes:
     upstream:
       type: roundrobin
       nodes:
-        "smartmeter-simulator:8080": 1
+        "smartmeter-simulator:8082": 1
         "host.docker.internal:12010": 1
 
   - id: 9 # Smart Meter Simulator - WebSocket (Public)
@@ -249,7 +249,7 @@ routes:
     upstream:
       type: roundrobin
       nodes:
-        "smartmeter-simulator:8080": 1
+        "smartmeter-simulator:8082": 1
         "host.docker.internal:12010": 1
 
   - id: 8 # Health & Metrics
@@ -289,7 +289,7 @@ routes:
     upstream:
       type: roundrobin
       nodes:
-        "smartmeter-simulator:8080": 1
+        "smartmeter-simulator:8082": 1
         "host.docker.internal:12010": 1
 
   - id: 41 # Smart Meter Simulator - Meters Admin/Direct
@@ -301,7 +301,7 @@ routes:
     upstream:
       type: roundrobin
       nodes:
-        "smartmeter-simulator:8080": 1
+        "smartmeter-simulator:8082": 1
         "host.docker.internal:12010": 1
 
   - id: 42 # Smart Meter Simulator - Microgrid endpoints
@@ -316,7 +316,7 @@ routes:
     upstream:
       type: roundrobin
       nodes:
-        "smartmeter-simulator:8080": 1
+        "smartmeter-simulator:8082": 1
         "host.docker.internal:12010": 1
 
   - id: 50 # Solana JSON-RPC proxy (browser web3.js reads/writes)
