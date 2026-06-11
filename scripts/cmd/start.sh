@@ -164,8 +164,10 @@ _start_native_services() {
     # Aggregator Bridge enforces Ed25519 telemetry signature verification fail-CLOSED by
     # default (rejects tampered/unknown/wrong-key); set AGGREGATOR_ALLOW_UNVERIFIED_TELEMETRY=true
     # only to disable it in trusted dev. See docs/E2E_IMPL_PLAN.md.
+    # IAM_SERVICE_URL is the IAM *gRPC* endpoint (:5010) — the settlement engine resolves
+    # user wallets through it; pointing it at the REST port breaks generation mints.
     run_in_background "Aggregator Bridge" \
-        "IAM_SERVICE_URL=http://127.0.0.1:4010 GRIDTOKENX_API_KEYS=\"$GRIDTOKENX_API_KEYS\" RUST_LOG=info CHAIN_BRIDGE_CLIENT_CERT=$PROJECT_ROOT/infra/certs/clients/aggregator-bridge.crt CHAIN_BRIDGE_CLIENT_KEY=$PROJECT_ROOT/infra/certs/clients/aggregator-bridge.key CHAIN_BRIDGE_SERVICE_IDENTITY=spiffe://gridtokenx.th/prod/aggregator-bridge $PROJECT_ROOT/gridtokenx-aggregator-bridge/target/debug/gridtokenx-aggregator-bridge" \
+        "IAM_SERVICE_URL=http://127.0.0.1:5010 GRIDTOKENX_API_KEYS=\"$GRIDTOKENX_API_KEYS\" RUST_LOG=info MINT_VIA_CHAIN_BRIDGE=${MINT_VIA_CHAIN_BRIDGE:-true} NATS_URL=${NATS_URL:-nats://localhost:9020} CHAIN_BRIDGE_URL=${CHAIN_BRIDGE_URL:-http://localhost:5040} CHAIN_BRIDGE_CLIENT_CERT=$PROJECT_ROOT/infra/certs/clients/aggregator-bridge.crt CHAIN_BRIDGE_CLIENT_KEY=$PROJECT_ROOT/infra/certs/clients/aggregator-bridge.key CHAIN_BRIDGE_SERVICE_IDENTITY=spiffe://gridtokenx.th/prod/aggregator-bridge $PROJECT_ROOT/gridtokenx-aggregator-bridge/target/debug/gridtokenx-aggregator-bridge" \
         "$PROJECT_ROOT" \
         "$PROJECT_ROOT/scripts/logs/aggregator-bridge.log"
     wait_for_port "Aggregator Bridge" 4030 30
@@ -204,7 +206,7 @@ _start_terminal_services() {
     # Aggregator Bridge enforces telemetry signature verification fail-CLOSED by default
     # (see above / docs). AGGREGATOR_ALLOW_UNVERIFIED_TELEMETRY=true disables it for dev.
     run_in_terminal "Aggregator Bridge" \
-        "IAM_SERVICE_URL=http://127.0.0.1:4010 GRIDTOKENX_API_KEYS=\"$GRIDTOKENX_API_KEYS\" RUST_LOG=info CHAIN_BRIDGE_CLIENT_CERT=$PROJECT_ROOT/infra/certs/clients/aggregator-bridge.crt CHAIN_BRIDGE_CLIENT_KEY=$PROJECT_ROOT/infra/certs/clients/aggregator-bridge.key CHAIN_BRIDGE_SERVICE_IDENTITY=spiffe://gridtokenx.th/prod/aggregator-bridge $PROJECT_ROOT/gridtokenx-aggregator-bridge/target/debug/gridtokenx-aggregator-bridge > $PROJECT_ROOT/scripts/logs/aggregator-bridge.log 2>&1" \
+        "IAM_SERVICE_URL=http://127.0.0.1:5010 GRIDTOKENX_API_KEYS=\"$GRIDTOKENX_API_KEYS\" RUST_LOG=info MINT_VIA_CHAIN_BRIDGE=${MINT_VIA_CHAIN_BRIDGE:-true} NATS_URL=${NATS_URL:-nats://localhost:9020} CHAIN_BRIDGE_URL=${CHAIN_BRIDGE_URL:-http://localhost:5040} CHAIN_BRIDGE_CLIENT_CERT=$PROJECT_ROOT/infra/certs/clients/aggregator-bridge.crt CHAIN_BRIDGE_CLIENT_KEY=$PROJECT_ROOT/infra/certs/clients/aggregator-bridge.key CHAIN_BRIDGE_SERVICE_IDENTITY=spiffe://gridtokenx.th/prod/aggregator-bridge $PROJECT_ROOT/gridtokenx-aggregator-bridge/target/debug/gridtokenx-aggregator-bridge > $PROJECT_ROOT/scripts/logs/aggregator-bridge.log 2>&1" \
         "$PROJECT_ROOT"
     wait_for_port "Aggregator Bridge" 4030 30
 
