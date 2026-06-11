@@ -139,6 +139,7 @@ docker-compose.override.yml
 # Backups
 backups/
 *.sql
+!scripts/openleadr-vtn/*.sql
 *.dump
 
 # Testing

@@ -800,6 +800,9 @@ services:
       SMTP_FROM: noreply@gridtokenx.com
       EMAIL_FROM_NAME: GridTokenX
       EMAIL_FROM_ADDRESS: noreply@gridtokenx.com
+      # Base URL for links in outbound emails (verify, password reset).
+      # Must be reachable from the recipient's browser — the trading UI host port.
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:${TRADING_UI_PORT:-11001}}
       CERT_FILE: /app/infra/certs/server.crt
       KEY_FILE: /app/infra/certs/server.key
     volumes:
@@ -1141,6 +1144,74 @@ services:
       timeout: 5s
       retries: 5
 
+  # OpenADR 3 VTN (openleadr-rs) — local demand-response test target for the
+  # Aggregator Bridge's "openleadr" dispatch adapter (OPENLEADR_VTN_URL).
+  # Built from the upstream tag matching the openleadr-client/-wire crate
+  # versions pinned in gridtokenx-aggregator-bridge (0.2.3).
+  openleadr-vtn:
+    build:
+      context: https://github.com/OpenLEADR/openleadr-rs.git#v0.2.3
+      dockerfile: vtn.Dockerfile
+    container_name: gridtokenx-openleadr-vtn
+    ports:
+      - "${OPENLEADR_VTN_PORT:-4030}:3000"
+    environment:
+      RUST_LOG: openleadr_vtn=info
+      # Internal OAuth provider; URL is container-internal (port 3000).
+      OAUTH_TOKEN_URL: http://localhost:3000/auth/token
+      DATABASE_URL: postgres://openadr:openadr@openleadr-vtn-db:5432/openadr
+    networks:
+      - gridtokenx-network
+    depends_on:
+      openleadr-vtn-db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  openleadr-vtn-db:
+    image: postgres:17-alpine
+    container_name: gridtokenx-openleadr-vtn-db
+    environment:
+      POSTGRES_USER: openadr
+      POSTGRES_DB: openadr
+      POSTGRES_PASSWORD: openadr
+      TZ: ${TZ}
+    ports:
+      - "${OPENLEADR_PG_PORT:-7030}:5432"
+    networks:
+      - gridtokenx-network
+    volumes:
+      - openleadr_vtn_db_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openadr"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # One-shot seeder: waits for the VTN to run its own migrations on boot, then
+  # inserts the default dev OAuth clients (bl-client / ven-client) idempotently.
+  openleadr-vtn-seed:
+    image: postgres:17-alpine
+    container_name: gridtokenx-openleadr-vtn-seed
+    environment:
+      PGPASSWORD: openadr
+    volumes:
+      - ./scripts/openleadr-vtn/seed-users.sql:/seed-users.sql:ro
+    networks:
+      - gridtokenx-network
+    depends_on:
+      openleadr-vtn:
+        condition: service_started
+    entrypoint: >-
+      sh -c 'i=0;
+      until psql -h openleadr-vtn-db -U openadr -d openadr -c "select 1 from \"user\" limit 1" >/dev/null 2>&1; do
+        i=$$((i+1));
+        if [ $$i -ge 60 ]; then echo "VTN migrations never appeared" >&2; exit 1; fi;
+        sleep 2;
+      done;
+      psql -h openleadr-vtn-db -U openadr -d openadr -v ON_ERROR_STOP=1 -f /seed-users.sql'
+    restart: "no"
+
 networks:
   gridtokenx-network:
     driver: bridge
@@ -1168,3 +1239,4 @@ volumes:
   minio_data:
   prometheus_data:
   grafana_data:
+  openleadr_vtn_db_data:
