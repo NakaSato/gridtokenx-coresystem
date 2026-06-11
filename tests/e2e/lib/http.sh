@@ -44,6 +44,16 @@ register_user() {
 # primary, so WALLET_ADDRESS stays populated for downstream cases (onboard needs it).
 verify_user() {
     local uid="$1" token
+    if ! command -v db_verify_token >/dev/null 2>&1; then
+        # db_verify_token lives in lib/db.sh — auto-source it so a manual
+        # `source lib/http.sh` session doesn't half-register users.
+        local _libdir; _libdir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        [ -f "$_libdir/db.sh" ] && source "$_libdir/db.sh"
+        command -v db_verify_token >/dev/null 2>&1 || {
+            echo "verify_user: db_verify_token missing — source lib/db.sh before lib/http.sh" >&2
+            return 1
+        }
+    fi
     token=$(db_verify_token "$uid")
     [ -n "$token" ] || { echo ""; return 1; }
     VERIFY_RESP=$(http_json GET "$IAM_URL/api/v1/auth/verify" "" --get --data-urlencode "token=$token")
@@ -86,19 +96,20 @@ login() {
     echo "$LOGIN_RESP" | jq -r '.auth.access_token // .access_token // empty'
 }
 
-# onboard_user <jwt> <user_type> — POST /users/me/onchain-profile. Echoes body, sets HTTP_STATUS.
+# onboard_user <jwt> <user_type> — POST /users/me/onchain-profile. Echoes body; status via `hs`
+# ($HTTP_STATUS is lost when callers wrap this in `$(...)`).
 onboard_user() {
     auth_json POST "$IAM_URL/api/v1/users/me/onchain-profile" "$1" \
         "{\"user_type\":\"${2:-prosumer}\",\"location\":{\"lat_e7\":13756300,\"long_e7\":100501800}}"
 }
 
-# link_wallet <jwt> <wallet_address> — POST /users/me/wallets. Echoes body, sets HTTP_STATUS.
+# link_wallet <jwt> <wallet_address> — POST /users/me/wallets. Echoes body; status via `hs`.
 link_wallet() {
     auth_json POST "$IAM_URL/api/v1/users/me/wallets" "$1" \
         "{\"wallet_address\":\"$2\",\"label\":\"E2E Secondary\",\"is_primary\":false}"
 }
 
-# get_me <jwt> — GET /users/me. Echoes body, sets HTTP_STATUS.
+# get_me <jwt> — GET /users/me. Echoes body; status via `hs`.
 get_me() { auth_json GET "$IAM_URL/api/v1/users/me" "$1"; }
 
 # new_user — full register+verify, echoes JWT.
@@ -112,6 +123,7 @@ new_user() {
     export E2E_USER_ID="${REG_USER_ID:-}"
     [ -n "$E2E_USER_ID" ] || die "register failed for $E2E_USERNAME: ${REG_RESP:-}"
     verify_user "$E2E_USER_ID" >/dev/null                   # sets VERIFY_RESP, WALLET_ADDRESS, E2E_JWT
+    [ -n "${E2E_JWT:-}" ] || die "verify failed for $E2E_USER_ID: ${VERIFY_RESP:-no response}"
     export E2E_JWT WALLET_ADDRESS REG_RESP VERIFY_RESP
     echo "$E2E_JWT"
 }
