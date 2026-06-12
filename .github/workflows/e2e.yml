@@ -133,3 +133,35 @@ jobs:
           path: tests/e2e/artifacts/
           retention-days: 14
           if-no-files-found: ignore
+
+  # --------------------------------------------------------------------- #
+  # OpenADR dispatch loop — manual dispatch or nightly, much lighter than #
+  # the full stack: redis + kafka + the openleadr-rs VTN + a debug bridge.#
+  # Asserts telemetry -> frequency window -> Kafka -> dispatch -> VTN     #
+  # event -> VEN execution -> execution report.                           #
+  # --------------------------------------------------------------------- #
+  openadr:
+    name: openadr-dispatch-loop
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: gridtokenx-aggregator-bridge
+
+      - name: Run OpenADR e2e
+        run: bash scripts/openleadr-e2e.sh
+
+      - name: Container logs on failure
+        if: failure()
+        run: |
+          docker ps -a || true
+          docker logs gridtokenx-openleadr-vtn 2>&1 | tail -50 || true
+          docker logs gridtokenx-openleadr-vtn-seed 2>&1 | tail -20 || true
