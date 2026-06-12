@@ -36,6 +36,9 @@ cleanup() {
     kill "$BRIDGE_PID" 2>/dev/null || true
     wait "$BRIDGE_PID" 2>/dev/null || true
   fi
+  # The bridge is exec'd inside a subshell; killing the subshell can orphan the
+  # binary itself. Sweep it by name so reruns don't inherit a stale listener.
+  pkill -f "target/debug/gridtokenx-aggregator-bridge" 2>/dev/null || true
   if [[ "$CONTAINER_WAS_RUNNING" == 1 ]]; then
     log "restoring gridtokenx-aggregator-bridge container"
     docker start gridtokenx-aggregator-bridge >/dev/null 2>&1 || true
@@ -52,6 +55,11 @@ vtn_token() {
 
 vtn_event_count() {
   curl -sf "$VTN_URL/events" -H "Authorization: Bearer $1" \
+    | python3 -c "import sys,json;print(len(json.load(sys.stdin)))"
+}
+
+vtn_report_count() {
+  curl -sf "$VTN_URL/reports" -H "Authorization: Bearer $1" \
     | python3 -c "import sys,json;print(len(json.load(sys.stdin)))"
 }
 
@@ -77,6 +85,10 @@ if docker ps --format '{{.Names}}' | grep -q '^gridtokenx-aggregator-bridge$'; t
   log "stopping gridtokenx-aggregator-bridge container for the test (will restore)"
   docker stop gridtokenx-aggregator-bridge >/dev/null
 fi
+
+# A stale test bridge from an aborted run would hold the port (and its dispatch
+# cooldown would suppress the event this test asserts on).
+pkill -f "target/debug/gridtokenx-aggregator-bridge" 2>/dev/null || true
 
 log "building bridge (debug)"
 (cd "$BRIDGE_DIR" && cargo build --quiet)
@@ -109,7 +121,8 @@ curl -sf -o /dev/null "http://localhost:${HTTP_PORT}/health" || fail "bridge nev
 
 # --- 3. drive the loop -------------------------------------------------------
 EVENTS_BEFORE=$(vtn_event_count "$TOKEN")
-log "VTN has $EVENTS_BEFORE events; ingesting low-frequency telemetry"
+REPORTS_BEFORE=$(vtn_report_count "$TOKEN")
+log "VTN has $EVENTS_BEFORE events / $REPORTS_BEFORE reports; ingesting low-frequency telemetry"
 
 # Backdated 20 min so the 15-minute aggregation bin is already complete
 # (dispatch refuses to fire with zero capacity).
@@ -139,4 +152,14 @@ done
 (( VEN_OK == 1 )) || { tail -20 "$BRIDGE_LOG" >&2; fail "VEN listener never executed the event"; }
 log "VEN side OK: event consumed and executed"
 
-printf '\033[1;32m[e2e] PASS:\033[0m telemetry -> frequency window -> Kafka -> dispatch -> VTN event -> VEN execution\n'
+log "waiting for the VEN execution report on the VTN (max 30s)"
+REPORT_OK=0
+for _ in $(seq 1 15); do
+  RCOUNT=$(vtn_report_count "$TOKEN" 2>/dev/null || echo "$REPORTS_BEFORE")
+  if (( RCOUNT > REPORTS_BEFORE )); then REPORT_OK=1; break; fi
+  sleep 2
+done
+(( REPORT_OK == 1 )) || { tail -20 "$BRIDGE_LOG" >&2; fail "no execution report appeared on the VTN"; }
+log "report OK: execution report posted ($REPORTS_BEFORE -> $RCOUNT)"
+
+printf '\033[1;32m[e2e] PASS:\033[0m telemetry -> frequency window -> Kafka -> dispatch -> VTN event -> VEN execution -> report\n'
