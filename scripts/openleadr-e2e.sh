@@ -24,7 +24,7 @@ HTTP_PORT=${E2E_BRIDGE_PORT:-4011}
 GRPC_PORT=${E2E_BRIDGE_GRPC_PORT:-5031}
 API_KEY="e2e-test-key"
 TOPIC="gridtokenx.aggregator.grid_status"
-BRIDGE_LOG=$(mktemp -t openleadr-e2e-bridge)
+BRIDGE_LOG=$(mktemp "${TMPDIR:-/tmp}/openleadr-e2e-bridge.XXXXXX")
 BRIDGE_PID=""
 CONTAINER_WAS_RUNNING=0
 
