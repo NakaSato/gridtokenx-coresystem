@@ -1154,7 +1154,7 @@ services:
       dockerfile: vtn.Dockerfile
     container_name: gridtokenx-openleadr-vtn
     ports:
-      - "${OPENLEADR_VTN_PORT:-4030}:3000"
+      - "${OPENLEADR_VTN_PORT:-4031}:3000"
     environment:
       RUST_LOG: openleadr_vtn=info
       # Internal OAuth provider; URL is container-internal (port 3000).
