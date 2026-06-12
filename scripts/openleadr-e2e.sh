@@ -63,6 +63,12 @@ vtn_report_count() {
     | python3 -c "import sys,json;print(len(json.load(sys.stdin)))"
 }
 
+vtn_ven_count_named() {
+  # $1 token, $2 venName
+  curl -sf "$VTN_URL/vens" -H "Authorization: Bearer $1" \
+    | python3 -c "import sys,json;print(sum(1 for v in json.load(sys.stdin) if v.get('venName')=='$2'))"
+}
+
 # --- 1. infrastructure -------------------------------------------------------
 log "starting infra (redis, kafka-cmd, VTN + db + seed)"
 (cd "$ROOT" && docker compose up -d redis kafka-cmd openleadr-vtn-db openleadr-vtn openleadr-vtn-seed >/dev/null)
@@ -110,6 +116,7 @@ log "starting test bridge on :$HTTP_PORT (log: $BRIDGE_LOG)"
     OPENLEADR_VEN_CLIENT_ID=ven-client-client-id \
     OPENLEADR_VEN_CLIENT_SECRET=ven-client \
     OPENLEADR_VEN_POLL_SECS=5 \
+    OPENLEADR_VEN_REPORTS=true \
     ./target/debug/gridtokenx-aggregator-bridge >"$BRIDGE_LOG" 2>&1
 ) &
 BRIDGE_PID=$!
@@ -118,6 +125,21 @@ for _ in $(seq 1 60); do
   curl -sf -o /dev/null "http://localhost:${HTTP_PORT}/health" && break || sleep 1
 done
 curl -sf -o /dev/null "http://localhost:${HTTP_PORT}/health" || fail "bridge never became healthy (see $BRIDGE_LOG)"
+
+# --- 2b. VEN self-registration ----------------------------------------------
+# The listener self-registers a VEN object on the VTN at startup. Assert it
+# appears (the listener polls/registers within a couple of seconds of boot).
+VEN_NAME="gridtokenx-aggregator-bridge"
+log "waiting for VEN self-registration on the VTN (max 20s)"
+REG_OK=0
+for _ in $(seq 1 10); do
+  if [[ "$(vtn_ven_count_named "$TOKEN" "$VEN_NAME" 2>/dev/null || echo 0)" -ge 1 ]]; then
+    REG_OK=1; break
+  fi
+  sleep 2
+done
+(( REG_OK == 1 )) || { tail -20 "$BRIDGE_LOG" >&2; fail "VEN '$VEN_NAME' never self-registered on the VTN"; }
+log "VEN self-registration OK: '$VEN_NAME' present on the VTN"
 
 # --- 3. drive the loop -------------------------------------------------------
 EVENTS_BEFORE=$(vtn_event_count "$TOKEN")
