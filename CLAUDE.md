@@ -3,7 +3,7 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 > Also auto-read by other LLM coding assistants.
-> Last reviewed: 2026-06-07
+> Last reviewed: 2026-06-13
 
 ---
 
@@ -15,6 +15,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Each service = **independent Cargo workspace** — no root `Cargo.toml`. Don't `cargo` from repo root; `cd` into the service first.
 - IAM Service = **modular monolith** with 6 sub-crates. Others: layered modules, single crate.
 - Two interconnected platforms: **Exchange** (IAM + Trading, direct blockchain) and **Infrastructure** (Aggregator Bridge + edge, produces validated telemetry). Gateways: **APISIX** (`:4001`, user-facing) and **Envoy** (`:4002`, IoT/mTLS edge); **API orchestrator** at `:4000`.
+- **Not every submodule is a Rust backend.** `gridtokenx-trading-service` (Rust, `crates/`) = the matching/settlement backend; `gridtokenx-trading` (Next.js, `app/`) = its **Trading UI frontend** — different repos, easy to confuse. `gridtokenx-explorer` (Next.js) = block/chain explorer frontend. `gridtokenx-wasm` = Rust→WASM client crate. `gridtokenx-telemetry` is a **plain dir, not a submodule** (Rust crate, no `.gitmodules` entry). `infra/` (untracked) holds local-dev assets: `aggregator-bridge/`, `certs/`, `solana/`.
 
 ---
 
@@ -72,6 +73,11 @@ just migrate            # Run sqlx migrations (IAM Service)
 just migrate-new name:X # Create new migration
 just migrate-revert     # Revert last migration
 just migrate-info       # Show migration status
+
+# Notification Service has its OWN migrations (separate DB schema)
+just noti-migrate       # Run sqlx migrations (gridtokenx-noti-service)
+just noti-migrate-revert
+just noti-migrate-info
 ```
 
 ### Docker / Infrastructure
@@ -80,6 +86,11 @@ just migrate-info       # Show migration status
 just orb-up             # Start all Docker services (OrbStack)
 just orb-down           # Stop all Docker services
 just orb-rebuild        # Rebuild all services (no cache)
+just check-drift        # Report containers stale vs their source (scripts/check-image-drift.sh)
+just rebuild-stale      # Rebuild + recreate only stale containers (--fix)
+just gen-certs          # Generate mTLS certs for Envoy edge (scripts/gen-certs.sh)
+just run-oracle         # cargo run the Aggregator Bridge locally
+just verify-conns       # Trading Service: probe Postgres/Redis/Chain-Bridge/NATS/IAM/Kafka reachability
 ./scripts/app.sh start --docker-only   # Start infrastructure only
 ./scripts/app.sh stop                  # Stop everything
 ./scripts/app.sh status                # Process status
@@ -275,6 +286,12 @@ cd gridtokenx-anchor && anchor test
 
 # Trading engine benchmarks
 just benchmark
+
+# Cross-service E2E and protocol suites (scripts/, tests/e2e/)
+just e2e                # tests/e2e/run.sh — full cross-service flow
+just test-edge          # Edge/DLMS protocol against Envoy + Aggregator Bridge
+just test-registration  # IAM registration E2E (register→verify→on-chain PDA)
+just openadr-e2e        # OpenADR / OpenLEADR VTN↔VEN demand-response flow
 ```
 
 ### Test Conventions
@@ -303,17 +320,21 @@ just benchmark
 - Wallet keys encrypted with AES-256-GCM. `ENCRYPTION_SECRET` must be 32+ chars.
 - On-chain registration creates PDA via Registry program — idempotent but needs Solana validator running.
 
-### Trading Service
-- Own Cargo workspace (excluded from root due to BPF target conflicts).
+### Trading Service (`gridtokenx-trading-service`, Rust)
+- Own Cargo workspace (excluded from root due to BPF target conflicts). Code under `crates/`.
 - Matching engine in `src/domain/` — CDA (Continuous Double Auction) algorithm.
 - Settlement through Chain Bridge, not direct Solana RPC.
 - `src/startup/` has `ServiceBuilder` pattern for wiring deps.
+- The **Trading UI** is a separate submodule: `gridtokenx-trading` (Next.js, `app/`) — don't `cargo` there. `gridtokenx-explorer` is the explorer frontend.
+
+### Notification Service (`gridtokenx-noti-service`)
+- **Separate DB schema with its own migrations** — use `just noti-migrate*`, NOT the IAM `migrate` recipes.
+- Backs the email pipeline (register→verify→welcome). Watch the `FRONTEND_URL` env gotcha for verification links.
 
 ### Aggregator Bridge
 - Validates Ed25519 signatures from Edge Gateways. Device identity verified cryptographically.
 - 15-minute aggregation windows for energy data before settlement.
-- InfluxDB for time-series storage (not Postgres).
-- Disseminates verified readings to Redis Streams and Kafka.
+- Disseminates verified readings to **zone-partitioned Redis Streams + Kafka** (no InfluxDB — none in tree; verified no `influx` dep/client).
 
 ### Chain Bridge
 - **Only** service that directly touches Solana RPC.

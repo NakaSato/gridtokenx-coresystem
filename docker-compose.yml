@@ -541,8 +541,10 @@ services:
       CHAIN_BRIDGE_TLS_CERT: /app/infra/certs/server.crt
       CHAIN_BRIDGE_TLS_KEY: /app/infra/certs/server.key
       CHAIN_BRIDGE_TLS_CA: /app/infra/certs/ca.crt
-      # Reject NATS envelopes without a valid mTLS-key signature. Default
-      # false = log-only rollout; flip to true once nats_auth_unsigned is zero.
+      # Reject NATS envelopes without a valid mTLS-key signature. Local-dev
+      # default false = log-only (explicit escape hatch). Non-dev MUST override
+      # to true via env — set CHAIN_BRIDGE_REQUIRE_SIGNED_NATS=true once
+      # nats_auth_unsigned is zero (docs/plans/meter-to-solana-hardening.md).
       CHAIN_BRIDGE_REQUIRE_SIGNED_NATS: "${CHAIN_BRIDGE_REQUIRE_SIGNED_NATS:-false}"
       SOLANA_RPC_URL: ${DOCKER_SOLANA_RPC_URL:-http://host.docker.internal:8899}
       NATS_URL: ${NATS_URL:-nats://nats:4222}
@@ -699,6 +701,14 @@ services:
       AES_KEY_BASE64: ${AES_KEY_BASE64}
       PAYER_PRIVATE_KEY: ${PAYER_PRIVATE_KEY}
       AGGREGATOR_BRIDGE_PUBLIC_KEY: ${AGGREGATOR_BRIDGE_PUBLIC_KEY:-}
+      # Cross-service double-mint guard: aggregator-bridge owns generation issuance
+      # (MINT_VIA_CHAIN_BRIDGE=true below). Disable trading's OracleConsumer mint
+      # path so the same readings are not minted twice. See trading-service memory
+      # note "trading-mint-two-paths-double-mint".
+      ORACLE_MINT_ENABLED: "false"
+      # On-chain atomic-swap trade settlement — moves real funds; keep OFF until a
+      # funded simnet E2E validates the swap path + order-PDA lifecycle.
+      TRADE_SETTLEMENT_ENABLED: "false"
     depends_on:
       pgbouncer:
         condition: service_started
@@ -935,7 +945,10 @@ services:
       # DLMS/COSEM REST egress to the Aggregator Bridge IoT gateway. In-network
       # the bridge ingest is aggregator-bridge:4010 (host maps it to :4030).
       AGGREGATOR_BRIDGE_URL: http://aggregator-bridge:4010
-      AGGREGATOR_DLMS_ENABLED: ${SMARTMETER_DLMS_ENABLED:-false}
+      AGGREGATOR_DLMS_ENABLED: ${SMARTMETER_DLMS_ENABLED:-true}
+      # X-API-KEY for the bridge ingest endpoint; must match one of the bridge's
+      # GRIDTOKENX_API_KEYS (api_key_auth rejects unauthenticated ingest with 401).
+      AGGREGATOR_API_KEY: ${SMARTMETER_AGGREGATOR_API_KEY:-engineering-department-api-key-2025}
       # Bridge meter-pubkey registry. In-network Redis is redis:6379.
       REDIS_URL: redis://redis:6379
       # IAM onboarding (register->login->claim) via the APISIX user gateway.

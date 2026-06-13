@@ -44,6 +44,10 @@ import redis_util
 ORACLE_REST = os.getenv("AGGREGATOR_BRIDGE_REST", "http://localhost:4030")
 INGEST_URL = f"{ORACLE_REST}/v1/private-network/ingest"
 IAM_URL = os.getenv("IAM_URL", "http://localhost:4010")
+# /v1/private-network/ingest is behind api_key_auth (header X-API-KEY, IAM-verified
+# with static-key fallback). Default to the e2e static key; override per-env.
+API_KEY = os.getenv("GRIDTOKENX_API_KEY", "e2e-test-key")
+INGEST_HEADERS = {"X-API-KEY": API_KEY}
 
 GRID_DECIMALS_SCALE = 1_000_000_000  # GRID has 9 decimals (settlement_engine.rs:221)
 # 60s engine tick + NATS submit + confirmation; generous.
@@ -158,7 +162,8 @@ def test_path_b_generation_mint_credits_exact_grid(new_user):
             ts = base_ts + i * 30_000  # 30s apart, same 15-min window
             sig = crypto.sign_telemetry(priv, meter, kwh, ts)
             r = requests.post(INGEST_URL,
-                              json=_rest_payload(meter, float(kwh), ts, sig), timeout=10)
+                              json=_rest_payload(meter, float(kwh), ts, sig),
+                              headers=INGEST_HEADERS, timeout=10)
             assert r.status_code in (200, 202), \
                 f"ingest reading {i} rejected: {r.status_code} {r.text}"
             total_kwh += kwh

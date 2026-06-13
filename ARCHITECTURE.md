@@ -102,3 +102,18 @@ submodule; commit them there, then bump the pointer here.
 | Telemetry (shared lib) | [`gridtokenx-telemetry/ARCHITECTURE.md`](gridtokenx-telemetry/ARCHITECTURE.md) | Rust crate |
 | APISIX gateway (user) | [`apisix_conf/ARCHITECTURE.md`](apisix_conf/ARCHITECTURE.md) | Gateway config |
 | Envoy gateway (edge) | [`envoy_conf/ARCHITECTURE.md`](envoy_conf/ARCHITECTURE.md) | Gateway config (dev stub) |
+
+### 8.1 meter→solana settlement trace
+
+The verified end-to-end generation-mint path `smartmeter → aggregator-bridge →
+blockchain-core → chain-bridge → solana`. Hardening notes + gap closure in
+[`docs/plans/meter-to-solana-hardening.md`](docs/plans/meter-to-solana-hardening.md).
+
+| Hop | Where | What happens |
+| :--- | :--- | :--- |
+| Ingest + verify | `gridtokenx-aggregator-bridge/crates/aggregator-persistence/src/infra/crypto.rs` | Ed25519 device sig verified vs Redis pubkey; fail-closed on Redis-down. |
+| Aggregate → mint | `gridtokenx-aggregator-bridge/crates/aggregator-api/src/ingester/settlement_engine.rs:235` | 15-min bins batched into `MintRecipient`s; routed to Chain Bridge when `MINT_VIA_CHAIN_BRIDGE=true`. |
+| Path select | `gridtokenx-aggregator-bridge/src/main.rs` | Resolves `settlement_path{path="nats|grpc|http"}` gauge; warns on silent gRPC degrade (NATS_URL unset). |
+| NATS publish | `gridtokenx-blockchain-core/src/rpc.rs:205`, `gridtokenx-blockchain-core/src/rpc/nats_provider.rs:127` | `NATS_URL` set ⇒ signed `chain.tx.submit` envelope; else gRPC-only fallback. |
+| Envelope auth | `gridtokenx-chain-bridge/crates/chain-bridge-api/src/nats_consumer/auth.rs:105` | cert→CA→SPIFFE SAN→P256 sig; enforced when `CHAIN_BRIDGE_REQUIRE_SIGNED_NATS=true` (else log-only + `nats_auth_*` metrics). |
+| Sign + submit | `gridtokenx-chain-bridge/crates/chain-bridge-api/src/nats_consumer/consumer.rs` | RBAC → dedup `claim_or_replay` → Vault Transit sign → Solana submit. Single signing path. |
