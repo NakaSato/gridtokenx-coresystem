@@ -83,11 +83,24 @@ gridtokenx:events:zone_{0..9} aggregator_bridge_zone_group $` to clear simulator
       — Redis-down fail-closed pre-existing (`verify_errors_loud_when_no_{redis_url,manager}`); added
       `device_ed25519_primitive_valid_wrong_key_and_bad_len` (valid/wrong-key/tamper/bad-len) 2026-06-13.
       The pubkey-fetch-then-verify path needs Redis → covered by e2e, not this unit. 10 PASS.
-- [ ] aggregator `handlers.rs` — 3 sig fallbacks (canonical / sec-scale ts / JSON).
-- [ ] `aggregator.rs` — window floor + bin accumulate + `peek_completed_bins` boundary (`end_time <= now`).
-- [ ] chain-bridge `consumer.rs` — `claim_or_replay`: InFlight blocks dup, Done replays, failure releases.
-- [ ] chain-bridge `service.rs` — `key_id != "platform_admin"` rejected; empty allowed.
-- [ ] chain-bridge `service.rs` — blockhash served from cache; RPC fallback only when empty.
+- [x] aggregator `handlers.rs` — 3 sig fallbacks (canonical / sec-scale ts / JSON). — 2026-06-14:
+      extracted pure `rest_sign_candidates` (ladder construction, verifier-free) so the fallback
+      order + JSON-strip are unit-testable; `verify_rest_signature` now iterates it (behavior-preserving,
+      fail-closed on verifier `Err`). 4 tests: order/forms, signature-strip-keeps-rest, non-object omits
+      JSON form, sub-second ts floors to 0. Pubkey-fetch verify stays e2e-covered.
+- [x] `aggregator.rs` — window floor + bin accumulate + `peek_completed_bins` boundary (`end_time <= now`).
+      — 2026-06-14: 7 tests (was zero). Quarter-hour floor across all 4 windows + sub-minute strip;
+      same-window accumulate vs separate-window isolation; peek returns only closed windows and is
+      non-destructive (eviction only via `remove_bins`).
+- [x] chain-bridge `consumer.rs` — `claim_or_replay`: InFlight blocks dup, Done replays, failure releases.
+      — already covered: `nats_consumer/tests.rs:118-218` (6 tests — none-key skip, absent→InFlight,
+      Done replay, InFlight collision, failure-release, expired-as-absent). Checkbox was stale.
+- [x] chain-bridge `service.rs` — `key_id != "platform_admin"` rejected; empty allowed.
+      — already covered: `api/tests.rs` `test_sign_and_submit_unauthorized_key_id` (rogue→err) +
+      `test_sign_and_submit_empty_key_id_passes_unsigned`. Checkbox was stale.
+- [x] chain-bridge `service.rs` — blockhash served from cache; RPC fallback only when empty.
+      — already covered: `api/tests.rs` `test_blockhash_cache{,_overwrite,_concurrent}` +
+      `test_sign_and_submit_empty_cache_fallback` + `..._preserves_non_empty_blockhash`. Checkbox was stale.
 
 ### Integration (`tests/invariants.rs` + aggregator tests)
 - [ ] Single signing path: assert NATS submit and gRPC submit both funnel `sign_and_submit`.
