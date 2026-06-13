@@ -94,7 +94,16 @@ Reference `docs/product-specs/MINTING_E2E_FLOW.md`. Depends Phase 2 + 3.
 
 - [~] Telemetry → mint: aggregated reading → settlement → mint via Chain Bridge → on-chain balance increases. *(on-chain balance delta WIRED 2026-06-07 — `test_onchain_balance_increase` reads the prosumer GRID ATA via Chain Bridge before/after a backdated generation settlement and asserts growth; assert-when-reachable, skips when platform :4000 down / mint pubkey unknown / Chain Bridge mTLS-only)*
 - [ ] NATS JetStream path assert (submit + ack).
-- [ ] Settlement idempotency: same window not double-minted.
+- [~] Settlement idempotency: same window not double-minted. *(2026-06-13: test written —
+  `30_settlement/test_settlement_idempotency.py`. Round 1 mints a single-reading 50 kWh window;
+  round 2 re-sends the SAME serial+window and asserts the balance does NOT rise again — the
+  exactly-once guard is the on-chain `gen_mint` PDA `[b"gen_mint", meter_id, window_start_ms]`
+  (`init_if_needed`; `meter_id = Uuid::new_v5(NAMESPACE_OID, serial)`, deterministic). Logic
+  verified; NOT yet asserted green on the live stack — under heavy concurrent simulator load the
+  single bin settles nondeterministically (one run caught a partial 20 kWh, another missed the
+  window within 180s). Needs a quiesced stack (pause simulator + Redis hygiene: DEL
+  gridtokenx:settlement:bins) for a clean delta. Opt-in: E2E_MINT_VIA_CHAIN_BRIDGE=1, same prereqs
+  as test_path_b_generation_mint.py.)*
 - [x] Final on-chain token account state via `chain.py`. *(2026-06-07: `lib/chain.py` no longer a stub — real ConnectRPC reads `get_slot`/`get_balance`/`get_account_data`/`get_token_account_balance` over HTTP+JSON, plus `ata(owner,mint)` SPL ATA derivation via solders + `token_balance_of`. Proven LIVE against running Chain Bridge :5040.)*
 
 **Exit:** §5 green.
