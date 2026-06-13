@@ -93,7 +93,10 @@ gridtokenx:events:zone_{0..9} aggregator_bridge_zone_group $` to clear simulator
 - [x] chain-bridge consumes → Vault sign → simnet submit → `TxResultMessage` on reply subject.
       — same PASS: on-chain GRID delta confirmed, so consume→sign→submit→reply round-tripped.
 - [ ] Unregistered meter (no Redis pubkey) → rejected at ingress, no settlement.
-- [ ] Path-degradation: unset `NATS_URL` with `MINT_VIA_CHAIN_BRIDGE=true` → WARN logged + metric `settlement_path{path="grpc"}`.
+- [x] Path-degradation: unset `NATS_URL` with `MINT_VIA_CHAIN_BRIDGE=true` → WARN logged + metric `settlement_path{path="grpc"}`.
+      — `30_settlement/test_settlement_path_degradation.py` PASS 2026-06-13: clones live
+      aggregator wiring into a throwaway container minus `NATS_URL`, asserts
+      `settlement_path{path="grpc"} 1` + the "NATS_URL is unset" WARN, self-teardown.
 
 ## Rollout
 - [ ] Land Phase 1+2 behind enforcement flag flip in staging first.
