@@ -7,15 +7,16 @@ true` against the dev CA, so:
 
   - plaintext HTTP                → connection fails (TLS required)
   - HTTPS with NO client cert     → TLS handshake fails (mutual auth)
-  - HTTPS WITH a CA-signed client → 200 "ok"
+  - HTTPS WITH a CA-signed client → proxied to the Aggregator IoT gateway
 
 Dev mTLS material from `infra/certs/` (scripts/gen-certs.sh): `ca.crt` trust
 root, a client cert/key under `clients/`. The edge server cert SAN is
 `localhost`, so the request targets `https://localhost:4002`.
 
-NOTE: this asserts the enforcement half of the edge only — authenticated
-requests currently hit a `direct_response: 200 "ok"`, not the real Aggregator
-IoT upstream (the routing half of TD-003 remains open).
+The edge now PROXIES authenticated requests to the Aggregator IoT gateway
+(`aggregator-bridge:4010`), so the accepted-client case asserts the real
+upstream `/health` response, not a stub. (Residual TD-003: the client SPIFFE
+SAN is not yet mapped to a device/role at the edge.)
 """
 import os
 
@@ -68,8 +69,14 @@ def test_https_without_client_cert_rejected():
         requests.get(HTTPS, verify=CA, timeout=5)
 
 
-def test_https_with_client_cert_accepted():
-    # A CA-signed client cert satisfies mTLS → the edge serves its 200 "ok".
-    r = requests.get(HTTPS, cert=(CLIENT_CRT, CLIENT_KEY), verify=CA, timeout=5)
-    assert r.status_code == 200, f"mTLS client should be accepted, got {r.status_code}"
-    assert r.text.strip() == "ok", f"unexpected edge body: {r.text!r}"
+def test_https_with_client_cert_proxied_to_aggregator():
+    # A CA-signed client cert satisfies mTLS → the edge proxies to the Aggregator
+    # IoT gateway. /health is unauthenticated upstream, so it round-trips 200 with
+    # the gateway's identity — proving the edge routes to the real backend.
+    r = requests.get(f"{HTTPS}health", cert=(CLIENT_CRT, CLIENT_KEY), verify=CA, timeout=5)
+    assert r.status_code == 200, f"mTLS client should reach the upstream, got {r.status_code}"
+    body = r.json()
+    assert body.get("status") == "ok", f"unexpected upstream health: {body}"
+    assert "iot-gateway" in body.get("service", ""), (
+        f"expected the Aggregator IoT gateway upstream, got {body}"
+    )

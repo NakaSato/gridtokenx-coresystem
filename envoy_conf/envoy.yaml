@@ -1,19 +1,22 @@
-# Envoy edge config — mTLS-enforcing dev edge for the :4002 IoT path.
+# Envoy edge config — mTLS-enforcing IoT edge for the :4002 path.
 #
-# The :10000 (host :4002) listener now requires a client certificate that chains
-# to the dev CA (infra/certs/ca.crt) — `require_client_certificate: true`. A
-# plaintext or client-certless connection is rejected at the TLS layer, so the
-# "non-mTLS client rejected" invariant holds (closes the enforcement half of
-# TD-003; verified by tests/e2e/80_gateways/test_envoy_mtls.py).
+# The :10000 (host :4002) listener requires a client certificate chaining to the
+# dev CA (infra/certs/ca.crt) — `require_client_certificate: true`. Plaintext and
+# client-certless connections are rejected at the TLS layer. Authenticated
+# requests are proxied to the Aggregator IoT gateway (the device-ingest backend),
+# closing TD-003: the edge now both ENFORCES mTLS and ROUTES to the real upstream.
 #
-# Certs (bind-mounted read-only by docker-compose, ca.key is NEVER mounted):
+# Certs (bind-mounted read-only by docker-compose; ca.key is NEVER mounted):
 #   /etc/envoy/certs/server.{crt,key}  — edge server identity (SAN: localhost)
 #   /etc/envoy/certs/ca.crt            — trust root for client certs
 #
-# NOTE: upstream routing is still a stub — authenticated requests get a
-# `direct_response: 200 "ok"`, NOT proxied to the Aggregator IoT gateway yet.
-# Wiring the real upstream (cluster → aggregator-bridge IoT gateway) is the
-# remaining half of TD-003.
+# Upstream: aggregator-bridge:4010 (its in-container REST IoT gateway; host-mapped
+# to :4030). Same docker networks (edge-tier + gridtokenx-network), so the compose
+# service name resolves. The Aggregator still runs its own API-key + Ed25519
+# device-signature checks — the edge mTLS is the transport-layer gate in front.
+#
+# RESIDUAL (TD-003): the client's SPIFFE SAN is not yet mapped to a device/role
+# (no SAN→identity header injection like chain-bridge's PeerCertLayer).
 admin:
   address:
     socket_address: { address: 0.0.0.0, port_value: 9901 }
@@ -48,10 +51,21 @@ static_resources:
                       domains: ["*"]
                       routes:
                         - match: { prefix: "/" }
-                          direct_response:
-                            status: 200
-                            body: { inline_string: "ok" }
+                          route: { cluster: aggregator_iot }
                 http_filters:
                   - name: envoy.filters.http.router
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+
+  clusters:
+    - name: aggregator_iot
+      connect_timeout: 5s
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: aggregator_iot
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address: { address: aggregator-bridge, port_value: 4010 }

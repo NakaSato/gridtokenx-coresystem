@@ -9,7 +9,7 @@ Status legend: 🔴 blocking · 🟠 should-fix · 🟢 nice-to-have · ✅ paid
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | TD-001 | _example_ — direct DB call bypassing repository layer | trading | 🟠 | before next settlement refactor | open |
 | TD-002 | Settlement settles a freshly-completed bin before late readings arrive → strands energy | aggregator | 🟢 | before onboarding intermittent/offline-buffered meters | mitigated (boundary case) |
-| TD-003 | Envoy `:4002` "IoT/mTLS edge" is a plaintext dev stub — no mTLS config in tree | edge / envoy | 🟢 | before any IoT device traffic relies on the `:4002` edge | mitigated (mTLS enforced; routing stub) |
+| TD-003 | Envoy `:4002` "IoT/mTLS edge" is a plaintext dev stub — no mTLS config in tree | edge / envoy | 🟢 | before any IoT device traffic relies on the `:4002` edge | mitigated (mTLS + routing; SAN→identity residual) |
 
 ### TD-003 — Envoy `:4002` mTLS edge is an unenforced plaintext stub
 
@@ -32,9 +32,14 @@ replace before relying on the `:4002` edge path."
   `:4002` now requires a client cert chaining to `infra/certs/ca.crt`
   (`require_client_certificate: true`). Verified by `tests/e2e/80_gateways/test_envoy_mtls.py`
   (3/3): plaintext → rejected, clientless TLS → handshake fail, CA-signed client cert → `200 "ok"`.
-  **Residual (still open):** authenticated requests hit a `direct_response: 200 "ok"` stub — the edge
-  does NOT yet proxy to the Aggregator IoT gateway, and client identity isn't mapped to a device/role
-  (SPIFFE SAN not yet consumed). Severity 🟠→🟢; full close = real upstream cluster + SAN→identity.
+  **Routing landed** (2026-06-13, same `envoy.yaml`): the `direct_response` stub is replaced by an
+  `aggregator_iot` STRICT_DNS cluster → `aggregator-bridge:4010` (shared `edge-tier` +
+  `gridtokenx-network`). Verified: a mTLS client GET `/health` through `:4002` returns the real
+  Aggregator IoT-gateway health JSON (`service: gridtokenx-iot-gateway`), not a stub —
+  `test_envoy_mtls.py::test_https_with_client_cert_proxied_to_aggregator`.
+  **Residual (still open, narrowed):** the client SPIFFE SAN is not yet mapped to a device/role at the
+  edge (no SAN→identity header injection like chain-bridge's `PeerCertLayer`); the Aggregator's own
+  API-key + Ed25519 checks remain the device-auth of record. Full close = SAN→identity propagation.
 
 ### TD-002 — partial-bin settlement strands energy on late telemetry
 
