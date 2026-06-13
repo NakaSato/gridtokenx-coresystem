@@ -31,6 +31,9 @@ import redis_util
 ORACLE_REST = os.getenv("AGGREGATOR_BRIDGE_REST", "http://localhost:4030")
 API_SERVICES_URL = os.getenv("API_SERVICES_URL", "http://localhost:4000")
 INGEST_URL = f"{ORACLE_REST}/v1/private-network/ingest"
+# api_key_auth gates ingest (auth.rs); aggregator seeds `e2e-test-key` in its static
+# GRIDTOKENX_API_KEYS for the harness (docker-compose.yml:755). Missing → 401 at auth.
+INGEST_HEADERS = {"X-API-KEY": os.getenv("AGGREGATOR_API_KEY", "e2e-test-key")}
 
 AGGREGATOR_CONTAINER = os.getenv("AGGREGATOR_CONTAINER", "gridtokenx-aggregator-bridge")
 CHAIN_CONTAINER = os.getenv("CHAIN_CONTAINER", "gridtokenx-chain-bridge")
@@ -93,7 +96,7 @@ def _send_generation_reading(meter_id, priv, generated_kwh, ts_ms):
             "signature": sig,
         },
     }
-    return requests.post(INGEST_URL, json=payload, timeout=5)
+    return requests.post(INGEST_URL, json=payload, headers=INGEST_HEADERS, timeout=5)
 
 
 @pytest.fixture

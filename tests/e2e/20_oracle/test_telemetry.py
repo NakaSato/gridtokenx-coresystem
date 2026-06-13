@@ -22,6 +22,11 @@ ORACLE_REST = os.getenv("AGGREGATOR_BRIDGE_REST", "http://localhost:4030")
 ORACLE_GRPC = os.getenv("AGGREGATOR_BRIDGE_GRPC", "localhost:5030")
 INGEST_URL = f"{ORACLE_REST}/v1/private-network/ingest"
 KAFKA_TOPIC = os.getenv("KAFKA_TOPIC_METER_READINGS", "meter.readings")
+# api_key_auth gates ingest (auth.rs); the aggregator seeds `e2e-test-key` in its
+# static GRIDTOKENX_API_KEYS for the harness (docker-compose.yml:755). Without it the
+# request is rejected at the auth layer (401) before signature verification runs.
+API_KEY = os.getenv("AGGREGATOR_API_KEY", "e2e-test-key")
+HEADERS = {"X-API-KEY": API_KEY}
 
 
 def _oracle_up() -> bool:
@@ -76,7 +81,7 @@ def test_valid_signed_reading_accepted(device):
     """Case 1: correctly signed reading is accepted."""
     kwh, ts = "123.45", int(time.time() * 1000)
     sig = crypto.sign_telemetry(device["priv"], device["meter_id"], kwh, ts)
-    r = requests.post(INGEST_URL, json=_rest_payload(device["meter_id"], kwh, ts, sig), timeout=5)
+    r = requests.post(INGEST_URL, json=_rest_payload(device["meter_id"], kwh, ts, sig), headers=HEADERS, timeout=5)
     assert r.status_code in (200, 202), f"valid reading rejected: {r.status_code} {r.text}"
 
 
@@ -85,7 +90,7 @@ def test_tampered_signature_rejected(device):
     kwh, ts = "123.45", int(time.time() * 1000)
     r = requests.post(INGEST_URL,
                       json=_rest_payload(device["meter_id"], kwh, ts, "invalid_signature_base58"),
-                      timeout=5)
+                      headers=HEADERS, timeout=5)
     assert r.status_code not in (200, 202), f"tampered sig accepted: {r.status_code} {r.text}"
 
 
@@ -95,7 +100,7 @@ def test_unknown_device_rejected():
     meter_id = f"E2E-UNKNOWN-{int(time.time()*1000)%1000000}"  # never registered
     kwh, ts = "50.00", int(time.time() * 1000)
     sig = crypto.sign_telemetry(pk, meter_id, kwh, ts)
-    r = requests.post(INGEST_URL, json=_rest_payload(meter_id, kwh, ts, sig), timeout=5)
+    r = requests.post(INGEST_URL, json=_rest_payload(meter_id, kwh, ts, sig), headers=HEADERS, timeout=5)
     assert r.status_code not in (200, 202), f"unknown device accepted: {r.status_code} {r.text}"
 
 
@@ -104,7 +109,7 @@ def test_wrong_key_signature_rejected(device):
     other, _ = crypto.new_identity()
     kwh, ts = "77.70", int(time.time() * 1000)
     sig = crypto.sign_telemetry(other, device["meter_id"], kwh, ts)  # wrong signer
-    r = requests.post(INGEST_URL, json=_rest_payload(device["meter_id"], kwh, ts, sig), timeout=5)
+    r = requests.post(INGEST_URL, json=_rest_payload(device["meter_id"], kwh, ts, sig), headers=HEADERS, timeout=5)
     assert r.status_code not in (200, 202), f"wrong-key sig accepted: {r.status_code} {r.text}"
 
 
@@ -113,7 +118,7 @@ def test_dissemination_fanout(device):
     before = redis_util.stream_total_len()
     kwh, ts = "200.00", int(time.time() * 1000)
     sig = crypto.sign_telemetry(device["priv"], device["meter_id"], kwh, ts)
-    r = requests.post(INGEST_URL, json=_rest_payload(device["meter_id"], kwh, ts, sig), timeout=5)
+    r = requests.post(INGEST_URL, json=_rest_payload(device["meter_id"], kwh, ts, sig), headers=HEADERS, timeout=5)
     assert r.status_code in (200, 202), f"reading rejected: {r.status_code} {r.text}"
 
     # Dissemination is async — poll for stream growth.
@@ -153,7 +158,7 @@ def test_kafka_dissemination_fanout(device):
     kwh, ts = "188.5", int(time.time() * 1000)
     sig = crypto.sign_telemetry(device["priv"], meter, kwh, ts)
     try:
-        r = requests.post(INGEST_URL, json=_rest_payload(meter, kwh, ts, sig), timeout=5)
+        r = requests.post(INGEST_URL, json=_rest_payload(meter, kwh, ts, sig), headers=HEADERS, timeout=5)
         assert r.status_code in (200, 202), f"reading rejected: {r.status_code} {r.text}"
 
         def is_ours(val: bytes) -> bool:

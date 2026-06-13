@@ -31,6 +31,9 @@ import redis_util
 
 IAM = os.getenv("IAM_URL", "http://localhost:4010")
 ORACLE = os.getenv("AGGREGATOR_BRIDGE_REST", "http://localhost:4030")
+# api_key_auth gates ingest (auth.rs); aggregator seeds `e2e-test-key` in its static
+# GRIDTOKENX_API_KEYS for the harness (docker-compose.yml:755). Missing → 401 at auth.
+ORACLE_INGEST_HEADERS = {"X-API-KEY": os.getenv("AGGREGATOR_API_KEY", "e2e-test-key")}
 TRADING = os.getenv("TRADING_URL", "http://localhost:8093")
 CHAIN_HTTP = os.getenv("CHAIN_BRIDGE_HTTP", "http://" + os.getenv("CHAIN_BRIDGE_GRPC", "localhost:5040"))
 NOTI_HTTP = os.getenv("NOTI_HTTP", "http://" + os.getenv("NOTI_GRPC", "localhost:5050"))
@@ -134,7 +137,8 @@ def _send_reading(meter, priv, generated, ts_ms):
     # canonical kwh derivation checks `kwh` first, then energy_consumed, then
     # energy_generated. With energy_consumed=0.0 present it would otherwise sign-check
     # against "0" and reject our generation reading (403) under enforced verification.
-    return requests.post(f"{ORACLE}/v1/private-network/ingest", timeout=5, json={
+    return requests.post(f"{ORACLE}/v1/private-network/ingest", timeout=5,
+                         headers=ORACLE_INGEST_HEADERS, json={
         "protocol": "dlms", "device_id": meter,
         "payload": {"device_id": meter, "timestamp": iso, "kwh": float(generated),
                     "energy_generated": float(generated), "energy_consumed": 0.0,

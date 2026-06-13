@@ -5,6 +5,7 @@ Key schemes (confirmed in gridtokenx-aggregator-bridge):
   meter -> user   : gridtokenx:meters:{serial}:user_id     = <uuid>
   dissemination   : gridtokenx:events:zone_{idx}           = Redis Stream (XADD)
 """
+import json
 import os
 import redis
 
@@ -49,3 +50,34 @@ def stream_total_len(pattern: str = "gridtokenx:events:zone_*") -> int:
         except redis.exceptions.ResponseError:
             pass  # not a stream
     return total
+
+
+def find_disseminated_reading(device_id: str, count: int = 200,
+                              pattern: str = "gridtokenx:events:zone_*"):
+    """Return the most recent disseminated `payload` (a `DeviceReading`) for
+    `device_id`, or None.
+
+    Each zone stream entry is `{"event": <json>}` where the JSON envelope is
+    `{event_type, payload: DeviceReading}` (router.rs:91-103 disseminate). We tail
+    each zone stream and return the newest payload whose `device_id` matches — lets
+    a test assert the decoded energy values, not just stream growth.
+    """
+    c = client()
+    best = None  # (stream_id, payload)
+    for key in c.scan_iter(match=pattern):
+        try:
+            entries = c.xrevrange(key, count=count)
+        except redis.exceptions.ResponseError:
+            continue  # not a stream
+        for stream_id, fields in entries:
+            raw = fields.get("event")
+            if not raw:
+                continue
+            try:
+                payload = json.loads(raw).get("payload")
+            except (ValueError, TypeError):
+                continue
+            if payload and payload.get("device_id") == device_id:
+                if best is None or stream_id > best[0]:
+                    best = (stream_id, payload)
+    return best[1] if best else None
