@@ -517,6 +517,10 @@ services:
       - "8002:9901" # Envoy Admin
     volumes:
       - ./envoy_conf/envoy.yaml:/etc/envoy/envoy.yaml:ro
+      # mTLS material (read-only). ca.key is deliberately NOT mounted.
+      - ./infra/certs/ca.crt:/etc/envoy/certs/ca.crt:ro
+      - ./infra/certs/server.crt:/etc/envoy/certs/server.crt:ro
+      - ./infra/certs/server.key:/etc/envoy/certs/server.key:ro
     networks:
       - edge-tier
       - gridtokenx-network

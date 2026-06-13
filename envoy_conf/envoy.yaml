@@ -1,9 +1,19 @@
-# Minimal Envoy edge config (dev bring-up stub).
-# The repo's docker-compose bind-mounts this file into the envoy container, but no
-# config was checked in (docker had auto-created an empty dir in its place, which
-# breaks the file bind-mount). This stub lets the container boot so the rest of the
-# stack can come up. It is NOT a real mTLS/IoT edge config — replace before relying
-# on the :4002 edge path.
+# Envoy edge config — mTLS-enforcing dev edge for the :4002 IoT path.
+#
+# The :10000 (host :4002) listener now requires a client certificate that chains
+# to the dev CA (infra/certs/ca.crt) — `require_client_certificate: true`. A
+# plaintext or client-certless connection is rejected at the TLS layer, so the
+# "non-mTLS client rejected" invariant holds (closes the enforcement half of
+# TD-003; verified by tests/e2e/80_gateways/test_envoy_mtls.py).
+#
+# Certs (bind-mounted read-only by docker-compose, ca.key is NEVER mounted):
+#   /etc/envoy/certs/server.{crt,key}  — edge server identity (SAN: localhost)
+#   /etc/envoy/certs/ca.crt            — trust root for client certs
+#
+# NOTE: upstream routing is still a stub — authenticated requests get a
+# `direct_response: 200 "ok"`, NOT proxied to the Aggregator IoT gateway yet.
+# Wiring the real upstream (cluster → aggregator-bridge IoT gateway) is the
+# remaining half of TD-003.
 admin:
   address:
     socket_address: { address: 0.0.0.0, port_value: 9901 }
@@ -14,7 +24,19 @@ static_resources:
       address:
         socket_address: { address: 0.0.0.0, port_value: 10000 }
       filter_chains:
-        - filters:
+        - transport_socket:
+            name: envoy.transport_sockets.tls
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
+              # Reject any client that does not present a cert chaining to the CA.
+              require_client_certificate: true
+              common_tls_context:
+                tls_certificates:
+                  - certificate_chain: { filename: /etc/envoy/certs/server.crt }
+                    private_key: { filename: /etc/envoy/certs/server.key }
+                validation_context:
+                  trusted_ca: { filename: /etc/envoy/certs/ca.crt }
+          filters:
             - name: envoy.filters.network.http_connection_manager
               typed_config:
                 "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
