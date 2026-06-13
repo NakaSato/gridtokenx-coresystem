@@ -67,12 +67,15 @@ gridtokenx:events:zone_{0..9} aggregator_bridge_zone_group $` to clear simulator
 ## Test list
 
 ### Unit
-- [ ] `auth.rs` — valid envelope (cert→CA→SPIFFE→P256 sig) → `Authenticated`.
-- [ ] `auth.rs` — tampered tx bytes (tx_sha256 mismatch) → reject.
-- [ ] `auth.rs` — SPIFFE SAN ≠ `service_identity` → reject.
-- [ ] `auth.rs` — cert not signed by `CHAIN_BRIDGE_TLS_CA` → reject.
-- [ ] `auth.rs` — `require_signed=true` + unsigned envelope → reject (not log-only).
-- [ ] `auth.rs` — `require_signed=false` + unsigned → log-only, proceed (dev parity).
+> `auth.rs` — all PASS (`chain-bridge-api`, `nats_consumer::auth`, 9 tests). `:71` added
+> 2026-06-13 (`tampered_tx_bytes_rejected`); rest pre-existing. Bonus coverage: expired
+> cert, unknown scheme, `NatsAuthPolicy::new` forces log-only without CA.
+- [x] `auth.rs` — valid envelope (cert→CA→SPIFFE→P256 sig) → `Authenticated`. — `verified_happy_path`.
+- [x] `auth.rs` — tampered tx bytes (tx_sha256 mismatch) → reject. — `tampered_tx_bytes_rejected`.
+- [x] `auth.rs` — SPIFFE SAN ≠ `service_identity` → reject. — `san_mismatch_rejected`.
+- [x] `auth.rs` — cert not signed by `CHAIN_BRIDGE_TLS_CA` → reject. — `wrong_ca_rejected`.
+- [x] `auth.rs` — `require_signed=true` + unsigned envelope → reject (not log-only). — `unsigned_rejected_when_enforced_accepted_otherwise`.
+- [x] `auth.rs` — `require_signed=false` + unsigned → log-only, proceed (dev parity). — same test.
 - [ ] `envelope_auth.rs` — canonical bytes stable across field reorder (domain-tag + length-prefix).
 - [ ] aggregator `crypto.rs` — Ed25519 device sig: valid / wrong-key / bad-len(≠64) / Redis-down(fail-closed).
 - [ ] aggregator `handlers.rs` — 3 sig fallbacks (canonical / sec-scale ts / JSON).
