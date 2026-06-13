@@ -6,14 +6,14 @@
 
 ## Findings (from trace)
 
-- [ ] **G1 — NATS envelope-sig enforcement OFF by default.** Aggregator signs the
+- [x] **G1 — NATS envelope-sig enforcement OFF by default.** [closed: Phase 1 + auth unit suite + forged-envelope invariant] Aggregator signs the
   `chain.tx.submit` envelope (`gridtokenx-blockchain-core/src/rpc/nats_provider.rs:127`),
   but chain-bridge only logs on unsigned/invalid unless `CHAIN_BRIDGE_REQUIRE_SIGNED_NATS=true`
   (`chain-bridge/.../nats_consumer/auth.rs:168-177`). Prod can accept forged envelopes.
-- [ ] **G2 — Path silently degrades.** Real tx path needs BOTH `MINT_VIA_CHAIN_BRIDGE=true`
+- [x] **G2 — Path silently degrades.** [closed: Phase 2 WARN + `settlement_path` metric + degradation e2e] Real tx path needs BOTH `MINT_VIA_CHAIN_BRIDGE=true`
   AND `NATS_URL` set. Missing either → falls to gRPC or HTTP-settle-to-trading-service
   (`aggregator-bridge/.../settlement_engine.rs:373`) with no loud signal.
-- [ ] **G3 — InfluxDB doc drift.** Docs/CLAUDE.md claim InfluxDB time-series; code uses
+- [x] **G3 — InfluxDB doc drift.** [closed: Phase 3 doc fixes + lint-docs clean] Docs/CLAUDE.md claim InfluxDB time-series; code uses
   Kafka + Redis Streams only. No influx client in tree.
 
 ## Tasks
