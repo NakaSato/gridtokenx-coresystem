@@ -18,6 +18,9 @@ import oracle_pb2_grpc
 METER_ID = "0xTEST"
 AGGREGATOR_BRIDGE_GRPC = os.getenv("AGGREGATOR_BRIDGE_GRPC", "localhost:5030")
 AGGREGATOR_BRIDGE_REST = os.getenv("AGGREGATOR_BRIDGE_REST", "http://localhost:4030")
+# api_key_auth gates ingest (auth.rs); aggregator seeds `e2e-test-key` in its static
+# GRIDTOKENX_API_KEYS for the harness (docker-compose.yml:755). Missing → 401 at auth.
+INGEST_HEADERS = {"X-API-KEY": os.getenv("AGGREGATOR_API_KEY", "e2e-test-key")}
 
 def sign_telemetry(private_key, meter_id, kwh, timestamp_ms):
     """
@@ -102,7 +105,7 @@ def test_rest_ingestion(private_key, public_key_hex):
 
     url = f"{AGGREGATOR_BRIDGE_REST}/v1/private-network/ingest"
     try:
-        response = requests.post(url, json=payload, timeout=5)
+        response = requests.post(url, json=payload, headers=INGEST_HEADERS, timeout=5)
         if response.status_code == 202 or response.status_code == 200:
             print(f"✅ SUCCESS: REST Ingestion accepted. Code: {response.status_code}")
         else:
@@ -115,7 +118,7 @@ def test_rest_ingestion(private_key, public_key_hex):
     # 2. Test Missing Signature (Should Fail in production mode)
     print("[*] Case 2: Missing Signature...")
     del payload["payload"]["signature"]
-    response = requests.post(url, json=payload, timeout=5)
+    response = requests.post(url, json=payload, headers=INGEST_HEADERS, timeout=5)
     # Note: If Bridge is in dev mode it might warn but accept. In prod it will fail.
     # We'll just log the result.
     print(f"[i] Response without signature: {response.status_code} - {response.text}")

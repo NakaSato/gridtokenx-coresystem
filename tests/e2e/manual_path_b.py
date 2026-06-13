@@ -23,6 +23,9 @@ OWNER = sys.argv[2]
 
 ORACLE_REST = os.getenv("AGGREGATOR_BRIDGE_REST", "http://localhost:4030")
 INGEST_URL = f"{ORACLE_REST}/v1/private-network/ingest"
+# api_key_auth gates ingest (auth.rs); aggregator seeds `e2e-test-key` in its static
+# GRIDTOKENX_API_KEYS for the harness (docker-compose.yml:755). Missing → 401 at auth.
+INGEST_HEADERS = {"X-API-KEY": os.getenv("AGGREGATOR_API_KEY", "e2e-test-key")}
 GRID_SCALE = 1_000_000_000
 SETTLE_TIMEOUT = float(os.getenv("E2E_SETTLE_TIMEOUT", "240"))
 GRID_MINT = (os.getenv("ENERGY_TOKEN_MINT") or "").strip()
@@ -79,7 +82,7 @@ def main():
     for i, kwh in enumerate((20, 20, 10)):
         ts = base_ts + i * 30_000
         sig = crypto.sign_telemetry(priv, meter, kwh, ts)
-        r = requests.post(INGEST_URL, json=rest_payload(meter, float(kwh), ts, sig), timeout=10)
+        r = requests.post(INGEST_URL, json=rest_payload(meter, float(kwh), ts, sig), headers=INGEST_HEADERS, timeout=10)
         print(f"[reading {i}] kwh={kwh} ts={ts} -> HTTP {r.status_code} {r.text[:80]}")
         assert r.status_code in (200, 202), f"ingest rejected: {r.status_code} {r.text}"
         total_kwh += kwh

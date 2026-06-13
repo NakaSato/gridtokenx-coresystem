@@ -52,6 +52,40 @@ def stream_total_len(pattern: str = "gridtokenx:events:zone_*") -> int:
     return total
 
 
+SETTLEMENT_BINS_HASH = "gridtokenx:settlement:bins"
+
+
+def settlement_bins(meter_serial: str):
+    """Return the persisted `BillingBin`s for `meter_serial`.
+
+    The settlement aggregator write-throughs each per-(meter, 15-min-window) bin to
+    the Redis hash `gridtokenx:settlement:bins` (bin_store.rs `BINS_HASH`), field
+    `{meter_id}:{window_start_ms}`, value a JSON `BillingBin` (aggregator.rs:16-25).
+    Lets a test assert window-floor / accumulation on the LIVE service. Filters by
+    `meter_serial` so a per-run unique serial isolates this test's bins.
+    """
+    c = client()
+    out = []
+    for field, value in c.hgetall(SETTLEMENT_BINS_HASH).items():
+        try:
+            bin_ = json.loads(value)
+        except (ValueError, TypeError):
+            continue
+        if bin_.get("meter_serial") == meter_serial:
+            bin_["_field"] = field
+            out.append(bin_)
+    return out
+
+
+def delete_settlement_bins(meter_serial: str):
+    """HDEL this meter's bins so the test doesn't leave a partial bin that later
+    settles (mints) or pollutes other suites."""
+    c = client()
+    fields = [b["_field"] for b in settlement_bins(meter_serial) if b.get("_field")]
+    if fields:
+        c.hdel(SETTLEMENT_BINS_HASH, *fields)
+
+
 def find_disseminated_reading(device_id: str, count: int = 200,
                               pattern: str = "gridtokenx:events:zone_*"):
     """Return the most recent disseminated `payload` (a `DeviceReading`) for
