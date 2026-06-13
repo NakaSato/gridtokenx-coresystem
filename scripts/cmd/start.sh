@@ -155,7 +155,7 @@ _start_native_services() {
     log_info "Starting services as native background processes..."
 
     run_in_background "Chain Bridge" \
-        "CHAIN_BRIDGE_INSECURE=$CHAIN_BRIDGE_INSECURE SOLANA_RPC_URL=$SOLANA_RPC_URL $PROJECT_ROOT/gridtokenx-chain-bridge/target/debug/gridtokenx-chain-bridge" \
+        "CHAIN_BRIDGE_INSECURE=$CHAIN_BRIDGE_INSECURE SOLANA_RPC_URL=$SOLANA_RPC_URL NATS_URL=${NATS_URL:-nats://localhost:9020} $PROJECT_ROOT/gridtokenx-chain-bridge/target/debug/gridtokenx-chain-bridge" \
         "$PROJECT_ROOT" \
         "$PROJECT_ROOT/scripts/logs/chain-bridge.log"
     wait_for_port "Chain Bridge" 5040 30
@@ -199,7 +199,7 @@ _start_terminal_services() {
     local skip_ui=$1
 
     run_in_terminal "Chain Bridge" \
-        "CHAIN_BRIDGE_INSECURE=$CHAIN_BRIDGE_INSECURE SOLANA_RPC_URL=$SOLANA_RPC_URL $PROJECT_ROOT/gridtokenx-chain-bridge/target/debug/gridtokenx-chain-bridge > $PROJECT_ROOT/scripts/logs/chain-bridge.log 2>&1" \
+        "CHAIN_BRIDGE_INSECURE=$CHAIN_BRIDGE_INSECURE SOLANA_RPC_URL=$SOLANA_RPC_URL NATS_URL=${NATS_URL:-nats://localhost:9020} $PROJECT_ROOT/gridtokenx-chain-bridge/target/debug/gridtokenx-chain-bridge > $PROJECT_ROOT/scripts/logs/chain-bridge.log 2>&1" \
         "$PROJECT_ROOT"
     wait_for_port "Chain Bridge" 5040 30
 
