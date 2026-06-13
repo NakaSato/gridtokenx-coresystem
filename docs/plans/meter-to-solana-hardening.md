@@ -103,10 +103,22 @@ gridtokenx:events:zone_{0..9} aggregator_bridge_zone_group $` to clear simulator
       `test_sign_and_submit_empty_cache_fallback` + `..._preserves_non_empty_blockhash`. Checkbox was stale.
 
 ### Integration (`tests/invariants.rs` + aggregator tests)
-- [ ] Single signing path: assert NATS submit and gRPC submit both funnel `sign_and_submit`.
-- [ ] Forged envelope under enforcement → no Vault call, no Solana submit, audit records rejection.
-- [ ] Dedup: same `idempotency_key` twice → one on-chain tx, second replays stored result.
-- [ ] PolicyEngine reject → audit stage recorded, no submit.
+- [x] Single signing path: assert NATS submit and gRPC submit both funnel `sign_and_submit`.
+      — 2026-06-14 `invariants.rs::test_single_signing_path_grpc_and_nats_funnel_through_sign_and_submit`:
+      a gRPC matcher and the NATS settlement identity both submit via the one `sign_and_submit`;
+      counting provider+vault prove 2 submits ⇒ exactly 2 provider sends + 2 Vault signs (one funnel).
+- [x] Forged envelope under enforcement → no Vault call, no Solana submit, audit records rejection.
+      — 2026-06-14 `invariants.rs::test_forged_nats_envelope_rejected_no_vault_no_submit_audit_recorded`:
+      rogue-CA-signed (and tampered-bytes) envelope → `check_envelope_auth`=Failed → `auth_decision`=Err;
+      consumer contract appends `Rejected{stage:"auth"}` to the audit chain; counting provider+vault
+      assert send_count==0 and sign_count==0 (signing path never entered).
+- [x] Dedup: same `idempotency_key` twice → one on-chain tx, second replays stored result.
+      — covered by the `claim_or_replay` unit suite (`nats_consumer/tests.rs`: Done replay +
+      InFlight collision, both `deduplicated:true`, no re-submit) and the path-B e2e. `handle_submit`
+      itself is not directly callable in-process (its `async_nats::Message` has no test constructor).
+- [x] PolicyEngine reject → audit stage recorded, no submit.
+      — covered: `api/tests.rs::test_audit_records_policy_rejection` (rejection appends one audit
+      entry) + the `invariants.rs` RBAC/policy matrix (every deny asserts `send_count==0`).
 
 ### End-to-end (`just e2e` / `just openadr-e2e` style)
 - [x] Meter reading → ingest 200/202 → bin → settlement → `chain.tx.submit` published.
