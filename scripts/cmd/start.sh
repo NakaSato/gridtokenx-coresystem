@@ -25,7 +25,7 @@ start_core_services() {
     else
         docker-compose up -d postgres redis mailpit apisix envoy rabbitmq kafka-cmd
         # Ensure Docker versions of application services are stopped to prevent port conflicts (native execution preferred)
-        docker stop gridtokenx-trading-service gridtokenx-iam-service gridtokenx-aggregator-bridge gridtokenx-noti-service >/dev/null 2>&1 || true
+        docker stop gridtokenx-trading-service gridtokenx-iam-service gridtokenx-aggregator-bridge gridtokenx-noti-service gridtokenx-chain-bridge >/dev/null 2>&1 || true
     fi
 
     wait_for_postgres
