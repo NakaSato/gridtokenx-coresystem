@@ -739,7 +739,11 @@ services:
       IAM_GRPC_URL: http://apisix:9080
       TRADING_GRPC_URL: http://apisix:9080
       GRIDTOKENX_API_KEYS: ${ENGINEERING_API_KEY:-engineering-department-api-key-2025},e2e-test-key
-      SETTLEMENT_API_URL: http://apisix:9080
+      # HTTP settlement fallback (only fires when MINT_VIA_CHAIN_BRIDGE can't): must
+      # hit trading-service directly on the mesh. Routing it through apisix:9080 (the
+      # user-facing gateway) 401s — apisix enforces jwt-auth; the bridge authenticates
+      # to trading as an internal ApiGateway caller via x-gridtokenx-gateway-secret.
+      SETTLEMENT_API_URL: http://trading-service:8093
       AGGREGATOR_BRIDGE_SIGNING_KEY: /app/aggregator-bridge-signing-key.bin
       NATS_URL: nats://nats:4222
       KAFKA_BOOTSTRAP_SERVERS: kafka-market:9002
@@ -857,6 +861,32 @@ services:
       retries: 3
       start_period: 15s
     restart: unless-stopped
+
+  # Block Explorer (Next.js) — Solana explorer UI
+  explorer:
+    build:
+      context: ./gridtokenx-explorer
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_SOLANA_RPC_HTTP: ${NEXT_PUBLIC_SOLANA_RPC_URL:-https://api.devnet.solana.com}
+        NEXT_PUBLIC_DEFAULT_CLUSTER: ${SOLANA_CLUSTER:-devnet}
+    container_name: gridtokenx-explorer
+    ports:
+      - "${EXPLORER_PORT:-11002}:4000"
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      TZ: ${TZ}
+      NEXT_PUBLIC_SOLANA_RPC_HTTP: ${NEXT_PUBLIC_SOLANA_RPC_URL:-https://api.devnet.solana.com}
+      NEXT_PUBLIC_DEFAULT_CLUSTER: ${SOLANA_CLUSTER:-devnet}
+    networks:
+      - gridtokenx-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4000').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
 
   # Mailpit SMTP Server (Development Email Testing)
   mailpit:
