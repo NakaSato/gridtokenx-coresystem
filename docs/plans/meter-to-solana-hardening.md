@@ -76,8 +76,13 @@ gridtokenx:events:zone_{0..9} aggregator_bridge_zone_group $` to clear simulator
 - [x] `auth.rs` — cert not signed by `CHAIN_BRIDGE_TLS_CA` → reject. — `wrong_ca_rejected`.
 - [x] `auth.rs` — `require_signed=true` + unsigned envelope → reject (not log-only). — `unsigned_rejected_when_enforced_accepted_otherwise`.
 - [x] `auth.rs` — `require_signed=false` + unsigned → log-only, proceed (dev parity). — same test.
-- [ ] `envelope_auth.rs` — canonical bytes stable across field reorder (domain-tag + length-prefix).
-- [ ] aggregator `crypto.rs` — Ed25519 device sig: valid / wrong-key / bad-len(≠64) / Redis-down(fail-closed).
+- [x] `envelope_auth.rs` — canonical bytes stable across field reorder (domain-tag + length-prefix).
+      — golden vector + `canonical_kind_domain_separation` (domain-tag) pre-existing; added
+      `length_prefix_prevents_field_boundary_collision` 2026-06-13 (the anti-collision guarantee). 7 PASS.
+- [x] aggregator `crypto.rs` — Ed25519 device sig: valid / wrong-key / bad-len(≠64) / Redis-down(fail-closed).
+      — Redis-down fail-closed pre-existing (`verify_errors_loud_when_no_{redis_url,manager}`); added
+      `device_ed25519_primitive_valid_wrong_key_and_bad_len` (valid/wrong-key/tamper/bad-len) 2026-06-13.
+      The pubkey-fetch-then-verify path needs Redis → covered by e2e, not this unit. 10 PASS.
 - [ ] aggregator `handlers.rs` — 3 sig fallbacks (canonical / sec-scale ts / JSON).
 - [ ] `aggregator.rs` — window floor + bin accumulate + `peek_completed_bins` boundary (`end_time <= now`).
 - [ ] chain-bridge `consumer.rs` — `claim_or_replay`: InFlight blocks dup, Done replays, failure releases.
