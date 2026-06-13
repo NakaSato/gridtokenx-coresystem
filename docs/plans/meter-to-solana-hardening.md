@@ -125,7 +125,11 @@ gridtokenx:events:zone_{0..9} aggregator_bridge_zone_group $` to clear simulator
       — covered by `30_settlement/test_path_b_generation_mint.py` PASS 2026-06-13.
 - [x] chain-bridge consumes → Vault sign → simnet submit → `TxResultMessage` on reply subject.
       — same PASS: on-chain GRID delta confirmed, so consume→sign→submit→reply round-tripped.
-- [ ] Unregistered meter (no Redis pubkey) → rejected at ingress, no settlement.
+- [x] Unregistered meter (no Redis pubkey) → rejected at ingress, no settlement.
+      — 2026-06-14 `30_settlement/test_unregistered_meter_rejected.py` PASS (live stack, enforcement
+      ON): differential test — a registered control meter is accepted (202) while an unregistered,
+      validly self-signed meter is rejected at `/v1/private-network/ingest` (401/403), so it never
+      reaches a bin or settlement. Auto-skips if the stack runs enforcement-off (can't assert fail-closed).
 - [x] Path-degradation: unset `NATS_URL` with `MINT_VIA_CHAIN_BRIDGE=true` → WARN logged + metric `settlement_path{path="grpc"}`.
       — `30_settlement/test_settlement_path_degradation.py` PASS 2026-06-13: clones live
       aggregator wiring into a throwaway container minus `NATS_URL`, asserts
