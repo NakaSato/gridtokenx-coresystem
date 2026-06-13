@@ -9,6 +9,25 @@ Status legend: 🔴 blocking · 🟠 should-fix · 🟢 nice-to-have · ✅ paid
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | TD-001 | _example_ — direct DB call bypassing repository layer | trading | 🟠 | before next settlement refactor | open |
 | TD-002 | Settlement settles a freshly-completed bin before late readings arrive → strands energy | aggregator | 🟢 | before onboarding intermittent/offline-buffered meters | mitigated (boundary case) |
+| TD-003 | Envoy `:4002` "IoT/mTLS edge" is a plaintext dev stub — no mTLS config in tree | edge / envoy | 🟠 | before any IoT device traffic relies on the `:4002` edge | open |
+
+### TD-003 — Envoy `:4002` mTLS edge is an unenforced plaintext stub
+
+Docs (superproject `CLAUDE.md`, README port table) describe **Envoy `:4002` as the IoT/mTLS edge**, but
+the only Envoy config in the tree — `envoy_conf/envoy.yaml` — is a self-declared dev **stub**: one
+plaintext HTTP listener returning `direct_response: 200 "ok"`, with no `transport_socket`, no
+`require_client_certificate`, no CA. The file's own header says "NOT a real mTLS/IoT edge config —
+replace before relying on the `:4002` edge path."
+
+- **Verified (2026-06-13):** `http://localhost:4002/` → `200 server:envoy`; `https://localhost:4002/`
+  → curl `000` (TLS ClientHello hitting a plaintext listener, *not* an mTLS rejection).
+- **Risk:** anything pointed at `:4002` as a trusted mTLS boundary is, in this build, an open plaintext
+  endpoint. The device-identity trust story for the IoT edge is **not** enforced at the gateway here;
+  the Aggregator's Ed25519 signature check is the only real device-auth in the path.
+- **Surfaced by:** the E2E_IMPL "Envoy mTLS enforcement" item, which is BLOCKED on this (a non-mTLS
+  reject can't be asserted while the listener is plaintext).
+- **Pay-down:** author a real Envoy mTLS listener (CA + `require_client_certificate`, SPIFFE SAN
+  like the chain-bridge edge), wire `scripts/gen-certs.sh` material, then unblock the e2e.
 
 ### TD-002 — partial-bin settlement strands energy on late telemetry
 
