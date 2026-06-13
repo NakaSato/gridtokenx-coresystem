@@ -142,6 +142,10 @@ orb-rebuild:
     docker compose build --no-cache
     docker compose up -d --force-recreate
 
+# System health check: deps, certs, APISIX upstream backends, trading connections
+doctor:
+    ./scripts/app.sh doctor
+
 # Flag running service containers whose image predates its source (deploy drift)
 check-drift:
     bash scripts/check-image-drift.sh

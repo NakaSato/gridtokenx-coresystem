@@ -383,6 +383,15 @@ cmd_start() {
     echo ""
     log_success "Development environment launched!"
     _show_start_summary "$skip_ui" "$native_apps" "$docker_mode"
+
+    # Advisory post-start health: catch any APISIX upstream that silently failed
+    # to come up (e.g. a missing trading-service container). Warn-only — never
+    # fails the launch. Brief settle so freshly-booted backends can answer.
+    if declare -f check_apisix_upstreams >/dev/null 2>&1; then
+        echo ""
+        sleep 3
+        check_apisix_upstreams
+    fi
 }
 
 _show_start_summary() {

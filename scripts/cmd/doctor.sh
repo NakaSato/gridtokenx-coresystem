@@ -118,6 +118,50 @@ check_trading_connections() {
     fi
 }
 
+check_apisix_upstreams() {
+    log_info "Checking APISIX upstream backends (catches silently-missing services)..."
+
+    # Probe each backend DIRECTLY, not through APISIX. Going through the gateway
+    # is unreliable: auth-fronted routes (trading, noti) return 401 at the plugin
+    # layer BEFORE proxying, so a dead backend looks "up". Instead mirror APISIX's
+    # dual-node model — a service is healthy if EITHER its docker container is
+    # running OR its native host-port (the host.docker.internal fallback) listens.
+    #
+    # Entry: "label|container|native_host_port" (matches apisix_conf/apisix.yaml nodes).
+    local backends=(
+        "trading-service|gridtokenx-trading-service|8093"
+        "iam-service|gridtokenx-iam-service|4010"
+        "smartmeter-simulator|gridtokenx-smartmeter-simulator|12010"
+        "noti-service|gridtokenx-noti-service|5050"
+    )
+
+    local down=0
+    for entry in "${backends[@]}"; do
+        local label="${entry%%|*}"
+        local rest="${entry#*|}"
+        local container="${rest%%|*}"
+        local port="${rest##*|}"
+
+        local mode=""
+        if docker ps --format '{{.Names}}' 2>/dev/null | grep -qx "$container"; then
+            mode="docker"
+        elif nc -z -G 1 localhost "$port" >/dev/null 2>&1; then
+            mode="native :$port"
+        fi
+
+        if [ -n "$mode" ]; then
+            log_success "Upstream OK: $label ($mode)"
+        else
+            log_warn "Upstream DOWN: $label — no container '$container' and nothing on native :$port. Start it: ./scripts/app.sh start --docker  OR  docker compose up -d $label"
+            down=$((down + 1))
+        fi
+    done
+
+    if [ "$down" -ne 0 ]; then
+        log_warn "$down APISIX upstream(s) down — APISIX will log connection-refused/DNS errors until started."
+    fi
+}
+
 cmd_doctor() {
     show_banner
     log_info "Running GridTokenX System Doctor..."
@@ -150,6 +194,9 @@ cmd_doctor() {
 
     echo ""
     check_mtls_certs
+
+    echo ""
+    check_apisix_upstreams
 
     echo ""
     check_trading_connections
