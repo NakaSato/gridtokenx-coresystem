@@ -35,7 +35,7 @@ else
     if [ -n "$JWT" ]; then
         # Onboard via APISIX with NO gateway-secret header -> expect reject.
         BODY=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
-            -X POST "$APISIX_URL/api/v1/users/me/onchain-profile" \
+            -X POST "$APISIX_URL/api/v1/me/registration" \
             -H "Content-Type: application/json" -H "Authorization: Bearer $JWT" \
             -d '{"user_type":"prosumer","location":{"lat_e7":0,"long_e7":0}}')
         if [ "$BODY" == "401" ] || [ "$BODY" == "403" ]; then

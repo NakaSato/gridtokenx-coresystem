@@ -119,7 +119,7 @@ def make_user(tag):
     if not wallet:
         from solders.keypair import Keypair
         wallet = str(Keypair().pubkey())
-        lw = requests.post(f"{IAM}/api/v1/users/me/wallets",
+        lw = requests.post(f"{IAM}/api/v1/me/wallets",
                            json={"wallet_address": wallet, "label": "E2E Primary",
                                  "is_primary": True},
                            headers={**GW, "Authorization": f"Bearer {jwt}"}, timeout=15)
@@ -170,7 +170,7 @@ def test_golden_path():
 
     # --- Stage 2: on-chain user onboarding (both) -----------------------
     for u in (seller, buyer):
-        r = requests.post(f"{IAM}/api/v1/users/me/onchain-profile", timeout=15,
+        r = requests.post(f"{IAM}/api/v1/me/registration", timeout=15,
                           headers={**GW, "Authorization": f"Bearer {u['jwt']}",
                                    "Content-Type": "application/json"},
                           json={"user_type": "prosumer",

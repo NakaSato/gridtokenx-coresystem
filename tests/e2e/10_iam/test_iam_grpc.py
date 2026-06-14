@@ -99,7 +99,7 @@ def test_grpc_requires_service_role(new_user):
 
 
 def test_grpc_get_user_info_parity(new_user):
-    """GetUserInfo returns the same id as the JWT sub (parity with REST /users/me)."""
+    """GetUserInfo returns the same id as the JWT sub (parity with REST /me)."""
     jwt = new_user["jwt"] or pytest.skip("no JWT")
     sub = new_user["user_id"] or pytest.skip("no sub")
     r = _call("GetUserInfo", {"token": jwt})

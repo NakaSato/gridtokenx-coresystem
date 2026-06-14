@@ -59,7 +59,7 @@ def _register_and_verify():
         from solders.keypair import Keypair
         wallet = str(Keypair().pubkey())
         lw = requests.post(
-            f"{IAM_URL}/api/v1/users/me/wallets",
+            f"{IAM_URL}/api/v1/me/wallets",
             json={"wallet_address": wallet, "label": "E2E Primary", "is_primary": True},
             headers={
                 "Authorization": f"Bearer {jwt}",

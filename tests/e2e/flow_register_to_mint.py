@@ -81,7 +81,7 @@ def main():
 
     # --- 3a. on-chain user PDA onboard ----------------------------------
     step("3a. on-chain user onboard (user PDA via Registry)")
-    o = requests.post(f"{IAM}/api/v1/users/me/onchain-profile", timeout=30,
+    o = requests.post(f"{IAM}/api/v1/me/registration", timeout=30,
                       headers={**GW, "Authorization": f"Bearer {jwt}",
                                "Content-Type": "application/json"},
                       json={"user_type": "prosumer",

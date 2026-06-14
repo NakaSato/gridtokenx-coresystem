@@ -64,7 +64,7 @@ verify_user() {
         pk=$(gen_pubkey)
         if [ -n "$pk" ]; then
             local lw
-            lw=$(auth_json POST "$IAM_URL/api/v1/users/me/wallets" "$E2E_JWT" \
+            lw=$(auth_json POST "$IAM_URL/api/v1/me/wallets" "$E2E_JWT" \
                 "{\"wallet_address\":\"$pk\",\"label\":\"E2E Primary\",\"is_primary\":true}")
             case "$(hs)" in
                 200|201) WALLET_ADDRESS="$pk" ;;
@@ -96,21 +96,21 @@ login() {
     echo "$LOGIN_RESP" | jq -r '.auth.access_token // .access_token // empty'
 }
 
-# onboard_user <jwt> <user_type> — POST /users/me/onchain-profile. Echoes body; status via `hs`
+# onboard_user <jwt> <user_type> — POST /me/registration. Echoes body; status via `hs`
 # ($HTTP_STATUS is lost when callers wrap this in `$(...)`).
 onboard_user() {
-    auth_json POST "$IAM_URL/api/v1/users/me/onchain-profile" "$1" \
+    auth_json POST "$IAM_URL/api/v1/me/registration" "$1" \
         "{\"user_type\":\"${2:-prosumer}\",\"location\":{\"lat_e7\":13756300,\"long_e7\":100501800}}"
 }
 
-# link_wallet <jwt> <wallet_address> — POST /users/me/wallets. Echoes body; status via `hs`.
+# link_wallet <jwt> <wallet_address> — POST /me/wallets. Echoes body; status via `hs`.
 link_wallet() {
-    auth_json POST "$IAM_URL/api/v1/users/me/wallets" "$1" \
+    auth_json POST "$IAM_URL/api/v1/me/wallets" "$1" \
         "{\"wallet_address\":\"$2\",\"label\":\"E2E Secondary\",\"is_primary\":false}"
 }
 
-# get_me <jwt> — GET /users/me. Echoes body; status via `hs`.
-get_me() { auth_json GET "$IAM_URL/api/v1/users/me" "$1"; }
+# get_me <jwt> — GET /me. Echoes body; status via `hs`.
+get_me() { auth_json GET "$IAM_URL/api/v1/me" "$1"; }
 
 # new_user — full register+verify, echoes JWT.
 # Sets E2E_USERNAME, E2E_EMAIL, E2E_USER_ID, WALLET_ADDRESS, REG_RESP, VERIFY_RESP, E2E_JWT.

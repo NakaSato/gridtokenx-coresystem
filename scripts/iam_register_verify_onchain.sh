@@ -6,9 +6,9 @@
 #   1. Register account                 POST /api/v1/auth/register
 #   2. Verify email (TEST_MODE token)   GET  /api/v1/auth/verify?token=verify_<email>
 #   3. Login -> JWT                     POST /api/v1/auth/login
-#   4. Link a real Solana wallet        POST /api/v1/users/me/wallets   (is_primary=true)
-#   5. Register the user on-chain       POST /api/v1/users/me/onchain-profile
-#   6. Read back the on-chain wallet    GET  /api/v1/users/me  +  /users/me/wallets
+#   4. Link a real Solana wallet        POST /api/v1/me/wallets   (is_primary=true)
+#   5. Register the user on-chain       POST /api/v1/me/registration
+#   6. Read back the on-chain wallet    GET  /api/v1/me  +  /me/wallets
 #
 # Step 5 registers a user PDA via the Solana Registry program through Chain Bridge.
 # It requires Chain Bridge up and a reachable Solana validator/RPC; if that is down
@@ -148,7 +148,7 @@ provision_one() {
     solana-keygen new --no-bip39-passphrase --silent --force --outfile "$kf" >/dev/null 2>&1
     wallet=$(solana-keygen pubkey "$kf" 2>/dev/null)
     local link
-    link=$(api POST /api/v1/users/me/wallets \
+    link=$(api POST /api/v1/me/wallets \
            "${GW_HEADERS[@]}" "${AUTH[@]}" \
            -H "Content-Type: application/json" \
            -d "{\"wallet_address\":\"$wallet\",\"label\":\"Primary\",\"is_primary\":true}")
@@ -165,7 +165,7 @@ provision_one() {
 
   # 5. Register on-chain (Registry PDA via Chain Bridge) ───────────────────────
   local onb status sig
-  onb=$(api POST /api/v1/users/me/onchain-profile \
+  onb=$(api POST /api/v1/me/registration \
         "${GW_HEADERS[@]}" "${AUTH[@]}" \
         -H "Content-Type: application/json" \
         -d "{\"user_type\":\"$utype\",\"location\":{\"lat_e7\":$LAT_E7,\"long_e7\":$LONG_E7}}")
@@ -177,9 +177,9 @@ provision_one() {
   # from. Prefer it over users.wallet_address (which may still hold the legacy
   # mock address minted at verify time).
   local wl onchain_addr
-  wl=$(api GET /api/v1/users/me/wallets "${GW_HEADERS[@]}" "${AUTH[@]}")
+  wl=$(api GET /api/v1/me/wallets "${GW_HEADERS[@]}" "${AUTH[@]}")
   onchain_addr=$(echo "$wl" | jq -r '.wallets[]? | select(.is_primary==true) | .wallet_address' | head -1)
-  [[ -z "$onchain_addr" ]] && onchain_addr=$(api GET /api/v1/users/me "${GW_HEADERS[@]}" "${AUTH[@]}" | jq -r '.wallet_address // "-"')
+  [[ -z "$onchain_addr" ]] && onchain_addr=$(api GET /api/v1/me "${GW_HEADERS[@]}" "${AUTH[@]}" | jq -r '.wallet_address // "-"')
 
   if [[ "$status" == "processing" || "$status" == "registered" || "$status" == "success" ]]; then
     ok "on-chain status=$status  sig=$sig"

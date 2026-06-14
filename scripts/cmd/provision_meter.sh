@@ -10,8 +10,8 @@
 #   1. register   POST /api/v1/auth/register            -> user_id (.id)
 #   2. verify     GET  /api/v1/auth/verify?token=verify_<email>
 #   3. login      POST /api/v1/auth/login               -> JWT
-#   4. link       POST /api/v1/users/me/wallets         (real keypair, is_primary)
-#   5. on-chain   POST /api/v1/users/me/onchain-profile (Registry PDA via Chain Bridge)
+#   4. link       POST /api/v1/me/wallets         (real keypair, is_primary)
+#   5. on-chain   POST /api/v1/me/registration (Registry PDA via Chain Bridge)
 #   6. map        SET  gridtokenx:meters:<meter_id>:user_id = <user_id>  (Redis)
 #
 # Usage:
@@ -84,7 +84,7 @@ _pm_create_user() {
         local wallet; wallet=$(solana-keygen pubkey "$kf" 2>/dev/null)
         rm -f "$kf"
         local link
-        link=$(curl -s -X POST "$PM_BASE/api/v1/users/me/wallets" \
+        link=$(curl -s -X POST "$PM_BASE/api/v1/me/wallets" \
                "${gw[@]}" "${auth[@]}" -H "Content-Type: application/json" \
                -d "{\"wallet_address\":\"$wallet\",\"label\":\"Primary\",\"is_primary\":true}")
         if echo "$link" | jq -e '.id' >/dev/null 2>&1; then
@@ -97,7 +97,7 @@ _pm_create_user() {
     fi
 
     local onb status sig
-    onb=$(curl -s -X POST "$PM_BASE/api/v1/users/me/onchain-profile" \
+    onb=$(curl -s -X POST "$PM_BASE/api/v1/me/registration" \
           "${gw[@]}" "${auth[@]}" -H "Content-Type: application/json" \
           -d "{\"user_type\":\"$user_type\",\"location\":{\"lat_e7\":$PM_LAT,\"long_e7\":$PM_LONG}}")
     status=$(echo "$onb" | jq -r '.status // "unknown"')

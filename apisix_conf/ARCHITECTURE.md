@@ -77,24 +77,30 @@ natively on the host during dev (see §6).
 
 | ID(s) | Service | Path prefix(es) | Upstream |
 | :--- | :--- | :--- | :--- |
-| 10 | IAM public REST | `/api/v1/auth/{login,register,verify,forgot,reset}`, `/api/v1/system/config` | `iam-service:8080` / host `4010` |
-| 11, 110 | IAM private REST | `/api/v1/{profile,me,wallets,onboarding,identity,meters}`, `users/me` (pass-through, no rewrite) | `iam-service:8080` / host `4010` |
-| 2, 20, 21, 22 | Trading REST | `/api/v1/{orders,quotes,zones,stats,futures,analytics,trades,settlement,carbon,...}` | `trading-service:8093` / host `8093` |
-| 3, 30, 31 | Notifications | `/api/v1/notifications/*`, `/ws`, `users/me/notifications→notifications` | `noti-service:8080` / host `5050` |
+| 10 | IAM public REST | `/api/v1/auth/{login,register,verify,forgot,reset,refresh,...}` | `iam-service:8080` / host `4010` |
+| 11 | IAM private REST | `/api/v1/me`, `/api/v1/me/{registration,wallets,wallets/*}` (explicit, **not** a `/me/*` catch-all), `/api/v1/{profile,wallets,onboarding,identity}` | `iam-service:8080` / host `4010` |
+| 13 | IAM system config (**PRIVATE**) | `/api/v1/system/config` — `ip-restriction` to internal CIDRs only | `iam-service:8080` / host `4010` |
+| 2, 20, 21, 22 | Trading REST | `/api/v1/{orders,quotes,zones,stats,futures,analytics,trades,settlement,carbon,...}`; `/api/v1/me/{orders,trades,...}` carve-out (priority 20) | `trading-service:8093` / host `8093` |
+| 3, 30, 31 | Notifications | `/api/v1/notifications/*`, `/ws`, `me/notifications→notifications` (priority 20/21) | `noti-service:8080` / host `5050` |
 | 4, 5, 9, 40, 41, 42 | Smartmeter Simulator | `/api/v1/public/grid-*`, `/public/meters`, `/api/market/ws` (WS→`/ws`), `/simulation`, microgrid | `smartmeter-simulator:8082` / host `12010` |
-| 8 | Health & metrics | `/health`, `/metrics` | `iam-service:8080` / host `4010` |
+| 8 | Health & metrics (**PRIVATE**) | `/health`, `/metrics` — `ip-restriction` to internal CIDRs only | `iam-service:8080` / host `4010` |
 | 100 | IAM gRPC (ConnectRPC) | `/identity.IdentityService/*` | `iam-service:8090` / host `5010` |
 | 101 | Trading gRPC (ConnectRPC) | `/trading.TradingService/*` | `trading-service:8092` / host `8092` |
 
 ### Path-rewrite convention
 
-Client-friendly **`/api/v1/users/me/...`** paths are rewritten via `proxy-rewrite.regex_uri` to the
-backend's canonical resource paths (which derive the user from the injected `x-gridtokenx-user-id`
-header), e.g.:
+Client-friendly **`/api/v1/me/...`** paths (the platform-wide user-self namespace) are rewritten via
+`proxy-rewrite.regex_uri` to each backend's canonical resource paths (which derive the user from the
+injected `x-gridtokenx-user-id` header), e.g.:
 
-- `/api/v1/users/me/orders` → `/api/v1/orders`
-- `/api/v1/users/me/notifications/mark-all-read` → `/api/v1/notifications/read-all`
+- `/api/v1/me/orders` → `/api/v1/orders` (Trading)
+- `/api/v1/me/notifications/mark-all-read` → `/api/v1/notifications/read-all` (Noti)
 - `/api/v1/markets/zones/{z}/order-book` → `/api/v1/zones/{z}/book`
+
+The `/api/v1/me` namespace is **shared across services**: IAM owns the profile/wallet paths (route 11,
+explicit list, served natively — no rewrite), while Trading/Noti/Meter own sibling sub-paths via
+higher-`priority` carve-out routes so IAM's route never swallows them. (Migrated from the older
+`/api/v1/users/me/...` convention.)
 
 ## 6. Dual-Upstream Dev Pattern
 

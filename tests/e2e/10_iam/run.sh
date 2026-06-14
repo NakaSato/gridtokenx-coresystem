@@ -53,15 +53,15 @@ ENC_VER=$(db_wallet_enc_version "$E2E_USERNAME")
 assert_nonempty "$ENC_VER" "wallet_encryption_version set (encrypted-wallet pipeline ran)"
 assert_eq "$(db_plaintext_key_columns)" "0" "no plaintext private_key column on users"
 
-# --- Case 6: Authenticated profile (GET /users/me) ----------------------
+# --- Case 6: Authenticated profile (GET /me) ----------------------
 log_info "Case 6: authenticated profile fetch"
 ME=$(get_me "$JWT")
-assert_status "$(hs)" "200" "GET /users/me authorized"
+assert_status "$(hs)" "200" "GET /me authorized"
 assert_eq "$(echo "$ME" | jq -r '.id // empty')" "$E2E_USER_ID" "profile id matches"
 
 # --- Case 7: Unauthenticated access rejected ----------------------------
-log_info "Case 7: /users/me without token rejected"
-http_json GET "$IAM_URL/api/v1/users/me" >/dev/null
+log_info "Case 7: /me without token rejected"
+http_json GET "$IAM_URL/api/v1/me" >/dev/null
 if [ "$(hs)" == "401" ] || [ "$(hs)" == "403" ]; then
     log_success "unauthenticated profile blocked [$(hs)]"
 else
@@ -114,7 +114,7 @@ fi
 
 # --- Case 11: List wallets reflects link --------------------------------
 log_info "Case 11: wallet list includes linked secondary"
-WL=$(auth_json GET "$IAM_URL/api/v1/users/me/wallets" "$JWT")
+WL=$(auth_json GET "$IAM_URL/api/v1/me/wallets" "$JWT")
 assert_status "$(hs)" "200" "list wallets authorized"
 assert_contains "$WL" "$SEC_WALLET" "linked wallet present in list"
 
