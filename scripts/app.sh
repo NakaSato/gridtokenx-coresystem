@@ -17,6 +17,7 @@ export PATH="$HOME/.cargo/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH
 #   init      - Initialize blockchain and deploy programs
 #   register  - Register admin user
 #   seed      - Seed database with test users
+#   provision-meter - Create on-chain user + map a meter id to it (Redis)
 #   logs      - View service logs
 #   solana    - Manage local solana test validator (start/stop)
 #
@@ -48,6 +49,7 @@ source "$SCRIPT_DIR/cmd/status.sh"
 source "$SCRIPT_DIR/cmd/init.sh"
 source "$SCRIPT_DIR/cmd/register.sh"
 source "$SCRIPT_DIR/cmd/seed.sh"
+source "$SCRIPT_DIR/cmd/provision_meter.sh"
 source "$SCRIPT_DIR/cmd/logs.sh"
 source "$SCRIPT_DIR/cmd/start.sh"
 source "$SCRIPT_DIR/cmd/solana.sh"
@@ -110,6 +112,12 @@ main() {
             ;;
         seed)
             cmd_seed
+            ;;
+        provision-meter)
+            cmd_provision_meter "$@"
+            ;;
+        provision-meters)
+            cmd_provision_meters "$@"
             ;;
         logs)
             cmd_logs "$@"

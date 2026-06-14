@@ -7,9 +7,6 @@
 [submodule "gridtokenx-trading"]
 	path = gridtokenx-trading
 	url = https://github.com/NakaSato/gridtokenx-trading.git
-[submodule "gridtokenx-wasm"]
-	path = gridtokenx-wasm
-	url = https://github.com/NakaSato/gridtokenx-wasm.git
 [submodule "gridtokenx-explorer"]
 	path = gridtokenx-explorer
 	url = https://github.com/NakaSato/gridtokenx-explorer.git
