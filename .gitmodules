@@ -28,3 +28,6 @@
 [submodule "gridtokenx-chain-bridge"]
 	path = gridtokenx-chain-bridge
 	url = https://github.com/NakaSato/gridtokenx-chain-bridge.git
+[submodule "gridtokenx-meter-service"]
+	path = gridtokenx-meter-service
+	url = https://github.com/NakaSato/gridtokenx-meter-service.git
