@@ -46,8 +46,7 @@ graph TD
         IAM & Trading & OracleB -->|RabbitMQ| Tasks[RabbitMQ :5672]
         IAM & Trading & OracleB -->|Redis| Live[Redis Pub/Sub]
         IAM & Trading -->|SQLx| PostgreS[(PostgreSQL 17)]
-        OracleB -->|HTTP| TSDB[(InfluxDB 2.7)]
-        Trading -->|Analytics| ClickHouse[(ClickHouse)]
+        OracleB -->|Streams| ZoneRedis[Redis Streams: zone-partitioned]
     end
 ```
 
@@ -105,9 +104,7 @@ User/Web → APISIX (User Gateway) ───────────────
 | Component | Version | Purpose |
 |-----------|---------|---------|
 | **PostgreSQL 17** | Primary + Replica | User data, orders, trades, **Transactional Outbox** |
-| **InfluxDB 2.7** | 1 | Time-series meter readings |
-| **Redis 7** | Primary + Replica | Cache, session, Pub/Sub |
-| **ClickHouse** | 1 | CQRS read-side analytics |
+| **Redis 7** | Primary + Replica | Cache, session, Pub/Sub, zone-partitioned meter Streams |
 
 ### Infrastructure & Observability
 
@@ -180,7 +177,7 @@ cp .env.example .env
 # Generate dev mTLS certs for Chain Bridge (CA + server + per-service SPIFFE client certs)
 just gen-certs
 
-# Start the unified infrastructure (PostgreSQL, Redis, Kafka, APISIX, Envoy, InfluxDB, Vault)
+# Start the unified infrastructure (PostgreSQL, Redis, Kafka, APISIX, Envoy, NATS, Vault)
 ./scripts/app.sh start --docker-only
 
 # Initialize the blockchain state and deploy Anchor programs
@@ -281,9 +278,10 @@ grx prepare   # sqlx prepare (offline query preparation)
 | **Trading UI** | `11001` | — | Exchange Web App |
 | **Explorer UI** | `11002` | — | Block Explorer UI |
 | **Simulator UI** | `12011` | — | Smart Meter Simulator Map |
-| **PostgreSQL** | `7001` (primary) | — | Primary DB |
-| **Redis** | `7010` | — | Cache, Session, Pub/Sub |
-| **RabbitMQ** | `9030` (AMQP) / `19030` (mgmt) | — | Task Queues |
+| **PostgreSQL** | `7001` | — | Relational store (primary) |
+| **[PgDog](https://docs.pgdog.dev)** | `7003` | — | Sole Postgres pooler (in-network `pgdog:6432`; all services route here) |
+| **Redis** | `7010` | — | Cache, Session, Pub/Sub, meter Streams |
+| **RabbitMQ** | `9030` (AMQP) / `9031` (mgmt) | — | Task Queues |
 | **Kafka** | `29001` | — | Event Bus / Broker |
 | **Grafana** | `6002` | — | Metrics Dashboard |
 | **Prometheus** | `6001` | — | Metrics Scraper |

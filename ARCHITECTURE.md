@@ -43,7 +43,7 @@ IV.  Distributed Ledger → Solana programs: Registry, Settlement, Energy Asset 
 | Trading Service | Rust | 4020 | 5020 | CDA matching, settlement |
 | Aggregator Bridge | Rust | 4030 | 5030 | Telemetry verify + aggregation |
 | Chain Bridge | Rust | — | 5040 | **Only** service touching Solana RPC |
-| Noti Service | Rust | — | — | Notification delivery |
+| Noti Service | Rust | 4060 | 5060 | Notification delivery |
 | Smartmeter Simulator | Python | — | — | Telemetry generation / load test |
 
 Gateways: **APISIX** `:4001` (user-facing, HTTPS/WSS) · **Envoy** `:4002` (IoT/mTLS edge).
@@ -63,10 +63,9 @@ See [`CLAUDE.md`](CLAUDE.md) for the enforced conventions behind these rules.
 - **Kafka** — command / market / audit event logs (event sourcing).
 - **NATS JetStream** — async on-chain tx submission.
 - **RabbitMQ** `:5672` — task queues.
-- **Redis** — live pub/sub + telemetry streams.
-- **PostgreSQL 17** `:7001` — IAM + Trading relational state.
-- **InfluxDB 2.7** — Aggregator Bridge time-series telemetry.
-- **ClickHouse** — Trading analytics.
+- **Redis** `:7010` — live pub/sub + telemetry streams.
+- **PostgreSQL 17** `:7001` — IAM + Trading relational state (single primary).
+- **[PgDog](https://docs.pgdog.dev)** `:7003` — sole Postgres connection pooler (Rust; replaced PgBouncer); all services connect in-network via `pgdog:6432`.
 
 Port scheme: 4000s gateways · 5000s gRPC mesh · 7000s persistence · 9000s messaging.
 

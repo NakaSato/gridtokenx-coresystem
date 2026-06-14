@@ -36,20 +36,17 @@ services:
       - "log_min_duration_statement=1000"
       - "-c"
       - "shared_preload_libraries=pg_stat_statements"
-      # Replication settings
       - "-c"
-      - "wal_level=replica"
-      - "-c"
-      - "max_wal_senders=10"
-      - "-c"
-      - "max_replication_slots=10"
-      - "-c"
-      - "synchronous_commit=off"
+      # Async commit (~0.6s data-loss window on hard crash/power-loss only;
+      # graceful restart loses nothing). Tolerated in dev via the Outbox pattern
+      # + chain-as-source-of-truth + idempotency (docs/RELIABILITY.md). Defaults
+      # to the safe `on` so prod/CI never inherit async commit; dev opts into
+      # `off` via PG_SYNCHRONOUS_COMMIT in .env.
+      - "synchronous_commit=${PG_SYNCHRONOUS_COMMIT:-on}"
     ports:
       - "${POSTGRES_PRIMARY_PORT:-7001}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./scripts/setup-replication.sh:/docker-entrypoint-initdb.d/setup-replication.sh:ro
       - ./scripts/init-multi-db.sql:/docker-entrypoint-initdb.d/init-multi-db.sql:ro
     networks:
       - gridtokenx-network
@@ -65,44 +62,9 @@ services:
       timeout: 5s
       retries: 5
 
-  # PgBouncer - Lightweight Connection Pooler
-  pgbouncer:
-    image: edoburu/pgbouncer:latest
-    container_name: gridtokenx-pgbouncer
-    environment:
-      DB_HOST: postgres
-      DB_USER: ${POSTGRES_USER:-gridtokenx_user}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-gridtokenx_password}
-      DB_NAME: ${POSTGRES_DB:-gridtokenx}
-      # Additional databases via custom INI section
-      PGBOUNCER_DATABASES: |
-        gridtokenx = host=postgres port=5432 dbname=gridtokenx
-        gridtokenx_noti = host=postgres port=5432 dbname=gridtokenx_noti
-      POOL_MODE: transaction
-      MAX_CLIENT_CONN: 1000
-      DEFAULT_POOL_SIZE: 20
-      MIN_POOL_SIZE: 5
-      RESERVE_POOL_SIZE: 5
-      AUTH_TYPE: plain
-    volumes:
-      - ./docker/pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt:ro
-      - ./docker/pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
-    ports:
-      - "${PGBOUNCER_PORT:-6432}:6432"
-    networks:
-      - gridtokenx-network
-    depends_on:
-      postgres:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -h localhost -p 5432 -U ${POSTGRES_USER:-gridtokenx_user}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   # PgDog - Rust connection pooler / load balancer / sharder (https://docs.pgdog.dev)
-  # Runs alongside PgBouncer; opt a service in by pointing its DATABASE_URL at
-  # pgdog:6432 (host: localhost:${PGDOG_PORT:-7003}).
+  # Sole Postgres pooler for the stack (replaced PgBouncer). Every service points
+  # its DATABASE_URL at pgdog:6432 (host: localhost:${PGDOG_PORT:-7003}).
   pgdog:
     image: ghcr.io/pgdogdev/pgdog:main
     container_name: gridtokenx-pgdog
@@ -123,99 +85,6 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
-
-  # PostgreSQL Database for API (Replica)
-  postgres-replica:
-    image: postgres:17-alpine
-    container_name: gridtokenx-postgres-replica
-    user: postgres
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      PRIMARY_HOST: postgres
-      TZ: ${TZ}
-    entrypoint: ["/bin/sh", "/scripts/init-replica.sh"]
-    command:
-      - "postgres"
-      - "-c"
-      - "max_connections=200"
-      - "-c"
-      - "wal_level=replica"
-      - "-c"
-      - "max_wal_senders=10"
-      - "-c"
-      - "max_replication_slots=10"
-      - "-c"
-      - "hot_standby=on"
-    ports:
-      - "${POSTGRES_REPLICA_PORT:-7002}:5432"
-    volumes:
-      - postgres_replica_data:/var/lib/postgresql/data
-      - ./scripts/init-replica.sh:/scripts/init-replica.sh:ro
-    networks:
-      - gridtokenx-network
-    depends_on:
-      pgbouncer:
-        condition: service_started
-    deploy:
-      resources:
-        limits:
-          memory: 2G
-        reservations:
-          memory: 1G
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # PostgreSQL Database for API (Cascading Replica)
-  # Offloads WAL shipping overhead from primary to postgres-replica
-  postgres-replica-cascade:
-    image: postgres:17-alpine
-    container_name: gridtokenx-postgres-replica-cascade
-    user: postgres
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      PRIMARY_HOST: postgres-replica
-      TZ: ${TZ}
-    entrypoint: ["/bin/sh", "/scripts/init-replica.sh"]
-    command:
-      - "postgres"
-      - "-c"
-      - "max_connections=200"
-      - "-c"
-      - "wal_level=replica"
-      - "-c"
-      - "max_wal_senders=10"
-      - "-c"
-      - "max_replication_slots=10"
-      - "-c"
-      - "hot_standby=on"
-    ports:
-      - "7003:5432"
-    volumes:
-      - postgres_replica_cascade_data:/var/lib/postgresql/data
-      - ./scripts/init-replica.sh:/scripts/init-replica.sh:ro
-    networks:
-      - gridtokenx-network
-    depends_on:
-      postgres-replica:
-        condition: service_healthy
-    deploy:
-      resources:
-        limits:
-          memory: 2G
-        reservations:
-          memory: 1G
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   # Redis Cache for API (Primary)
   redis:
@@ -240,74 +109,6 @@ services:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 3s
-      retries: 5
-
-  # Redis Cache for API (Replica)
-  redis-replica:
-    image: redis:7-alpine
-    container_name: gridtokenx-redis-replica
-    command: redis-server --replicaof redis 6379
-    environment:
-      TZ: ${TZ}
-    ports:
-      - "${REDIS_REPLICA_PORT:-7011}:6379"
-    volumes:
-      - redis_replica_data:/data
-    networks:
-      - gridtokenx-network
-    depends_on:
-      - redis
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-
-  # MinIO - Local S3 Simulation for Long-Term Retention
-  minio:
-    image: minio/minio:latest
-    container_name: gridtokenx-minio
-    ports:
-      - "9005:9000" # API
-      - "9006:9001" # Console
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minio_secret_2025
-    volumes:
-      - minio_data:/data
-    command: server /data --console-address ":9001"
-    networks:
-      - gridtokenx-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
-  # InfluxDB Time Series Database
-  influxdb:
-    image: influxdb:2.7-alpine
-    container_name: gridtokenx-influxdb
-    ports:
-      - "${INFLUXDB_PORT}:8086"
-    environment:
-      DOCKER_INFLUXDB_INIT_MODE: setup
-      DOCKER_INFLUXDB_INIT_USERNAME: ${INFLUXDB_USER}
-      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUXDB_PASSWORD}
-      DOCKER_INFLUXDB_INIT_ORG: ${INFLUXDB_ORG}
-      DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUXDB_BUCKET}
-      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUXDB_TOKEN}
-    volumes:
-      - influxdb_data:/var/lib/influxdb2
-      - influxdb_config:/etc/influxdb2
-    networks:
-      - gridtokenx-network
-    restart: unless-stopped
-    healthcheck:
-      test: "curl -f http://localhost:8086/health || exit 1"
-      interval: 30s
-      timeout: 10s
       retries: 5
 
   # Kafka cluster 1: Commands & Events (Low-volume, strict order, durable)
@@ -540,6 +341,9 @@ services:
       - "${CHAIN_BRIDGE_GRPC_PORT:-5040}:5040"
     environment:
       CHAIN_BRIDGE_GRPC_PORT: 5040
+      # External SNTP time source (gridtokenx_telemetry::time). Override per deploy
+      # to an internal NTP, or set NTP_DISABLE=1 for OS-clock-only / air-gap.
+      NTP_SERVERS: ${NTP_SERVERS:-time.cloudflare.com:123,time.google.com:123}
       # mTLS by default; run `just gen-certs` first. Set CHAIN_BRIDGE_INSECURE=true in .env to bypass.
       CHAIN_BRIDGE_INSECURE: "${CHAIN_BRIDGE_INSECURE:-false}"
       CHAIN_BRIDGE_TLS_CERT: /app/infra/certs/server.crt
@@ -579,7 +383,7 @@ services:
       - "${IAM_HTTP_PORT:-4010}:8080"
       - "${IAM_GRPC_PORT:-5010}:8090"
     environment:
-      DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgbouncer:5432/gridtokenx
+      DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgdog:6432/gridtokenx
       REDIS_URL: redis://redis:6379
       KAFKA_CMD_BROKERS: kafka-cmd:9001
       KAFKA_MARKET_BROKERS: kafka-market:9002
@@ -594,6 +398,7 @@ services:
       ENCRYPTION_SECRET: ${ENCRYPTION_SECRET}
       API_KEY_SECRET: ${API_KEY_SECRET}
       ENVIRONMENT: development
+      NTP_SERVERS: ${NTP_SERVERS:-time.cloudflare.com:123,time.google.com:123}
       VAULT_ADDR: http://vault:8200
       VAULT_TOKEN: root
       VAULT_TRANSIT_KEY_NAME: gridtokenx-user-wallets
@@ -629,8 +434,8 @@ services:
       - ./infra/certs/clients/iam-service.crt:/app/infra/certs/client.crt:ro
       - ./infra/certs/clients/iam-service.key:/app/infra/certs/client.key:ro
     depends_on:
-      pgbouncer:
-        condition: service_started
+      pgdog:
+        condition: service_healthy
       rabbitmq:
         condition: service_healthy
       chain-bridge:
@@ -660,7 +465,7 @@ services:
       - ./infra/certs/clients/trading-service-api.crt:/app/infra/certs/client.crt:ro
       - ./infra/certs/clients/trading-service-api.key:/app/infra/certs/client.key:ro
     environment:
-      DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgbouncer:5432/gridtokenx
+      DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgdog:6432/gridtokenx
       REDIS_URL: redis://redis:6379
       KAFKA_CMD_BROKERS: kafka-cmd:9001
       KAFKA_MARKET_BROKERS: kafka-market:9002
@@ -671,6 +476,7 @@ services:
       KAFKA_EVENTS_ENABLED: "true"
       KAFKA_BOOTSTRAP_SERVERS: kafka-cmd:9001
       KAFKA_TOPIC_PREFIX: trading
+      NTP_SERVERS: ${NTP_SERVERS:-time.cloudflare.com:123,time.google.com:123}
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-gridtokenx}:${RABBITMQ_DEFAULT_PASS:-rabbitmq_secret_2025}@rabbitmq:5672
       RUST_LOG: debug,librdkafka=warn
       JWT_SECRET: ${JWT_SECRET}
@@ -714,8 +520,8 @@ services:
       # funded simnet E2E validates the swap path + order-PDA lifecycle.
       TRADE_SETTLEMENT_ENABLED: "false"
     depends_on:
-      pgbouncer:
-        condition: service_started
+      pgdog:
+        condition: service_healthy
       redis:
         condition: service_healthy
       rabbitmq:
@@ -742,13 +548,14 @@ services:
       # Container defaults GRPC_PORT=5030; pin to 50051 so the host port mapping
       # above actually reaches the gRPC ingestion listener.
       GRPC_PORT: 50051
+      NTP_SERVERS: ${NTP_SERVERS:-time.cloudflare.com:123,time.google.com:123}
       REDIS_URL: redis://redis:6379
       KAFKA_CMD_BROKERS: kafka-cmd:9001
       KAFKA_MARKET_BROKERS: kafka-market:9002
       KAFKA_AUDIT_BROKERS: kafka-audit:9003
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-gridtokenx}:${RABBITMQ_DEFAULT_PASS:-rabbitmq_secret_2025}@rabbitmq:5672
-      DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgbouncer:5432/gridtokenx
-      TRADING_DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgbouncer:5432/gridtokenx
+      DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgdog:6432/gridtokenx
+      TRADING_DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgdog:6432/gridtokenx
       API_GATEWAY_URL: http://apisix:9080
       IAM_GRPC_URL: http://apisix:9080
       TRADING_GRPC_URL: http://apisix:9080
@@ -805,7 +612,9 @@ services:
       - "${NOTI_GRPC_PORT:-5060}:8090"
       - "${NOTI_GRPC_PORT:-5060}:8090/udp"
     environment:
-      DATABASE_URL: postgres://gridtokenx_user:gridtokenx_password@pgbouncer:5432/gridtokenx_noti
+      # Routed through PgDog (Rust pooler) instead of PgBouncer — pgdog:6432
+      # fronts the same Postgres primary for the gridtokenx_noti schema.
+      DATABASE_URL: postgres://gridtokenx_user:gridtokenx_password@pgdog:6432/gridtokenx_noti
       REDIS_URL: redis://redis:6379
       KAFKA_BROKERS: kafka-cmd:9001
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-gridtokenx}:${RABBITMQ_DEFAULT_PASS:-rabbitmq_secret_2025}@rabbitmq:5672
@@ -817,6 +626,7 @@ services:
       SMTP_TLS_MODE: none
       SMTP_FROM: noreply@gridtokenx.com
       EMAIL_FROM_NAME: GridTokenX
+      NTP_SERVERS: ${NTP_SERVERS:-time.cloudflare.com:123,time.google.com:123}
       EMAIL_FROM_ADDRESS: noreply@gridtokenx.com
       # Base URL for links in outbound emails (verify, password reset).
       # Must be reachable from the recipient's browser — the trading UI host port.
@@ -827,8 +637,8 @@ services:
       - ./infra/certs/server.crt:/app/infra/certs/server.crt:ro
       - ./infra/certs/server.key:/app/infra/certs/server.key:ro
     depends_on:
-      pgbouncer:
-        condition: service_started
+      pgdog:
+        condition: service_healthy
       rabbitmq:
         condition: service_healthy
       redis:
@@ -958,8 +768,8 @@ services:
       # IAM onboarding (register->login->claim) via the APISIX user gateway.
       IAM_GATEWAY_URL: http://apisix:9080
       AGGREGATOR_IAM_ONBOARD_ENABLED: ${SMARTMETER_IAM_ONBOARD_ENABLED:-false}
-      # PostGIS persistence of per-tick readings. Routed through pgbouncer.
-      POSTGIS_URL: postgresql://gridtokenx_user:gridtokenx_password@pgbouncer:5432/gridtokenx
+      # PostGIS persistence of per-tick readings. Routed through pgdog.
+      POSTGIS_URL: postgresql://gridtokenx_user:gridtokenx_password@pgdog:6432/gridtokenx
       POSTGIS_ENABLED: ${SMARTMETER_POSTGIS_ENABLED:-false}
     ports:
       - "${SMARTMETER_PORT:-8082}:8082" # REST API + /docs
@@ -1051,14 +861,14 @@ services:
     image: prometheuscommunity/postgres-exporter:latest
     container_name: gridtokenx-postgres-exporter
     environment:
-      DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pgbouncer:5432/${POSTGRES_DB}?sslmode=disable"
+      DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pgdog:6432/${POSTGRES_DB}?sslmode=disable"
     ports:
-      - "9187:9187"
+      - "${POSTGRES_EXPORTER_PORT:-9187}:9187"
     networks:
       - gridtokenx-network
     depends_on:
-      pgbouncer:
-        condition: service_started
+      pgdog:
+        condition: service_healthy
     restart: unless-stopped
 
   # Redis Exporter
@@ -1068,7 +878,7 @@ services:
     environment:
       REDIS_ADDR: "redis://redis:6379"
     ports:
-      - "9121:9121"
+      - "${REDIS_EXPORTER_PORT:-9121}:9121"
     networks:
       - gridtokenx-network
     depends_on:
@@ -1087,7 +897,7 @@ services:
         "--kafka.server=kafka-audit:9003",
       ]
     ports:
-      - "9308:9308"
+      - "${KAFKA_EXPORTER_PORT:-9308}:9308"
     networks:
       - gridtokenx-network
     depends_on:
@@ -1113,7 +923,7 @@ services:
       - /sys:/host/sys:ro
       - /:/host:ro
     ports:
-      - "9100:9100"
+      - "${NODE_EXPORTER_PORT:-9100}:9100"
     networks:
       - gridtokenx-network
     restart: unless-stopped
@@ -1271,19 +1081,13 @@ volumes:
   iam_ows_vault:
     driver: local
   postgres_data:
-  postgres_replica_data:
-  postgres_replica_cascade_data:
   redis_data:
-  redis_replica_data:
-  influxdb_data:
-  influxdb_config:
   mailpit_data:
   kafka_cmd_data:
   kafka_market_data:
   kafka_audit_data:
   rabbitmq_data:
   nats_data:
-  minio_data:
   prometheus_data:
   grafana_data:
   openleadr_vtn_db_data:

@@ -24,3 +24,8 @@ scrape_configs:
     static_configs:
       - targets: ['postgres-exporter:9187', 'redis-exporter:9121', 'kafka-exporter:9308', 'node-exporter:9100', 'cadvisor:8080']
 
+  # PgDog (sole Postgres pooler) — native OpenMetrics endpoint (openmetrics_port=9090).
+  - job_name: 'pgdog'
+    static_configs:
+      - targets: ['pgdog:9090']
+

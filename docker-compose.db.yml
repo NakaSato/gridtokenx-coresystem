@@ -76,31 +76,6 @@ services:
       timeout: 3s
       retries: 5
 
-  # InfluxDB Time Series Database
-  influxdb:
-    image: influxdb:2.7-alpine
-    container_name: gridtokenx-influxdb
-    ports:
-      - "${INFLUXDB_PORT:-7020}:8086"
-    environment:
-      DOCKER_INFLUXDB_INIT_MODE: setup
-      DOCKER_INFLUXDB_INIT_USERNAME: ${INFLUXDB_USER:-gridtokenx_user}
-      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUXDB_PASSWORD:-gridtokenx_password}
-      DOCKER_INFLUXDB_INIT_ORG: ${INFLUXDB_ORG:-gridtokenx}
-      DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUXDB_BUCKET:-energy_readings}
-      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUXDB_TOKEN:-your-influxdb-token}
-    volumes:
-      - influxdb_data:/var/lib/influxdb2
-      - influxdb_config:/etc/influxdb2
-    networks:
-      - gridtokenx-network
-    restart: unless-stopped
-    healthcheck:
-      test: "curl -f http://localhost:8086/health || exit 1"
-      interval: 30s
-      timeout: 10s
-      retries: 5
-
 networks:
   gridtokenx-network:
     driver: bridge
@@ -108,6 +83,3 @@ networks:
 volumes:
   postgres_data:
   redis_data:
-  influxdb_data:
-  influxdb_config:
-  clickhouse_data:

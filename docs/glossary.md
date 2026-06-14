@@ -64,7 +64,7 @@
 | **Bid** | A buy order — an offer to purchase energy at a specified price. |
 | **Ask** | A sell order — an offer to sell energy at a specified price. |
 | **Spread** | The difference between the best bid price and the best ask price. |
-| **CQRS** | Command Query Responsibility Segregation — separating write operations (Postgres) from read-optimized queries (ClickHouse). |
+| **CQRS** | Command Query Responsibility Segregation — separating write operations from read-optimized queries. A planned pattern; ClickHouse was the intended OLAP read side but is **not currently provisioned** (see ClickHouse below). |
 | **DCA** | Dollar-Cost Averaging — a strategy of placing recurring orders at fixed intervals. |
 | **Stop-Loss** | An order that triggers a market sell when the price drops below a threshold. |
 | **Take-Profit** | An order that triggers a market sell when the price rises above a threshold. |
@@ -87,8 +87,8 @@
 | **Envoy** | Edge proxy for IoT devices (port 4002). Enforces mTLS, device certificates, and payload size limits. |
 | **Kafka** | Distributed event streaming platform. GridTokenX uses 3 logical clusters: cmd-events (9001), market-data (9002), audit (9003). |
 | **RabbitMQ** | Message broker for task queues. Used for email notifications, settlement retries, and dead letter queues (DLQ). |
-| **ClickHouse** | Column-oriented OLAP database. Used as the CQRS read side for analytics queries. |
-| **InfluxDB** | Time-series database. Used by Aggregator Bridge for storing raw meter readings. |
+| **ClickHouse** | Column-oriented OLAP database. Intended as the CQRS read side for analytics. **Not currently provisioned** — no ClickHouse container in the stack and no client in any service. Listed for design context and to disambiguate older docs. |
+| **InfluxDB** | Time-series database. **Not used and not provisioned** — there is no InfluxDB container in the stack and no client in any service. Verified meter telemetry is disseminated to zone-partitioned Redis Streams + Kafka. Listed only to disambiguate older docs that referenced it. |
 | **SQLx** | Rust SQL toolkit with compile-time query verification. Primary ORM for Postgres. |
 
 ---
