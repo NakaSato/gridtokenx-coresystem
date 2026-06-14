@@ -427,6 +427,37 @@ services:
       - gridtokenx-network
     restart: unless-stopped
 
+  # Meter Service - Smart Energy Dashboard read API (meters + meter_readings)
+  meter-service:
+    build:
+      context: ./gridtokenx-meter-service
+      dockerfile: Dockerfile
+    container_name: gridtokenx-meter-service
+    ports:
+      - "${METER_SERVICE_PORT:-4060}:8080"
+    environment:
+      DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgdog:6432/gridtokenx
+      JWT_SECRET: ${JWT_SECRET}
+      METER_SERVICE_PORT: 8080
+      NATS_URL: nats://nats:4222
+      METER_SERVICE_NATS_SUBJECT: meter.reading
+      MINT_VIA_CHAIN_BRIDGE: "true"
+      RUST_LOG: info,sqlx=warn
+    depends_on:
+      pgdog:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+    networks:
+      - gridtokenx-network
+    restart: unless-stopped
+
   # Trading Service
   trading-service:
     build:
@@ -546,6 +577,12 @@ services:
       NATS_URL: nats://nats:4222
       KAFKA_BOOTSTRAP_SERVERS: kafka-market:9002
       KAFKA_TOPIC_METER_READINGS: meter.readings
+      # Independent realtime telemetry history — dedicated InfluxDB v2 instance
+      # owned by this service alone (not shared with any other service).
+      INFLUXDB_URL: http://aggregator-influxdb:8086
+      INFLUXDB_ORG: ${INFLUXDB_ORG:-gridtokenx}
+      INFLUXDB_BUCKET: ${INFLUXDB_BUCKET:-aggregator_telemetry}
+      INFLUXDB_TOKEN: ${AGGREGATOR_INFLUXDB_TOKEN:-aggregator-bridge-dev-token}
       # Path B generation-mint via Chain Bridge: aggregator builds UNSIGNED GRID mint
       # tx and submits over NATS; Chain Bridge (Vault platform_admin) signs + sends.
       MINT_VIA_CHAIN_BRIDGE: "true"
@@ -574,9 +611,38 @@ services:
         condition: service_healthy
       kafka-market:
         condition: service_healthy
+      aggregator-influxdb:
+        condition: service_healthy
     networks:
       - gridtokenx-network
       - edge-tier
+    restart: unless-stopped
+
+  # Independent InfluxDB v2 — realtime telemetry history for the Aggregator
+  # Bridge ONLY. Dedicated instance; not shared with any other service.
+  aggregator-influxdb:
+    image: influxdb:2.7
+    container_name: gridtokenx-aggregator-influxdb
+    ports:
+      - "${AGGREGATOR_INFLUXDB_PORT:-8087}:8086"
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: ${AGGREGATOR_INFLUXDB_USER:-gridtokenx}
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${AGGREGATOR_INFLUXDB_PASSWORD:-aggregator-influx-dev-pw}
+      DOCKER_INFLUXDB_INIT_ORG: ${INFLUXDB_ORG:-gridtokenx}
+      DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUXDB_BUCKET:-aggregator_telemetry}
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${AGGREGATOR_INFLUXDB_TOKEN:-aggregator-bridge-dev-token}
+    volumes:
+      - aggregator-influxdb-data:/var/lib/influxdb2
+      - aggregator-influxdb-config:/etc/influxdb2
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - gridtokenx-network
     restart: unless-stopped
 
   noti-service:
@@ -1068,3 +1134,5 @@ volumes:
   prometheus_data:
   grafana_data:
   openleadr_vtn_db_data:
+  aggregator-influxdb-data:
+  aggregator-influxdb-config:
