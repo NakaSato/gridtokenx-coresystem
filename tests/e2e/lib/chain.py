@@ -60,6 +60,12 @@ def get_slot() -> int:
     return int(_call("GetSlot", {})["slot"])
 
 
+def get_latest_blockhash() -> str:
+    """Recent blockhash (base58) — needed to build a landable/simulatable tx.
+    Read through Chain Bridge (GetLatestBlockhash RPC), never direct Solana RPC."""
+    return _call("GetLatestBlockhash", {})["blockhash"]
+
+
 def get_balance(pubkey: str, force_refresh: bool = False) -> int:
     """Lamport balance for an account."""
     body = _call("GetBalance", {"pubkey": pubkey, "forceRefresh": force_refresh})

@@ -11,3 +11,5 @@ redis>=5.0
 confluent-kafka>=2.3
 # Phase 4 (on-chain balance check): Pubkey + ATA derivation for Chain Bridge reads
 solders>=0.21
+# Phase 3 (NATS tx path): publish bincode tx to chain.tx.submit/simulate + await reply
+nats-py>=2.6
