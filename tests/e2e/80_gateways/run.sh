@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Suite 80 — Gateways: APISIX (:4001 user-facing), Envoy (:4002 IoT/mTLS), API orchestrator (:4000).
+# Suite 80 — Gateways: APISIX (:4001 user-facing), API orchestrator (:4000).
 # These are out-of-repo (configs were removed from infra/; services run as containers).
 # Checks routing reachability + gateway-secret enforcement. Skips loudly when a gateway is down.
 set -uo pipefail
@@ -46,15 +46,6 @@ else
     else
         log_warn "could not mint JWT (IAM down?) — skipping secret-enforcement case"
     fi
-fi
-
-# --- Case 4: Envoy IoT edge (:4002) -------------------------------------
-log_info "Case 4: Envoy IoT edge reachable ($ENVOY_URL)"
-CODE=$(reachable "$ENVOY_URL")
-if [ "$CODE" != "000" ]; then
-    log_success "Envoy edge reachable [$CODE]"
-else
-    log_warn "Envoy down at $ENVOY_URL — skipping (mTLS enforcement needs client certs, deferred)"
 fi
 
 suite_summary

@@ -14,7 +14,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Read [docs/glossary.md](docs/glossary.md) for domain terms (GRID, GRX, REC, VPP, CDA, PDA, etc.).
 - Each service = **independent Cargo workspace** — no root `Cargo.toml`. Don't `cargo` from repo root; `cd` into the service first.
 - IAM Service = **modular monolith** with 6 sub-crates. Others: layered modules, single crate.
-- Two interconnected platforms: **Exchange** (IAM + Trading, direct blockchain) and **Infrastructure** (Aggregator Bridge + edge, produces validated telemetry). Gateways: **APISIX** (`:4001`, user-facing) and **Envoy** (`:4002`, IoT/mTLS edge); **API orchestrator** at `:4000`.
+- Two interconnected platforms: **Exchange** (IAM + Trading, direct blockchain) and **Infrastructure** (Aggregator Bridge + edge, produces validated telemetry). Gateway: **APISIX** (`:4001`, user-facing); **API orchestrator** at `:4000`. IoT/edge telemetry ingresses directly to the Aggregator Bridge IoT gateway (Ed25519-signed payloads; no separate edge proxy).
 - **Not every submodule is a Rust backend.** `gridtokenx-trading-service` (Rust, `crates/`) = the matching/settlement backend; `gridtokenx-trading` (Next.js, `app/`) = its **Trading UI frontend** — different repos, easy to confuse. `gridtokenx-explorer` (Next.js) = block/chain explorer frontend. `gridtokenx-wasm` = Rust→WASM client crate. `gridtokenx-telemetry` is a **plain dir, not a submodule** (Rust crate, no `.gitmodules` entry). `infra/` (untracked) holds local-dev assets: `aggregator-bridge/`, `certs/`, `solana/`.
 
 ---
@@ -30,7 +30,7 @@ verified, not vibes. Read in this order before touching anything non-trivial:
 
 Rules that keep the harness trustworthy:
 
-- **Cite, don't assert.** Back architectural claims with `path:line` (e.g. Chain Bridge binds `0.0.0.0`, verified `main.rs:102`). A claim with no citation is a hypothesis.
+- **Cite, don't assert.** Back architectural claims with `path:line` (e.g. Chain Bridge binds `0.0.0.0`, verified `main.rs:155`). A claim with no citation is a hypothesis.
 - **Edit the doc next to the code you change.** Submodule docs live in the submodule — commit there, bump the pointer here.
 - **The doc-lint gate is enforced.** `just lint-docs` (CI: `.github/workflows/docs.yml`) fails on broken relative links and stale `path:line` citations. Run it before committing doc changes.
 
@@ -88,7 +88,7 @@ just orb-down           # Stop all Docker services
 just orb-rebuild        # Rebuild all services (no cache)
 just check-drift        # Report containers stale vs their source (scripts/check-image-drift.sh)
 just rebuild-stale      # Rebuild + recreate only stale containers (--fix)
-just gen-certs          # Generate mTLS certs for Envoy edge (scripts/gen-certs.sh)
+just gen-certs          # Generate dev mTLS CA + Chain Bridge server/client certs (scripts/gen-certs.sh)
 just run-oracle         # cargo run the Aggregator Bridge locally
 just verify-conns       # Trading Service: probe Postgres/Redis/Chain-Bridge/NATS/IAM/Kafka reachability
 ./scripts/app.sh start --docker-only   # Start infrastructure only
@@ -289,7 +289,7 @@ just benchmark
 
 # Cross-service E2E and protocol suites (scripts/, tests/e2e/)
 just e2e                # tests/e2e/run.sh — full cross-service flow
-just test-edge          # Edge/DLMS protocol against Envoy + Aggregator Bridge
+just test-edge          # Edge/DLMS protocol against the Aggregator Bridge IoT gateway
 just test-registration  # IAM registration E2E (register→verify→on-chain PDA)
 just openadr-e2e        # OpenADR / OpenLEADR VTN↔VEN demand-response flow
 ```
@@ -322,9 +322,9 @@ just openadr-e2e        # OpenADR / OpenLEADR VTN↔VEN demand-response flow
 
 ### Trading Service (`gridtokenx-trading-service`, Rust)
 - Own Cargo workspace (excluded from root due to BPF target conflicts). Code under `crates/`.
-- Matching engine in `src/domain/` — CDA (Continuous Double Auction) algorithm.
+- Matching engine in the `trading-engine` crate (`crates/trading-engine/src/engine.rs`) — CDA (Continuous Double Auction) algorithm.
 - Settlement through Chain Bridge, not direct Solana RPC.
-- `src/startup/` has `ServiceBuilder` pattern for wiring deps.
+- `bin/trading-service/src/builder.rs` has the `ServiceBuilder` pattern for wiring deps.
 - The **Trading UI** is a separate submodule: `gridtokenx-trading` (Next.js, `app/`) — don't `cargo` there. `gridtokenx-explorer` is the explorer frontend.
 
 ### Notification Service (`gridtokenx-noti-service`)
@@ -340,7 +340,7 @@ just openadr-e2e        # OpenADR / OpenLEADR VTN↔VEN demand-response flow
 - **Only** service that directly touches Solana RPC.
 - Signs transactions using Vault Transit (not local keypair files — dev mode supports keypair path).
 - NATS JetStream for async tx submission; gRPC for synchronous reads.
-- Binds `0.0.0.0` (verified `main.rs:102`). The trust boundary is **mTLS + role/RBAC**, not the
+- Binds `0.0.0.0` (verified `main.rs:155`). The trust boundary is **mTLS + role/RBAC**, not the
   bind address. Dev reads need `CHAIN_BRIDGE_INSECURE=true`.
 
 <!-- code-review-graph MCP tools -->
@@ -361,6 +361,10 @@ scanning cannot.
 - **Architecture questions**: `get_architecture_overview` + `list_communities`
 
 Fall back to Grep/Glob/Read **only** when the graph doesn't cover what you need.
+
+> **Search tooling: use `rg` (ripgrep), never `grep`.** When shelling out to search
+> files, run `rg` — it respects `.gitignore`, skips binaries, and is far faster than
+> `grep`/`find -exec grep`. Reserve plain `grep` only for piping non-file streams.
 
 ### Key Tools
 

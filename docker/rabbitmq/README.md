@@ -53,7 +53,7 @@ docker exec gridtokenx-rabbitmq rabbitmqadmin list bindings
 |----------|------|---------|
 | `notifications` | Topic | Email and notification routing |
 | `trading` | Topic | Trading-related task queues |
-| `oracle` | Topic | Oracle and meter validation |
+| `aggregator` | Topic | Aggregator and meter validation |
 | `scheduler` | Topic | Scheduled and batch jobs |
 | `integrations` | Topic | External integrations (webhooks) |
 | `dlx.exchange` | Direct | Dead letter exchange |
@@ -65,7 +65,7 @@ docker exec gridtokenx-rabbitmq rabbitmqadmin list bindings
 | `email.notifications` | notifications | `email.*` | No | ✅ |
 | `password.resets` | notifications | `password.reset` | No | ✅ |
 | `settlement.retries` | trading | `settlement.retry` | 1-10 | ✅ |
-| `meter.validation` | oracle | `meter.validate` | No | ✅ |
+| `meter.validation` | aggregator | `meter.validate` | No | ✅ |
 | `batch.jobs` | scheduler | `batch.*` | No | ✅ |
 | `webhook.deliveries` | integrations | `webhook.*` | No | ✅ |
 

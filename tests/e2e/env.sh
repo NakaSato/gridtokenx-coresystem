@@ -5,7 +5,6 @@
 
 # --- Gateways ---
 export APISIX_URL="${APISIX_URL:-http://localhost:4001}"      # user-facing
-export ENVOY_URL="${ENVOY_URL:-http://localhost:4002}"        # IoT / mTLS edge
 export API_URL="${API_URL:-http://localhost:4000}"            # orchestrator / health
 
 # --- Services ---

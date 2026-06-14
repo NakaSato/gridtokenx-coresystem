@@ -10,6 +10,8 @@
 
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
+pub mod time;
+
 /// Guard for telemetry lifecycle.
 ///
 /// Logging-only setup needs no teardown today; the type exists so callers keep

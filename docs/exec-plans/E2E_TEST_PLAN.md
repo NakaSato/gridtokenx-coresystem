@@ -33,7 +33,7 @@ Existing: `scripts/production-e2e.sh`, `scripts/test-registration-e2e.sh`. Suite
 - [x] **Register → verify → JWT issued** — `POST /api/v1/auth/register` then verify. `access_token` + `wallet_address`.
 - [x] **Login happy path** — valid creds → JWT. Claims (role, sub, exp) asserted.
 - [x] **Login wrong password** — 401, no token.
-- [ ] **JWT refresh** — **DROPPED**: no `/refresh` route in IAM.
+- [ ] **JWT refresh** — **DROPPED**: `/refresh` route exists (`bin/iam-service/src/startup.rs:120`, handler `crates/iam-api/src/handlers/auth.rs:127`) but no E2E case written.
 - [x] **Wallet provisioning** — custodial key in OWS file vault (`OWS_VAULT_PATH`); DB `encrypted_private_key`/`wallet_salt` NULL, `wallet_encryption_version` set; no plaintext key column. *(model is OWS file vault, not Vault-Transit)*
 - [x] **On-chain user registration (custodial)** — onboard `/users/me/onchain-profile` → Registry PDA via Chain Bridge. Lands confirmed tx; idempotent re-onboard `[200]`. *(fee-payer + shard root-causes fixed, blockchain-core `9da9454`)*
 - [x] **Link secondary wallet → on-chain** — `POST /users/me/wallets`, base58 mapping persisted.
@@ -49,7 +49,7 @@ Existing: `scripts/production-e2e.sh`, `scripts/test-registration-e2e.sh`. Suite
 - [ ] **Duplicate meter id** — not built.
 - [~] **Meter ↔ device identity (Ed25519)** — device pubkey at Redis `gridtokenx:devices:{id}:pubkey`; exercised by Oracle sig checks (§3).
 
-## 3. Aggregator Bridge (`:5030` gRPC) + Telemetry Edge (Envoy `:4002`)
+## 3. Aggregator Bridge (`:5030` gRPC) + Telemetry Edge (direct IoT ingress)
 
 Suite: `20_oracle/test_telemetry.py` (7P/0skip).
 
@@ -60,7 +60,7 @@ Suite: `20_oracle/test_telemetry.py` (7P/0skip).
 - [~] **Replay protection** — **deferred** (gRPC UTT-H nonce, `service.rs:166`).
 - [~] **15-min aggregation window** — **deferred → §5** (window hardcoded `WINDOW_MINUTES=15`; backdate timestamps to force completion).
 - [x] **Dissemination fan-out** — Redis zone-stream growth ✓ + Kafka tap proven LIVE (`MeterReadingEvent` on `meter.readings` matches meter id + exact Ed25519 sig + `verified:true`). *(2026-06-07, `lib/events.py kafka_tap`)*
-- [~] **mTLS enforcement at Envoy** — **deferred** (needs cert fixtures; loose reachability in `80_gateways`).
+- [—] **mTLS enforcement at Envoy** — **obsolete** (Envoy `:4002` edge removed 2026-06-14; IoT path has no transport-mTLS boundary, device auth is Ed25519-only at the Aggregator — see tech-debt TD-003).
 
 ## 4. Smartmeter Simulator (`:12010` API / `:12011` UI)
 
@@ -99,12 +99,12 @@ Suite: `50_chain_bridge/test_chain_bridge.py` (py 4P/2skip) + rust invariants (1
 - [~] **Async tx submit (NATS)** — **deferred** (`TxSubmitMessage` envelope verified → Vault Transit sign `api.rs:571`; needs valid bincode `Transaction`; covered indirectly via IAM onboard + §5).
 - [~] **Tx simulate** — **deferred** (`TxSimulateMessage` path verified).
 - [x] **gRPC reads** — `GetSlot`/`GetLatestBlockhash`/`GetBalance` match on-chain truth.
-- [~] **Signing isolation** — RBAC ✓ (no-role + bogus-role denied), Vault Transit signer confirmed. **⚠️ binds `0.0.0.0` (main.rs:102), NOT `127.0.0.1`** — boundary is mTLS, not bind addr (CLAUDE.md discrepancy). Dev reads need `CHAIN_BRIDGE_INSECURE=true`.
+- [~] **Signing isolation** — RBAC ✓ (no-role + bogus-role denied), Vault Transit signer confirmed. **⚠️ binds `0.0.0.0` (crates/chain-bridge-api/src/main.rs:155), NOT `127.0.0.1`** — boundary is mTLS, not bind addr (CLAUDE.md discrepancy). Dev reads need `CHAIN_BRIDGE_INSECURE=true`.
 - [x] **Tx failure surfaced** — invalid-pubkey → structured error.
 
 ## 8. Noti Service (`:5050` gRPC)
 
-Suite: `60_noti/test_noti.py` (3P). **Noti is a synchronous ConnectRPC dispatcher — no queue consumer**, so RabbitMQ-tap / retry-no-dup are N/A.
+Suite: `60_noti/test_noti.py` (3P). Tests exercise the synchronous ConnectRPC dispatch surface only; Noti also runs background Kafka + RabbitMQ consumers (`bin/noti-server/src/startup.rs:178`), but those queue paths are not tapped here so RabbitMQ-tap / retry-no-dup are not asserted.
 
 - [~] **Trade event → notification** — `SendNotification` dispatch accepted (not event-driven via queue).
 - [~] **Registration/KYC event → notification** — dispatch + `GetNotificationStatus` tested; not event-triggered.
@@ -128,14 +128,14 @@ Folded into `90_golden_path`.
 - [~] **Explorer reads on-chain state** — chain-liveness slot>0 via Chain Bridge inline ✓; Explorer UI assertion skips when down.
 - [~] **WASM client builds + decodes** — skip when UI down.
 
-## 11. Gateways (APISIX `:4001`, Envoy `:4002`, API orchestrator `:4000`)
+## 11. Gateways (APISIX `:4001`, API orchestrator `:4000`)
 
 Suite: `80_gateways/run.sh` (3P when up). Gateways **out-of-repo** → skip loudly when down.
 
 - [~] **APISIX routing** — `:4001` route check (skip when down).
 - [~] **Gateway secret enforcement** — `GATEWAY_SECRET` required on privileged path.
-- [~] **Envoy IoT path** — `:4002` reachability; mTLS enforcement deferred (needs client certs).
 - [~] **Health endpoints** — `:4000` aggregate (out-of-repo).
+- [—] **Envoy IoT path** — **removed 2026-06-14** (Envoy `:4002` edge deleted; IoT ingresses direct to the Aggregator Bridge).
 
 ## 12. Cross-Platform Golden Path (the big one)
 

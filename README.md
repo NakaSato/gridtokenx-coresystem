@@ -22,7 +22,7 @@ GridTokenX follows a **Modern Microservices Architecture** orchestrated by a hig
 graph TD
     subgraph "Public Entry"
         Client[Trading UI / Portal] -->|HTTPS/WSS| APISIX[Apache APISIX :4001]
-        EdgeMeter[Smart Meter] -->|mTLS| Envoy[Envoy :4002]
+        EdgeMeter[Smart Meter] -->|Ed25519-signed HTTP| OracleB
     end
 
     subgraph "GridTokenX Service Mesh"
@@ -30,7 +30,6 @@ graph TD
         APIS <-->|gRPC| IAM[IAM Service :4010/5010]
         APIS <-->|gRPC| Trading[Trading Service :4020/5020]
         APIS <-->|gRPC| OracleB[Aggregator Bridge :4030/5030]
-        Envoy -->|HTTP/gRPC| OracleB
     end
 
     subgraph "Blockchain Interface"
@@ -65,7 +64,7 @@ GridTokenX is architected as **two distinct but interconnected platforms**:
 ### Edge-to-Blockchain Data Flow
 
 ```
-Edge Meter → Edge Gateway → Envoy (Edge Gateway) ─┐
+Edge Meter → Edge Gateway → Aggregator Bridge ───┐
                                               IAM Service ─┐
 User/Web → APISIX (User Gateway) ───────────────┼→ Trading Service─┼→ Solana Blockchain
                                               Oracle Service─┘
@@ -110,7 +109,6 @@ User/Web → APISIX (User Gateway) ───────────────
 
 -   **Docker Runtime**: **OrbStack** (2s startup, faster networking, battery optimized)
 -   **API Gateway**: Apache APISIX (User-facing, port 4001)
--   **Edge Gateway**: Envoy (IoT/mTLS, port 4002)
 -   **Secrets Management**: HashiCorp Vault (port 8200)
 -   **Observability**: Prometheus, Grafana (port 3001), Loki, Tempo, OpenTelemetry, SigNoz
 
@@ -152,7 +150,7 @@ User/Web → APISIX (User Gateway) ───────────────
 
 ### 6. Edge Gateway (`gridtokenx-edge-gateway`) — Edge Aggregation
 -   **Role**: Local aggregation, buffering, protocol translation, Ed25519 signing. Hardware-specific (RPi, rppal, MQTT).
--   **Communication**: Sends validated telemetry to Aggregator Bridge via Envoy (mTLS)
+-   **Communication**: Sends validated telemetry directly to the Aggregator Bridge IoT gateway (Ed25519-signed payloads)
 
 ---
 
@@ -177,7 +175,7 @@ cp .env.example .env
 # Generate dev mTLS certs for Chain Bridge (CA + server + per-service SPIFFE client certs)
 just gen-certs
 
-# Start the unified infrastructure (PostgreSQL, Redis, Kafka, APISIX, Envoy, NATS, Vault)
+# Start the unified infrastructure (PostgreSQL, Redis, Kafka, APISIX, NATS, Vault)
 ./scripts/app.sh start --docker-only
 
 # Initialize the blockchain state and deploy Anchor programs
@@ -243,8 +241,6 @@ just simnet             # Start Solana Mainnet Simulation (Surfpool)
 just simnet-ci          # Start Solana Simnet in CI mode
 just simnet-down        # Stop Solana Simnet
 just orb-rebuild        # Rebuild all Docker services (no cache)
-just observability-up   # Start Tempo + SigNoz
-just observability-down # Stop observability
 ```
 
 ### Nushell Helper (`grx.nu`)
@@ -268,7 +264,6 @@ grx prepare   # sqlx prepare (offline query preparation)
 | :--- | :--- | :--- | :--- |
 | **APISIX Gateway** | `4001` | — | Unified Gateway Routing |
 | **Direct Gateway** | `4000` | — | Platform HTTP API & Health |
-| **Envoy Gateway** | `4002` | — | Edge / IoT Gateway |
 | **IAM Service** | `4010` | `5010` | Identity, Auth & KYC |
 | **Trading Service** | `8093` | `8092` | Matching & Settlement |
 | **Aggregator Bridge** | — | `4030` | Telemetry Validation |
@@ -309,7 +304,7 @@ Each `gridtokenx-*` entry below is a **git submodule** with its own Cargo worksp
 gridtokenx-coresystem/                # superproject (git submodules)
 ├── gridtokenx-iam-service/          # Identity, Auth, KYC, Registry (Rust)
 ├── gridtokenx-trading-service/      # Order Matching, Settlement (Rust)
-├── gridtokenx-aggregator-bridge/        # Edge Validation, IoT Ingestion (Rust)
+├── gridtokenx-aggregator-bridge/    # Edge Validation, IoT Ingestion (Rust)
 ├── gridtokenx-chain-bridge/         # Decentralized Signing Authority (Rust)
 ├── gridtokenx-noti-service/         # Notifications Dispatcher (Rust)
 ├── gridtokenx-anchor/               # Solana Anchor Programs
@@ -322,7 +317,6 @@ gridtokenx-coresystem/                # superproject (git submodules)
 ├── gridtokenx-trading/              # Trading UI (Next.js)
 ├── gridtokenx-explorer/             # Blockchain Explorer
 ├── apisix_conf/                     # APISIX Gateway Configuration
-├── envoy_conf/                      # Envoy Gateway Configuration
 ├── docker-compose.yml               # Main Docker Compose
 ├── docker-compose.db.yml            # Database-specific Compose
 ├── Justfile                         # Task Runner (Nushell)
@@ -361,7 +355,7 @@ Each Rust service builds independently. Trading Service and Edge Gateway are kep
 -   **Authentication**: JWT tokens (scoped), API keys, bcrypt/argon2 password hashing
 -   **Edge Validation**: Ed25519 signature verification at edge and oracle layers
 -   **Distributed Signing**: Blockchain signing keys distributed per-service (not centralized)
--   **mTLS**: Envoy gateway enforces mutual TLS for IoT device connections
+-   **Edge Device Auth**: Aggregator Bridge verifies Ed25519-signed payloads from IoT devices (per-device key identity)
 -   **Secrets Management**: HashiCorp Vault for key management and secret rotation
 -   **Database Security**: SQLx with compile-time query checking, parameterized queries
 

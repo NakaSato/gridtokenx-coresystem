@@ -23,7 +23,7 @@
       (docker-compose / k8s / `.env.example`). — only docker-compose + `.env.example` in tree (no k8s); both `${...:-false}`.
 - [x] Flip default to `true` for non-dev profiles; keep dev escape hatch explicit.
       — local-dev default kept `false` (no client certs in dev; hardcoding true breaks dev);
-      non-dev=true now an explicit documented contract in `.env.example:106` + `docker-compose.yml:544`.
+      non-dev=true now an explicit documented contract in `.env.example:106` + `docker-compose.yml:548`.
 - [x] Verify aggregator always loads envelope signer when publishing (mTLS PEM present):
       `blockchain-core/src/rpc.rs:222-226`. Already fail-fast: mTLS-PEM branch `?`-propagates a
       signer-build error; insecure branch keeps warn-and-unsigned dev fallback.
@@ -67,7 +67,7 @@ gridtokenx:events:zone_{0..9} aggregator_bridge_zone_group $` to clear simulator
 ## Test list
 
 ### Unit
-> `auth.rs` — all PASS (`chain-bridge-api`, `nats_consumer::auth`, 9 tests). `:71` added
+> `auth.rs` — all PASS (`chain-bridge-api`, `nats_consumer::auth`, 9 tests). `:360` added
 > 2026-06-13 (`tampered_tx_bytes_rejected`); rest pre-existing. Bonus coverage: expired
 > cert, unknown scheme, `NatsAuthPolicy::new` forces log-only without CA.
 - [x] `auth.rs` — valid envelope (cert→CA→SPIFFE→P256 sig) → `Authenticated`. — `verified_happy_path`.

@@ -7,7 +7,6 @@ cmd_stop() {
     echo ""
 
     docker stop gridtokenx-apisix 2>/dev/null && log_success "APISIX stopped" || log_warn "APISIX was not running"
-    docker stop gridtokenx-envoy 2>/dev/null && log_success "Envoy stopped" || log_warn "Envoy was not running"
     pkill -f "gridtokenx-iam-service" 2>/dev/null && log_success "IAM Service stopped" || log_warn "IAM Service was not running"
     pkill -f "gridtokenx-trading-service" 2>/dev/null && log_success "Trading Service stopped" || log_warn "Trading Service was not running"
     pkill -f "gridtokenx-aggregator-bridge" 2>/dev/null && log_success "Aggregator Bridge stopped" || log_warn "Aggregator Bridge was not running"

@@ -33,7 +33,7 @@ All internal services in the GridTokenX platform utilize SPIFFE identities for m
 | **Reserve Service** | Primary | `spiffe://gridtokenx.th/prod/reserve-service` |
 | **Reconciliation** | Primary | `spiffe://gridtokenx.th/prod/reconciliation-service` |
 | **Reporting** | Primary | `spiffe://gridtokenx.th/prod/reporting-service` |
-| **Edge Gateway** | Envoy Proxy | `spiffe://gridtokenx.th/prod/edge-gateway` |
+| **Edge Gateway** | Aggregator Bridge IoT gateway | `spiffe://gridtokenx.th/prod/edge-gateway` |
 
 ---
 

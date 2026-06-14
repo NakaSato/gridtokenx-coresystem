@@ -31,7 +31,6 @@ cmd_status() {
         "PostgreSQL:docker:gridtokenx-postgres"
         "Redis:docker:gridtokenx-redis"
         "APISIX:docker:gridtokenx-apisix"
-        "Envoy:docker:gridtokenx-envoy"
         "Prometheus:docker:gridtokenx-prometheus"
         "Grafana:docker:gridtokenx-grafana"
         "Loki:docker:gridtokenx-loki"

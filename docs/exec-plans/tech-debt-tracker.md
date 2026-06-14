@@ -9,7 +9,7 @@ Status legend: 🔴 blocking · 🟠 should-fix · 🟢 nice-to-have · ✅ paid
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | TD-001 | _example_ — direct DB call bypassing repository layer | trading | 🟠 | before next settlement refactor | open |
 | TD-002 | Settlement settles a freshly-completed bin before late readings arrive → strands energy | aggregator | 🟢 | before onboarding intermittent/offline-buffered meters | mitigated (boundary case) |
-| TD-003 | Envoy `:4002` "IoT/mTLS edge" is a plaintext dev stub — no mTLS config in tree | edge / envoy | 🟢 | before any IoT device traffic relies on the `:4002` edge | mitigated (mTLS + routing; SAN→identity residual) |
+| TD-003 | IoT edge has no transport-level mTLS — Envoy `:4002` edge removed 2026-06-14; device auth is Ed25519-only at the Aggregator | edge | 🟡 | before any IoT device traffic needs a transport-mTLS boundary | reopened (no edge mTLS; Ed25519-at-Aggregator only) |
 
 ### TD-003 — Envoy `:4002` mTLS edge is an unenforced plaintext stub
 
@@ -40,11 +40,17 @@ replace before relying on the `:4002` edge path."
   **Residual (still open, narrowed):** the client SPIFFE SAN is not yet mapped to a device/role at the
   edge (no SAN→identity header injection like chain-bridge's `PeerCertLayer`); the Aggregator's own
   API-key + Ed25519 checks remain the device-auth of record. Full close = SAN→identity propagation.
+  **Reopened (2026-06-14):** the Envoy `:4002` edge was **removed entirely** (service deleted from
+  `docker-compose.yml`, `envoy_conf/` deleted, scripts/e2e/env scrubbed). IoT devices now ingress
+  **directly** to the Aggregator Bridge IoT gateway with **no transport-level mTLS edge at all**. The
+  Aggregator's API-key + Ed25519 signature verification is now the *sole* device-auth boundary. If a
+  transport-mTLS boundary for IoT traffic is later required, it must be re-introduced (terminate at the
+  Aggregator itself, or a replacement edge proxy) — the prior Envoy mTLS listener + routing work is gone.
 
 ### TD-002 — partial-bin settlement strands energy on late telemetry
 
 `SettlementEngine::process_completed_bins` peeks any bin with `end_time <= now` and mints + evicts
-it (`settlement_engine.rs:117-165`, `aggregator.rs::peek_completed_bins`). A reading whose timestamp
+it (`settlement_engine.rs:129-177`, `aggregator.rs::peek_completed_bins`). A reading whose timestamp
 falls in an **already-closed** window creates an instantly-"completed" bin, so the next 60s tick
 settles whatever partial energy is present and creates the on-chain `gen_mint` PDA
 `[b"gen_mint", meter_id, window_start_ms]`. Any later reading for the **same (meter, window)** then

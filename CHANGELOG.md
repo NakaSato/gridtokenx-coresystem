@@ -90,7 +90,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Governance** — Validator set management
 
 #### Infrastructure
-- Docker Compose with 30+ containers (PostgreSQL, Redis, Kafka×3, RabbitMQ, InfluxDB, ClickHouse, Vault, APISIX, Envoy, Grafana stack)
+- Docker Compose with 30+ containers (PostgreSQL, Redis, Kafka×3, RabbitMQ, InfluxDB, ClickHouse, Vault, APISIX, Grafana stack)
 - Structured port numbering scheme (4000–13000 ranges)
 - OrbStack Docker runtime for macOS development
 - Hybrid messaging architecture (Kafka + RabbitMQ + Redis)

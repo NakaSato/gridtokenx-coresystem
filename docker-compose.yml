@@ -309,29 +309,6 @@ services:
       timeout: 5s
       retries: 3
 
-  # Envoy - Edge Gateway (IoT Devices / mTLS)
-  envoy:
-    image: envoyproxy/envoy:v1.29-latest
-    container_name: gridtokenx-envoy
-    ports:
-      - "4002:10000" # Edge Proxy
-      - "8002:9901" # Envoy Admin
-    volumes:
-      - ./envoy_conf/envoy.yaml:/etc/envoy/envoy.yaml:ro
-      # mTLS material (read-only). ca.key is deliberately NOT mounted.
-      - ./infra/certs/ca.crt:/etc/envoy/certs/ca.crt:ro
-      - ./infra/certs/server.crt:/etc/envoy/certs/server.crt:ro
-      - ./infra/certs/server.key:/etc/envoy/certs/server.key:ro
-    networks:
-      - edge-tier
-      - gridtokenx-network
-    restart: always
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9901/ready"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
   chain-bridge:
     build:
       context: ./

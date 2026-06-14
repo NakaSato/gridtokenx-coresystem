@@ -18,8 +18,8 @@
 
 ```
 Untrusted: public internet, edge devices
-   │  APISIX :4001 (user, HTTPS/WSS) ── authn/JWT, rate limit, CORS
-   │  Envoy  :4002 (device, mTLS)    ── per-device cert, Ed25519 verify
+   │  APISIX :4001 (user, HTTPS/WSS)      ── authn/JWT, rate limit, CORS
+   │  Aggregator Bridge IoT gw (device)   ── Ed25519 signature verify, per-device key identity
    ▼
 Semi-trusted: service mesh (mTLS + SPIFFE)
    ▼
@@ -54,6 +54,6 @@ A request earns trust by crossing each boundary's check. Nothing skips a boundar
 See the checklist in the root [`../SECURITY.md`](../SECURITY.md#security-best-practices-for-contributors)
 and the enforced conventions in [`../CLAUDE.md`](../CLAUDE.md).
 
-> ℹ️ **Chain Bridge bind address:** it binds `0.0.0.0` (verified `main.rs:102`), **not** loopback.
+> ℹ️ **Chain Bridge bind address:** it binds `0.0.0.0` (verified `main.rs:155`), **not** loopback.
 > Do not treat a loopback bind as the isolation control — the boundary is **mTLS + role/RBAC**. Dev
 > reads require `CHAIN_BRIDGE_INSECURE=true`.

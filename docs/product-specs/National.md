@@ -26,8 +26,8 @@ The hard rule between L3 and everything below it: **no service holds a private k
                                  ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
 │ EDGE & API GATEWAYS                                                     │
-│   APISIX  ── user/web traffic, JWT, rate limit                          │
-│   Envoy   ── IoT/device ingress, mTLS termination, SPIFFE attestation   │
+│   APISIX           ── user/web traffic, JWT, rate limit                 │
+│   Aggregator Bridge ── IoT/device ingress, Ed25519 signature verify     │
 └────────────────────────────────┬────────────────────────────────────────┘
                                  │ SPIFFE mTLS (internal mesh)
                                  ▼
@@ -54,7 +54,7 @@ The hard rule between L3 and everything below it: **no service holds a private k
                           ┌─────────────────────────────────────────┐
                           │ SOLANA (localnet / devnet / PoA L1)     │
                           │   energy-token   trading   registry     │
-                          │   oracle         governance  erc        │
+                          │   oracle         governance             │
                           └─────────────────────────────────────────┘
 ```
 
@@ -168,8 +168,7 @@ The Anchor program set, with their fixed PDAs and responsibilities:
 | `trading` | CDA order book, batch clearing, escrow, fee/wheeling/loss collectors | `market`, `zone_market`, `escrow`, `market_authority` |
 | `registry` | User and meter registration, shard assignment | `user_account`, `meter`, `registry_shard` |
 | `oracle` | Validated meter readings, grid-state snapshots | `oracle_data` |
-| `governance` | Operational-mode flags, parameter changes | `governance_config` |
-| `erc` | Renewable Energy Certificate issuance and transfer | per-certificate PDAs |
+| `governance` | Operational-mode flags, parameter changes, ERC-1155-style Renewable Energy Certificate issuance and transfer (`handlers/erc.rs`) | `governance_config`, per-certificate PDAs |
 
 The shard assignment is enforced on-chain: `registry::shard_for(authority) == authority.to_bytes()[0] % 16`. The Chain Bridge derives it as the single source of truth; a stale caller value yields `0x177c InvalidShardId`.
 

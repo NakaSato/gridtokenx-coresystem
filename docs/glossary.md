@@ -77,14 +77,13 @@
 | Term | Definition |
 |:---|:---|
 | **ConnectRPC** | A gRPC-compatible protocol that works over HTTP/1.1 and HTTP/2, with browser support. Used for inter-service communication. |
-| **mTLS** | Mutual TLS — both client and server present certificates for authentication. Used for IoT device connections via Envoy. |
+| **mTLS** | Mutual TLS — both client and server present certificates for authentication. Used on the Chain Bridge gRPC boundary and the service mesh (SPIFFE/SVID). |
 | **SPIFFE** | Secure Production Identity Framework for Everyone — provides cryptographic identities (SVIDs) to workloads. Format: `spiffe://gridtokenx.th/prod/<service>`. |
 | **SPIRE** | SPIFFE Runtime Environment — the server/agent pair that issues and manages SPIFFE identities. |
 | **Vault Transit** | HashiCorp Vault's encryption-as-a-service backend. Chain Bridge uses it for transaction signing without exposing private keys. |
 | **NATS JetStream** | Distributed messaging system with persistence. Used by Chain Bridge for async transaction submission (`chain.tx.submit`). |
 | **OrbStack** | Lightweight Docker runtime for macOS — replaces Docker Desktop with 2-second startup and lower resource usage. |
 | **APISIX** | Apache APISIX — the user-facing API gateway (port 4001). Handles JWT validation, rate limiting, CORS, WebSocket proxying. |
-| **Envoy** | Edge proxy for IoT devices (port 4002). Enforces mTLS, device certificates, and payload size limits. |
 | **Kafka** | Distributed event streaming platform. GridTokenX uses 3 logical clusters: cmd-events (9001), market-data (9002), audit (9003). |
 | **RabbitMQ** | Message broker for task queues. Used for email notifications, settlement retries, and dead letter queues (DLQ). |
 | **ClickHouse** | Column-oriented OLAP database. Intended as the CQRS read side for analytics. **Not currently provisioned** — no ClickHouse container in the stack and no client in any service. Listed for design context and to disambiguate older docs. |

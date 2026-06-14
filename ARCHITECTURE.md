@@ -46,7 +46,7 @@ IV.  Distributed Ledger → Solana programs: Registry, Settlement, Energy Asset 
 | Noti Service | Rust | 4060 | 5060 | Notification delivery |
 | Smartmeter Simulator | Python | — | — | Telemetry generation / load test |
 
-Gateways: **APISIX** `:4001` (user-facing, HTTPS/WSS) · **Envoy** `:4002` (IoT/mTLS edge).
+Gateways: **APISIX** `:4001` (user-facing, HTTPS/WSS). IoT/edge telemetry ingresses directly to the Aggregator Bridge IoT gateway (Ed25519-signed payloads); there is no separate edge proxy.
 
 ## 5. Hard Architecture Rules
 
@@ -100,7 +100,6 @@ submodule; commit them there, then bump the pointer here.
 | Explorer frontend | [`gridtokenx-explorer/README.md`](gridtokenx-explorer/README.md) | Next.js (README only) |
 | Telemetry (shared lib) | [`gridtokenx-telemetry/ARCHITECTURE.md`](gridtokenx-telemetry/ARCHITECTURE.md) | Rust crate |
 | APISIX gateway (user) | [`apisix_conf/ARCHITECTURE.md`](apisix_conf/ARCHITECTURE.md) | Gateway config |
-| Envoy gateway (edge) | [`envoy_conf/ARCHITECTURE.md`](envoy_conf/ARCHITECTURE.md) | Gateway config (dev stub) |
 
 ### 8.1 meter→solana settlement trace
 

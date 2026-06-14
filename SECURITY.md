@@ -46,9 +46,9 @@ GridTokenX implements defense-in-depth across all layers:
 - **Chain Bridge** loads signing keys from **HashiCorp Vault Transit** (not from disk or environment variables in production)
 
 ### Edge Device Security
-- **mTLS** (Mutual TLS) enforced via Envoy for all IoT device connections
-- **Ed25519 signature verification** on every telemetry packet at the Aggregator Bridge
-- **Device certificate management** with per-device identity
+- **Ed25519 signature verification** on every telemetry packet at the Aggregator Bridge IoT gateway — the primary device-authentication boundary
+- **Per-device key identity** verified cryptographically on ingest
+- **Note:** the former Envoy mTLS edge (`:4002`) has been removed; IoT devices now ingress directly to the Aggregator Bridge. Transport-level mTLS for the edge path is no longer enforced — see `docs/exec-plans/tech-debt-tracker.md` (TD-003)
 
 ### Service Mesh Security
 - **SPIFFE/SPIRE** workload identity — services authenticate via cryptographic SVIDs

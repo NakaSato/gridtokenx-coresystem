@@ -104,7 +104,7 @@ def check_arch_index() -> list[str]:
 
     Catches a component doc that was added but never indexed. Submodule docs are
     only visible when checked out, so a bare superproject run checks the in-tree
-    components (apisix_conf, envoy_conf, gridtokenx-telemetry) and lint-docs-all /
+    components (apisix_conf, gridtokenx-telemetry) and lint-docs-all /
     the recursive CI job extends the check to every submodule.
     """
     root_arch = REPO / "ARCHITECTURE.md"

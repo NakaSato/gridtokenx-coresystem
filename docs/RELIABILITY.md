@@ -21,8 +21,8 @@ blockchain that can be slow or briefly unreachable.
    a slow chain degrades latency, not correctness.
 3. **Event sourcing as recovery.** Kafka logs let matching and audit state be rebuilt by replay.
 4. **At-least-once, dedup on read.** Consumers assume redelivery and key on stable IDs.
-5. **Fail fast on bad config.** Missing `ENCRYPTION_SECRET`, short keys, or absent deps abort startup
-   rather than running degraded.
+5. **Fail fast on bad config.** Missing required deps (`IAM_DATABASE_URL`/`DATABASE_URL`, `REDIS_URL`)
+   abort startup rather than running degraded.
 6. **Backpressure at the edge.** The ingestion layer absorbs telemetry bursts so downstream and
    on-chain resources are never overwhelmed.
 

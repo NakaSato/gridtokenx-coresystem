@@ -150,15 +150,17 @@ All dashboards are **automatically loaded** when Grafana starts via provisioning
 # docker/grafana/provisioning/dashboards/dashboards.yml
 apiVersion: 1
 providers:
-  - name: 'GridTokenX Dashboards'
+  - name: 'GridTokenX APM Dashboards'
     orgId: 1
     folder: 'GridTokenX'
     type: file
     disableDeletion: false
     editable: true
-    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    updateIntervalSeconds: 15
     options:
       path: /etc/grafana/dashboards
+      foldersFromFilesStructure: true
 ```
 
 **Benefits:**

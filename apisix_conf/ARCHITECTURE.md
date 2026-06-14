@@ -11,8 +11,8 @@
 
 APISIX is the **public internet gateway** for the Exchange platform. All browser/app traffic enters
 here, gets authenticated, has identity headers injected, and is fan-routed to the backend services
-(IAM, Trading, Noti, Smartmeter Simulator). It is the counterpart to **Envoy** (`envoy_conf/`),
-which handles the IoT/mTLS edge.
+(IAM, Trading, Noti, Smartmeter Simulator). IoT/edge telemetry does not pass through APISIX — it
+ingresses directly to the Aggregator Bridge IoT gateway (Ed25519-signed payloads).
 
 Runtime: `apache/apisix:3.15.0-debian`, **standalone mode** (`APISIX_STAND_ALONE=true`) — APISIX
 reads routes from a static YAML file instead of etcd. No control plane, no admin API in practice;
@@ -78,7 +78,7 @@ natively on the host during dev (see §6).
 | ID(s) | Service | Path prefix(es) | Upstream |
 | :--- | :--- | :--- | :--- |
 | 10 | IAM public REST | `/api/v1/auth/{login,register,verify,forgot,reset}`, `/api/v1/system/config` | `iam-service:8080` / host `4010` |
-| 11, 110 | IAM private REST | `/api/v1/{profile,me,wallets,onboarding,identity,meters}`, `users/me→me` | `iam-service:8080` / host `4010` |
+| 11, 110 | IAM private REST | `/api/v1/{profile,me,wallets,onboarding,identity,meters}`, `users/me` (pass-through, no rewrite) | `iam-service:8080` / host `4010` |
 | 2, 20, 21, 22 | Trading REST | `/api/v1/{orders,quotes,zones,stats,futures,analytics,trades,settlement,carbon,...}` | `trading-service:8093` / host `8093` |
 | 3, 30, 31 | Notifications | `/api/v1/notifications/*`, `/ws`, `users/me/notifications→notifications` | `noti-service:8080` / host `5050` |
 | 4, 5, 9, 40, 41, 42 | Smartmeter Simulator | `/api/v1/public/grid-*`, `/public/meters`, `/api/market/ws` (WS→`/ws`), `/simulation`, microgrid | `smartmeter-simulator:8082` / host `12010` |
@@ -121,5 +121,5 @@ Standalone mode has no live admin API. To change routing:
 | Path | Covers |
 | :--- | :--- |
 | `../docker-compose.yml` (`apisix:` block) | Image, port mapping, mounts, healthcheck |
-| `../envoy_conf/` | The other gateway — IoT/mTLS edge (Envoy, `:4002`) |
+| `../gridtokenx-aggregator-bridge/` | IoT/edge ingress (direct Ed25519-signed telemetry; no edge proxy) |
 | `../README.md` | Platform port table and gateway overview |
