@@ -76,7 +76,6 @@ routes:
       - /api/v1/meters
       - /api/v1/meters/*
       - /api/v1/me/meters
-      - /api/v1/public/meters
     plugin_config_id: 1
     upstream:
       type: roundrobin
@@ -163,11 +162,17 @@ routes:
         "host.docker.internal:8093": 1
 
   - id: 3 # Notification Service (Direct / WS)
+    # noti-server nests REST under /api/v1/noti/* (bin/noti-server/src/startup.rs),
+    # NOT /api/v1/notifications — rewrite to the real upstream path. /ws is left
+    # untouched (regex_uri only rewrites paths that match the notifications prefix).
     uris:
       - /api/v1/notifications
       - /api/v1/notifications/*
       - /ws
     plugin_config_id: 1
+    plugins:
+      proxy-rewrite:
+        regex_uri: ["^/api/v1/notifications(.*)", "/api/v1/noti$1"]
     upstream:
       type: roundrobin
       nodes:
@@ -183,7 +188,7 @@ routes:
     plugin_config_id: 1
     plugins:
       proxy-rewrite:
-        regex_uri: ["^/api/v1/me/notifications/mark-all-read", "/api/v1/notifications/read-all"]
+        regex_uri: ["^/api/v1/me/notifications/mark-all-read", "/api/v1/noti/read-all"]
     upstream:
       type: roundrobin
       nodes:
@@ -200,21 +205,20 @@ routes:
     plugin_config_id: 1
     plugins:
       proxy-rewrite:
-        regex_uri: ["^/api/v1/me/notifications(.*)", "/api/v1/notifications$1"]
+        regex_uri: ["^/api/v1/me/notifications(.*)", "/api/v1/noti$1"]
     upstream:
       type: roundrobin
       nodes:
         "noti-service:8080": 1
         "host.docker.internal:5050": 1
 
-  - id: 32 # Notification Service - Frontend /noti Alias Rewrite
+  - id: 32 # Notification Service - Frontend /noti Alias (pass-through)
+    # Upstream REST already lives at /api/v1/noti/* — pass through unchanged.
+    # (Previously rewrote /noti -> /notifications, which 404s at the upstream.)
     uris:
       - /api/v1/noti
       - /api/v1/noti/*
     plugin_config_id: 1
-    plugins:
-      proxy-rewrite:
-        regex_uri: ["^/api/v1/noti(.*)", "/api/v1/notifications$1"]
     upstream:
       type: roundrobin
       nodes:
@@ -240,7 +244,7 @@ routes:
       - /api/v1/public/meters/*
     plugins:
       proxy-rewrite:
-        regex_uri: ["^/api/v1/public/meters(.*)", "/api/meters$1"]
+        regex_uri: ["^/api/v1/public/meters(.*)", "/api/v1/meters$1"]
       cors: {}
     upstream:
       type: roundrobin
