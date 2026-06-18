@@ -1,0 +1,83 @@
+name: core-tests
+
+# Unit-test gate for the gridtokenx-blockchain-core shared client library.
+#
+# core is a git submodule of this superproject. It CANNOT run its own tests in a
+# standalone checkout: its crate graph has a path dependency on
+# `../gridtokenx-telemetry` (a plain dir committed in THIS superproject, not a
+# submodule), so `cargo metadata` only resolves here, with siblings present.
+# That is why this gate lives in the superproject and not in core's own repo CI
+# (which is necessarily lint-only, like gridtokenx-chain-bridge/.github/ci.yml).
+#
+# Triggers on any change to the core submodule pointer (how a core change lands
+# in the platform) or to this workflow. The test job is the hard gate; clippy
+# and rustfmt are advisory reports until the crate gets a one-time fmt/clippy
+# pass, mirroring the chain-bridge convention.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'gridtokenx-blockchain-core'
+      - 'gridtokenx-telemetry/**'
+      - '.github/workflows/core-tests.yml'
+  pull_request:
+    paths:
+      - 'gridtokenx-blockchain-core'
+      - 'gridtokenx-telemetry/**'
+      - '.github/workflows/core-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: core-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: cargo test (blockchain-core)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: gridtokenx-blockchain-core
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # core (submodule) + telemetry (plain dir) must both be present for
+          # the path-dep crate graph to resolve.
+          submodules: recursive
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Install protoc
+        # tonic-build 0.12 dropped the bundled protoc; build.rs regenerates the
+        # gRPC client from proto/chain_bridge.proto and needs it in PATH.
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: gridtokenx-blockchain-core
+
+      - name: Build (regenerates tonic client from proto)
+        run: cargo build --all-targets
+
+      - name: Test (default features)
+        run: cargo test --all-targets
+
+      - name: Test (mocks feature)
+        run: cargo test --features mocks
+
+      - name: Clippy (advisory)
+        continue-on-error: true
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: rustfmt --check (advisory)
+        continue-on-error: true
+        run: cargo fmt --check
