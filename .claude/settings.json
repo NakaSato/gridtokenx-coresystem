@@ -24,5 +24,8 @@
         ]
       }
     ]
+  },
+  "enabledPlugins": {
+    "agent-skills@addy-agent-skills": true
   }
 }

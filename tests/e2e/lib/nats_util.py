@@ -17,6 +17,7 @@ NATS host port is 9020 (`docker-compose.yml` maps host 9020 -> container 4222).
 import asyncio
 import json
 import os
+import time
 
 import nats
 
@@ -55,3 +56,45 @@ def request_reply_sync(work_subject: str, reply_subject: str, envelope: dict,
                        *, timeout: float = 20.0) -> dict:
     """Blocking wrapper around `request_reply` for pytest bodies."""
     return asyncio.run(request_reply(work_subject, reply_subject, envelope, timeout=timeout))
+
+
+async def collect(subject: str, trigger, *, match=None, timeout: float = 12.0,
+                  want: int = 1) -> list:
+    """Subscribe to `subject` on core NATS, fire `trigger()`, then collect up to
+    `want` JSON messages (optionally filtered by `match(dict) -> bool`) within
+    `timeout`s. Returns the list of decoded payloads (may be empty).
+
+    Subscribes BEFORE `trigger()` runs so an immediately-published message is never
+    missed — the aggregator forwards on `meter.reading` from inside the ingest
+    handler (`Router::disseminate` publishes + flushes before the HTTP response), so
+    by the time `trigger()` (the ingest POST) returns the message is already in
+    flight. `trigger` is a plain callable run inline on the loop; a fast `requests`
+    POST is fine for a test body.
+    """
+    nc = await nats.connect(NATS_URL, connect_timeout=5.0)
+    out: list = []
+    try:
+        sub = await nc.subscribe(subject)
+        await nc.flush(timeout=5.0)
+        trigger()
+        deadline = time.monotonic() + timeout
+        while len(out) < want and time.monotonic() < deadline:
+            try:
+                msg = await sub.next_msg(timeout=max(0.1, deadline - time.monotonic()))
+            except (asyncio.TimeoutError, TimeoutError):
+                break
+            try:
+                data = json.loads(msg.data.decode("utf-8"))
+            except (ValueError, TypeError):
+                continue
+            if match is None or match(data):
+                out.append(data)
+    finally:
+        await nc.close()
+    return out
+
+
+def collect_sync(subject: str, trigger, *, match=None, timeout: float = 12.0,
+                 want: int = 1) -> list:
+    """Blocking wrapper around `collect` for pytest bodies."""
+    return asyncio.run(collect(subject, trigger, match=match, timeout=timeout, want=want))

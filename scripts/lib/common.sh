@@ -53,9 +53,43 @@ solana_validator_start() {
     fi
 }
 
+# PID file for the auto-kill timer (so stop/restart can cancel it reliably —
+# argv0 renaming via `exec -a` is not honored by macOS ps/pkill).
+SOLANA_TTL_PID_FILE="$PROJECT_ROOT/.solana-ttl.pid"
+
 solana_validator_stop() {
     log_info "Stopping Solana test validator..."
+    # Cancel any pending auto-kill timer first so it can't reap a later instance.
+    solana_validator_cancel_kill
     pkill -f "solana-test-validator" 2>/dev/null && log_success "Solana validator stopped" || log_warn "Solana validator was not running"
+}
+
+# Cancel a pending auto-kill timer (kills the timer subshell + its sleep child).
+solana_validator_cancel_kill() {
+    [ -f "$SOLANA_TTL_PID_FILE" ] || return 0
+    local tpid
+    tpid="$(cat "$SOLANA_TTL_PID_FILE" 2>/dev/null)"
+    if [ -n "$tpid" ]; then
+        pkill -P "$tpid" 2>/dev/null || true   # the sleep child
+        kill "$tpid" 2>/dev/null || true        # the timer subshell
+    fi
+    rm -f "$SOLANA_TTL_PID_FILE"
+}
+
+# Schedule an automatic shutdown of the validator after $1 seconds (default 3600 = 1h).
+# Pass 0 to disable. Detached so it survives the app.sh process exiting.
+solana_validator_schedule_kill() {
+    local ttl="${1:-3600}"
+    if ! [ "$ttl" -gt 0 ] 2>/dev/null; then
+        log_info "Validator auto-kill disabled (TTL=$ttl)"
+        return 0
+    fi
+    # Drop any prior timer first so we don't stack multiple killers.
+    solana_validator_cancel_kill
+    ( sleep "$ttl" && pkill -f "solana-test-validator" ) >/dev/null 2>&1 &
+    echo "$!" > "$SOLANA_TTL_PID_FILE"
+    disown 2>/dev/null || true
+    log_info "Validator will auto-stop in ${ttl}s (set SOLANA_VALIDATOR_TTL=0 to disable)"
 }
 
 
@@ -100,6 +134,9 @@ show_help() {
     echo "            Create on-chain user (wallet+Registry PDA) and map meter->user in Redis"
     echo "  provision-meters <file|-> [user_type]"
     echo "            Create ONE shared on-chain user and map many meters (one id per line) to it"
+    echo "  onboard-meter [count] [out_file] [gen_kwh]"
+    echo "            Full flow: register->verify->wallet->on-chain->add meter->send signed"
+    echo "            telemetry->verify mint; saves creds (user/pass/email/wallet) to out_file"
     echo "  logs      View service logs"
     echo "  solana    Manage local solana test validator (start/stop)"
     echo "  doctor    Check system dependencies"

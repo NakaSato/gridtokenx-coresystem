@@ -78,6 +78,7 @@ Port scheme: 4000s gateways · 5000s gRPC mesh · 7000s persistence · 9000s mes
 | [`docs/exec-plans/`](docs/exec-plans/) | Active and completed execution plans |
 | [`docs/references/`](docs/references/) | External reference material (llms.txt, vendor docs) |
 | [`docs/generated/`](docs/generated/) | Auto-generated artifacts (DB schema) |
+| [`docs/benchmark-best-practices.md`](docs/benchmark-best-practices.md) | Benchmark methodology & roadmap (systems + P2P-energy metrics) |
 | [`docs/glossary.md`](docs/glossary.md) | Domain terms (GRID, GRX, REC, VPP, CDA, PDA) |
 
 ## 8. Component Architecture Docs
@@ -96,7 +97,7 @@ submodule; commit them there, then bump the pointer here.
 | Trading Service | [`gridtokenx-trading-service/ARCHITECTURE.md`](gridtokenx-trading-service/ARCHITECTURE.md) | Rust service |
 | Smartmeter Simulator | [`gridtokenx-smartmeter-simulator/ARCHITECTURE.md`](gridtokenx-smartmeter-simulator/ARCHITECTURE.md) | Python |
 | Trading frontend | [`gridtokenx-trading/ARCHITECTURE.md`](gridtokenx-trading/ARCHITECTURE.md) | Next.js |
-| WASM module | [`gridtokenx-wasm/ARCHITECTURE.md`](gridtokenx-wasm/ARCHITECTURE.md) | Rust→WASM |
+| WASM module | [`gridtokenx-trading/wasm/ARCHITECTURE.md`](gridtokenx-trading/wasm/ARCHITECTURE.md) | Rust→WASM (in trading frontend) |
 | Explorer frontend | [`gridtokenx-explorer/README.md`](gridtokenx-explorer/README.md) | Next.js (README only) |
 | Telemetry (shared lib) | [`gridtokenx-telemetry/ARCHITECTURE.md`](gridtokenx-telemetry/ARCHITECTURE.md) | Rust crate |
 | APISIX gateway (user) | [`apisix_conf/ARCHITECTURE.md`](apisix_conf/ARCHITECTURE.md) | Gateway config |

@@ -54,3 +54,13 @@ suite_summary() {
     echo -e "Suite result: ${GREEN}${E2E_PASS} passed${NC}, ${RED}${E2E_FAIL} failed${NC}"
     [ "$E2E_FAIL" -eq 0 ] || exit 1
 }
+
+# pytest_suite [dir] — run this suite folder's pytest files via the project venv.
+# Returns 0 (no-op) when the folder has no test_*.py. Otherwise returns pytest's
+# exit code. cwd is tests/e2e so conftest.py (sys.path) + .venv resolve correctly.
+# Centralizes the `uv run --no-project` incantation for every suite's run.sh.
+pytest_suite() {
+    local dir="${1:-$HERE}"
+    ls "$dir"/test_*.py >/dev/null 2>&1 || return 0
+    ( cd "$dir/.." && uv run --no-project python -m pytest "$dir" -v )
+}

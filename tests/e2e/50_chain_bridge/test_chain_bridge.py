@@ -33,7 +33,15 @@ ROOT = Path(__file__).resolve().parents[3]
 CERT_DIR = ROOT / "infra" / "certs"
 CA = CERT_DIR / "ca.crt"
 CLIENTS = CERT_DIR / "clients"
-MTLS = CA.is_file() and (CLIENTS / "admin.crt").is_file()
+# Certs on disk alone don't mean the bridge is in mTLS mode — the dev stack ships
+# certs (gen-certs) yet runs insecure HTTP (CHAIN_BRIDGE_INSECURE=true). Treat mTLS as
+# active only when certs exist AND the bridge is NOT insecure; otherwise use plain HTTP
+# (reads run; the mTLS-only isolation cases skip via their `not MTLS` guards).
+MTLS = (
+    CA.is_file()
+    and (CLIENTS / "admin.crt").is_file()
+    and os.getenv("CHAIN_BRIDGE_INSECURE", "").lower() != "true"
+)
 
 BASE = os.getenv(
     "CHAIN_BRIDGE_HTTP", f"{'https' if MTLS else 'http'}://{GRPC}"

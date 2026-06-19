@@ -7,6 +7,8 @@ Key schemes (confirmed in gridtokenx-aggregator-bridge):
 """
 import json
 import os
+from typing import Optional
+
 import redis
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:7010")
@@ -31,13 +33,21 @@ def unregister_enckey(meter_id: str):
     client().delete(f"gridtokenx:devices:{meter_id}:enckey")
 
 
-def register_meter(serial: str, user_id: str):
-    """Map meter serial -> user_id for settlement resolution."""
-    client().set(f"gridtokenx:meters:{serial}:user_id", user_id)
+def register_meter(serial: str, user_id: str, wallet: Optional[str] = None):
+    """Map meter serial -> user_id for settlement resolution. When `wallet` is
+    given, also set the owner wallet the surplus-mint flush loop resolves at
+    `gridtokenx:meters:{serial}:wallet` (MeterRegistry.resolve_wallet)."""
+    c = client()
+    c.set(f"gridtokenx:meters:{serial}:user_id", user_id)
+    if wallet:
+        c.set(f"gridtokenx:meters:{serial}:wallet", wallet)
 
 
 def unregister_device(meter_id: str):
-    client().delete(f"gridtokenx:devices:{meter_id}:pubkey")
+    c = client()
+    c.delete(f"gridtokenx:devices:{meter_id}:pubkey")
+    c.delete(f"gridtokenx:meters:{meter_id}:user_id")
+    c.delete(f"gridtokenx:meters:{meter_id}:wallet")
 
 
 def stream_total_len(pattern: str = "gridtokenx:events:zone_*") -> int:
@@ -50,40 +60,6 @@ def stream_total_len(pattern: str = "gridtokenx:events:zone_*") -> int:
         except redis.exceptions.ResponseError:
             pass  # not a stream
     return total
-
-
-SETTLEMENT_BINS_HASH = "gridtokenx:settlement:bins"
-
-
-def settlement_bins(meter_serial: str):
-    """Return the persisted `BillingBin`s for `meter_serial`.
-
-    The settlement aggregator write-throughs each per-(meter, 15-min-window) bin to
-    the Redis hash `gridtokenx:settlement:bins` (bin_store.rs `BINS_HASH`), field
-    `{meter_id}:{window_start_ms}`, value a JSON `BillingBin` (aggregator.rs:16-25).
-    Lets a test assert window-floor / accumulation on the LIVE service. Filters by
-    `meter_serial` so a per-run unique serial isolates this test's bins.
-    """
-    c = client()
-    out = []
-    for field, value in c.hgetall(SETTLEMENT_BINS_HASH).items():
-        try:
-            bin_ = json.loads(value)
-        except (ValueError, TypeError):
-            continue
-        if bin_.get("meter_serial") == meter_serial:
-            bin_["_field"] = field
-            out.append(bin_)
-    return out
-
-
-def delete_settlement_bins(meter_serial: str):
-    """HDEL this meter's bins so the test doesn't leave a partial bin that later
-    settles (mints) or pollutes other suites."""
-    c = client()
-    fields = [b["_field"] for b in settlement_bins(meter_serial) if b.get("_field")]
-    if fields:
-        c.hdel(SETTLEMENT_BINS_HASH, *fields)
 
 
 def find_disseminated_reading(device_id: str, count: int = 200,

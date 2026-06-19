@@ -31,9 +31,9 @@ import redis_util
 
 IAM = os.getenv("IAM_URL", "http://localhost:4010")
 ORACLE = os.getenv("AGGREGATOR_BRIDGE_REST", "http://localhost:4030")
-# api_key_auth gates ingest (auth.rs); aggregator seeds `e2e-test-key` in its static
-# GRIDTOKENX_API_KEYS for the harness (docker-compose.yml:755). Missing → 401 at auth.
-ORACLE_INGEST_HEADERS = {"X-API-KEY": os.getenv("AGGREGATOR_API_KEY", "e2e-test-key")}
+# Ingest auth is validated via IAM (aggregator_api::auth); the accepted harness key is the
+# simulator's SMARTMETER_AGGREGATOR_API_KEY (legacy `e2e-test-key` is rejected 401).
+ORACLE_INGEST_HEADERS = {"X-API-KEY": os.getenv("AGGREGATOR_API_KEY", "engineering-department-api-key-2025")}
 TRADING = os.getenv("TRADING_URL", "http://localhost:8093")
 CHAIN_HTTP = os.getenv("CHAIN_BRIDGE_HTTP", "http://" + os.getenv("CHAIN_BRIDGE_GRPC", "localhost:5040"))
 NOTI_HTTP = os.getenv("NOTI_HTTP", "http://" + os.getenv("NOTI_GRPC", "localhost:5050"))

@@ -254,3 +254,27 @@ meter-server port="8082" interval="5":
 
 
 
+
+# Launch a Claude Code session in a new terminal at a project path, remembering
+# the last-used path. No arg reopens the last session; pass path= to set it.
+#   just session                       # reuse last session path
+#   just session path="gridtokenx-iam-service"
+session path="":
+    bash scripts/session.sh {{path}}
+
+# Print the saved last session path.
+session-last:
+    bash scripts/session.sh --last
+
+# List known service names selectable by `just session path=<name>`.
+session-list:
+    bash scripts/session.sh --list
+
+# Pick service(s) and launch a session each. Multi-select supported.
+# Arg is POSITIONAL (just CLI args are positional, not name=value):
+#   just session-pick                 # interactive numbered menu (needs a TTY)
+#   just session-pick "1-4"           # ranges
+#   just session-pick "1,2,4,5"       # comma list
+#   just session-pick "1-3,6"         # mixed
+session-pick spec="":
+    bash scripts/session.sh --pick {{spec}}

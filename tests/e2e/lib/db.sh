@@ -29,6 +29,17 @@ db_plaintext_key_columns() {
     db_scalar "SELECT count(*) FROM information_schema.columns WHERE table_name='users' AND column_name IN ('private_key','wallet_private_key','secret_key');"
 }
 
+# reset_register_rate_limit — clear IAM's per-IP /register throttle counter in Redis.
+# IAM caps /register at 5/hour per IP (rate_limit.rs:22), keyed `iam:rate_limit:/register:{ip}`
+# (keys.rs:41). A full suite provisions far more than 5 users, so flush before registering to
+# keep bash suites repeatable. Best-effort: redis container absent → silently continue.
+REDIS_CONTAINER="${REDIS_CONTAINER:-gridtokenx-redis}"
+reset_register_rate_limit() {
+    docker exec -i "$REDIS_CONTAINER" sh -c \
+        "redis-cli --scan --pattern 'iam:rate_limit:/register:*' | xargs -r redis-cli DEL" \
+        >/dev/null 2>&1 || true
+}
+
 # db_cleanup_e2e — drop rows created by e2e runs.
 db_cleanup_e2e() {
     docker exec -i "$PG_CONTAINER" psql -U "$PG_USER" -d "$PG_DB" \

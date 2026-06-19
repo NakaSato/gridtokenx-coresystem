@@ -15,6 +15,11 @@ import requests
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "lib"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "proto"))
 
+# Aggregator Bridge ingest key. Auth is validated via IAM now (aggregator_api::auth), so the
+# legacy static `e2e-test-key` is rejected (401). Mirror env.sh's canonical default so direct
+# `pytest` runs (not via run.sh) still authenticate. Suites read os.getenv("AGGREGATOR_API_KEY").
+os.environ.setdefault("AGGREGATOR_API_KEY", "engineering-department-api-key-2025")
+
 IAM_URL = os.getenv("IAM_URL", "http://localhost:4010")
 E2E_RUN_ID = os.getenv("E2E_RUN_ID", str(int(time.time())))
 E2E_PASSWORD = os.getenv("E2E_PASSWORD", "GRX-Secure-P@ss-2026-E2E")
@@ -35,6 +40,25 @@ def endpoints():
     }
 
 
+def _reset_register_rate_limit():
+    """Clear IAM's per-IP register rate-limit counter in Redis.
+
+    IAM throttles /register to 5/hour per IP (rate_limit.rs:22), keyed in Redis as
+    `iam:rate_limit:/register:{ip}` (keys.rs:41). A full e2e run provisions far more
+    than 5 users, so without this reset the suite 429s partway through. Flushing the
+    counter before each register keeps the suite repeatable. Best-effort: if Redis is
+    unreachable we silently continue (the register may then 429, surfaced by the caller).
+    """
+    try:
+        import redis
+        r = redis.from_url(os.getenv("REDIS_URL", "redis://localhost:7010"), socket_timeout=2)
+        keys = list(r.scan_iter(match="iam:rate_limit:/register:*"))
+        if keys:
+            r.delete(*keys)
+    except Exception:
+        pass
+
+
 def _register_and_verify():
     """Register + verify a fresh user. Returns dict(jwt, username, email, wallet)."""
     # Salt the username with a per-call counter so two users provisioned in the
@@ -42,11 +66,15 @@ def _register_and_verify():
     _register_and_verify.n += 1
     username = f"e2e_{E2E_RUN_ID}_{int(time.time()*1000)%100000}_{_register_and_verify.n}"
     email = f"{username}@grx.test"
+    _reset_register_rate_limit()
     r = requests.post(f"{IAM_URL}/api/v1/auth/register",
-                      json={"username": username, "email": email, "password": E2E_PASSWORD}, timeout=10)
+                      json={"username": username, "email": email, "password": E2E_PASSWORD}, timeout=15)
     assert r.status_code in (200, 201), f"register failed: {r.status_code} {r.text}"
+    # verify runs the SYNCHRONOUS on-chain PDA registration (chain-bridge → NATS →
+    # validator); measured ~14s under load, so the read timeout must clear that.
     v = requests.get(f"{IAM_URL}/api/v1/auth/verify",
-                     params={"token": f"verify_{email}"}, timeout=10)
+                     params={"token": f"verify_{email}"},
+                     timeout=float(os.getenv("IAM_VERIFY_TIMEOUT", "45")))
     assert v.status_code == 200, f"verify failed: {v.status_code} {v.text}"
     body = v.json()
     jwt = body.get("auth", {}).get("access_token")

@@ -31,6 +31,8 @@ auth_json() {
 # NOTE: REG_RESP/REG_USER_ID only survive if this is NOT called in a $() subshell.
 register_user() {
     local username="$1" email="$2"
+    # Clear the /register throttle first so multi-user suites don't 429 (5/hr per IP).
+    command -v reset_register_rate_limit >/dev/null 2>&1 && reset_register_rate_limit
     REG_RESP=$(http_json POST "$IAM_URL/api/v1/auth/register" \
         "{\"username\":\"$username\",\"email\":\"$email\",\"password\":\"$E2E_PASSWORD\",\"first_name\":\"E2E\",\"last_name\":\"Tester\"}")
     REG_USER_ID=$(echo "$REG_RESP" | jq -r '.id // empty')
@@ -111,6 +113,27 @@ link_wallet() {
 
 # get_me <jwt> — GET /me. Echoes body; status via `hs`.
 get_me() { auth_json GET "$IAM_URL/api/v1/me" "$1"; }
+
+# refresh_token <jwt> — POST /auth/refresh (auth, no body). Echoes body; status via `hs`.
+refresh_token() { auth_json POST "$IAM_URL/api/v1/auth/refresh" "$1"; }
+
+# resend_verification <email> — POST /auth/resend-verification (public). Echoes body.
+resend_verification() {
+    http_json POST "$IAM_URL/api/v1/auth/resend-verification" \
+        "{\"email\":\"$1\"}" "${GATEWAY_HEADERS[@]}"
+}
+
+# forgot_password <email> — POST /auth/forgot-password (public). Echoes body.
+forgot_password() {
+    http_json POST "$IAM_URL/api/v1/auth/forgot-password" \
+        "{\"email\":\"$1\"}" "${GATEWAY_HEADERS[@]}"
+}
+
+# reset_password <token> <new_password> — POST /auth/reset-password (public). Echoes body.
+reset_password() {
+    http_json POST "$IAM_URL/api/v1/auth/reset-password" \
+        "{\"token\":\"$1\",\"new_password\":\"$2\"}" "${GATEWAY_HEADERS[@]}"
+}
 
 # new_user — full register+verify, echoes JWT.
 # Sets E2E_USERNAME, E2E_EMAIL, E2E_USER_ID, WALLET_ADDRESS, REG_RESP, VERIFY_RESP, E2E_JWT.

@@ -1,7 +1,6 @@
 """GridTokenX E2E — Ed25519 device identity + telemetry signing.
 
 Canonical message matches Rust Oracle Bridge: f"{meter_id}:{kwh}:{timestamp_ms}".
-Reuses the scheme proven in test_telemetry_security.py.
 """
 import base58
 from cryptography.hazmat.primitives.asymmetric import ed25519

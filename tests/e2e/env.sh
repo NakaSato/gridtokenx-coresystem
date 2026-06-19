@@ -25,6 +25,11 @@ export PG_DB="${PG_DB:-gridtokenx}"
 export DATABASE_URL="${DATABASE_URL:-postgresql://gridtokenx_user:gridtokenx_password@localhost:7001/gridtokenx}"
 export REDIS_URL="${REDIS_URL:-redis://localhost:7010}"
 export KAFKA_BROKER="${KAFKA_BROKER:-localhost:29001}"
+# NATS work/forward bus. Host 9020 -> container 4222 (docker-compose). The aggregator
+# forwards mintable surplus readings to meter-service on METER_SERVICE_NATS_SUBJECT
+# (Router::disseminate, router.rs); 30_settlement subscribes here to assert the forward.
+export NATS_URL_HOST="${NATS_URL_HOST:-nats://localhost:9020}"
+export METER_SERVICE_NATS_SUBJECT="${METER_SERVICE_NATS_SUBJECT:-meter.reading}"
 
 # --- Auth / gateway ---
 # Chain Bridge dev mode: when true the bridge grants Admin to every caller, so the
@@ -33,6 +38,11 @@ export KAFKA_BROKER="${KAFKA_BROKER:-localhost:29001}"
 export CHAIN_BRIDGE_INSECURE="${CHAIN_BRIDGE_INSECURE:-true}"
 export GATEWAY_SECRET="${GATEWAY_SECRET:-gridtokenx-gateway-secret-2025}"
 export GATEWAY_HEADERS=(-H "x-gridtokenx-role: api-gateway" -H "x-gridtokenx-gateway-secret: $GATEWAY_SECRET")
+# Aggregator Bridge ingest key. Auth migrated to IAM validation (aggregator_api::auth),
+# so the old static `e2e-test-key` is now rejected (401) — IAM only knows this key, which is
+# the simulator's SMARTMETER_AGGREGATOR_API_KEY (docker-compose.yml:808). Single source for
+# bash suites; exported into the pytest subprocess by run.sh, and mirrored in conftest.py.
+export AGGREGATOR_API_KEY="${AGGREGATOR_API_KEY:-engineering-department-api-key-2025}"
 
 # --- HTTP status sink ---
 # http_json runs inside `$(...)` command substitutions (to capture the body), so any

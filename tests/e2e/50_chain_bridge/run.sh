@@ -3,7 +3,7 @@
 # The signing-authority isolation (which role may submit which program's tx) is
 # enforced by PolicyEngine; the canonical coverage already lives in the service's
 # own crates/chain-bridge-api/tests/invariants.rs. We wrap it so it runs as part of the e2e gate.
-# Python read/auth cases live in test_chain_bridge.py (auto-run by orchestrator).
+# Python read/auth cases live in test_chain_bridge.py (dispatched at the end of this script).
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$HERE/../env.sh"
@@ -34,5 +34,8 @@ fi
 
 # Bind note: code binds 0.0.0.0 (main.rs), with mTLS as the isolation boundary.
 # CLAUDE.md states 127.0.0.1-only — DISCREPANCY flagged in E2E_IMPL_PLAN.md.
+
+# --- Pytest cases (read/auth, NATS tx) — same folder, dispatched here.
+pytest_suite "$HERE" || log_fail "Chain Bridge pytest cases failed"
 
 suite_summary

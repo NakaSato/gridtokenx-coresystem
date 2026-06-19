@@ -312,9 +312,9 @@ gridtokenx-coresystem/                # superproject (git submodules)
 │   ├── tests/                       # Program integration tests
 │   └── shared/                      # Shared types between programs
 ├── gridtokenx-blockchain-core/      # Shared blockchain utilities
-├── gridtokenx-wasm/                 # WebAssembly utilities
 ├── gridtokenx-smartmeter-simulator/ # IoT Device Simulator (Python/FastAPI)
 ├── gridtokenx-trading/              # Trading UI (Next.js)
+│   └── wasm/                        # Rust→WASM client crate (WebAssembly utilities)
 ├── gridtokenx-explorer/             # Blockchain Explorer
 ├── apisix_conf/                     # APISIX Gateway Configuration
 ├── docker-compose.yml               # Main Docker Compose
@@ -343,7 +343,7 @@ Each Rust service builds independently. Trading Service and Edge Gateway are kep
 | `gridtokenx-chain-bridge` | Decentralized Signing | Binds `0.0.0.0`; isolated by mTLS + RBAC |
 | `gridtokenx-noti-service` | Notifications Dispatcher | — |
 | `gridtokenx-blockchain-core` | Shared Blockchain Utilities | — |
-| `gridtokenx-wasm` | WebAssembly | — |
+| `gridtokenx-trading/wasm` | WebAssembly | Rust→WASM client crate (inside Trading frontend) |
 | `gridtokenx-anchor/programs/*` | Anchor Programs | BPF |
 | `gridtokenx-smartmeter-simulator` | IoT Simulation | Python/FastAPI |
 
@@ -369,6 +369,7 @@ Detailed specifications are located in the `/docs` directory:
 -   [gTHB Issuer Service Spec](docs/product-specs/gTHB_ISSUER_SERVICE.md)
 -   [System Architecture](ARCHITECTURE.md)
 -   [Documentation Map](docs/DESIGN.md)
+-   [Benchmark Best-Practices](docs/benchmark-best-practices.md)
 -   [Glossary](docs/glossary.md)
 
 ---

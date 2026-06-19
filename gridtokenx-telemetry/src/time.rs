@@ -332,4 +332,70 @@ mod tests {
         assert_eq!(with_default_port("time.cloudflare.com"), "time.cloudflare.com:123");
         assert_eq!(with_default_port("1.2.3.4:5000"), "1.2.3.4:5000");
     }
+
+    /// Spawn a one-shot mock SNTP server on loopback that answers a single query.
+    /// `stratum` and the server-time offset (seconds added to its OS clock when
+    /// stamping t2/t3) are configurable; `truncate` sends a short (<48B) reply.
+    fn spawn_mock_ntp(stratum: u8, server_offset_secs: f64, truncate: bool) -> String {
+        let socket = UdpSocket::bind("127.0.0.1:0").expect("bind mock ntp");
+        let addr = socket.local_addr().expect("local addr").to_string();
+        std::thread::spawn(move || {
+            let mut req = [0u8; 48];
+            if let Ok((_n, peer)) = socket.recv_from(&mut req) {
+                let mut resp = [0u8; 48];
+                resp[0] = 0x24; // LI=0, VN=4, Mode=4 (server)
+                resp[1] = stratum;
+                // Server stamps receive (t2) and transmit (t3) with its (offset) clock.
+                let server_now = unix_now_seconds() + server_offset_secs;
+                write_ntp_timestamp(&mut resp[32..40], server_now);
+                write_ntp_timestamp(&mut resp[40..48], server_now);
+                let out = if truncate { &resp[..20] } else { &resp[..] };
+                let _ = socket.send_to(out, peer);
+            }
+        });
+        addr
+    }
+
+    #[test]
+    fn query_offset_ms_computes_server_offset() {
+        // Server clock runs +5s ahead; the RFC-4330 four-timestamp formula should
+        // recover ~+5000ms over fast loopback.
+        let addr = spawn_mock_ntp(1, 5.0, false);
+        let offset = query_offset_ms(&addr, Duration::from_secs(2)).expect("query ok");
+        assert!(
+            (offset - 5000).abs() < 500,
+            "expected ~+5000ms offset, got {offset}ms"
+        );
+    }
+
+    #[test]
+    fn query_offset_ms_rejects_stratum_zero() {
+        // Stratum 0 = kiss-o'-death / unsynced server → must be rejected, not trusted.
+        let addr = spawn_mock_ntp(0, 0.0, false);
+        let err = query_offset_ms(&addr, Duration::from_secs(2)).expect_err("stratum 0 rejected");
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+    }
+
+    #[test]
+    fn query_offset_ms_rejects_short_response() {
+        let addr = spawn_mock_ntp(1, 0.0, true);
+        let err = query_offset_ms(&addr, Duration::from_secs(2)).expect_err("short response rejected");
+        assert_eq!(err.kind(), std::io::ErrorKind::UnexpectedEof);
+    }
+
+    #[test]
+    fn from_env_parses_overrides() {
+        // Mutating process env: scope the vars and clean up to limit cross-test bleed.
+        std::env::set_var("NTP_SERVERS", "a.example , b.example:5000");
+        std::env::set_var("NTP_POLL_SECS", "30");
+        std::env::set_var("NTP_TIMEOUT_MS", "750");
+        let cfg = NtpConfig::from_env();
+        std::env::remove_var("NTP_SERVERS");
+        std::env::remove_var("NTP_POLL_SECS");
+        std::env::remove_var("NTP_TIMEOUT_MS");
+
+        assert_eq!(cfg.servers, vec!["a.example:123".to_string(), "b.example:5000".to_string()]);
+        assert_eq!(cfg.poll_interval, Duration::from_secs(30));
+        assert_eq!(cfg.query_timeout, Duration::from_millis(750));
+    }
 }

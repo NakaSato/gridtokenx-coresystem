@@ -29,19 +29,22 @@ health_gate() {
 }
 
 # --- Suite discovery / run ----------------------------------------------
-# A suite = a numbered dir under tests/e2e/ containing run.sh (bash) and/or test_*.py (pytest).
+# A suite = a numbered dir under tests/e2e/ that owns a run.sh entry point. That
+# sub-script runs the suite's own cases (bash assertions and/or its test_*.py via
+# the pytest_suite helper). The orchestrator only links to it — it does NOT reach
+# into a suite to run pytest itself. Structure: run.sh -> NN_suite/run.sh -> cases.
 run_suite() {
     local dir="$1" name; name="$(basename "$dir")"
     echo "=================================================="
     echo "▶ SUITE: $name"
     echo "=================================================="
+    if [ ! -f "$dir/run.sh" ]; then
+        log_warn "no run.sh in $name — skipping (every suite must own an entry point)"
+        return 0
+    fi
     local rc=0
-    if [ -f "$dir/run.sh" ]; then
-        bash "$dir/run.sh" 2>&1 | tee "$ARTIFACTS/$name.log" || rc=$?
-    fi
-    if ls "$dir"/test_*.py >/dev/null 2>&1; then
-        ( cd "$HERE" && python -m pytest "$dir" -v ) 2>&1 | tee -a "$ARTIFACTS/$name.log" || rc=$?
-    fi
+    bash "$dir/run.sh" 2>&1 | tee "$ARTIFACTS/$name.log"
+    rc=${PIPESTATUS[0]}
     return $rc
 }
 

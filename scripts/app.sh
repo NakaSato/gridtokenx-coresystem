@@ -50,6 +50,7 @@ source "$SCRIPT_DIR/cmd/init.sh"
 source "$SCRIPT_DIR/cmd/register.sh"
 source "$SCRIPT_DIR/cmd/seed.sh"
 source "$SCRIPT_DIR/cmd/provision_meter.sh"
+source "$SCRIPT_DIR/cmd/onboard_meter.sh"
 source "$SCRIPT_DIR/cmd/logs.sh"
 source "$SCRIPT_DIR/cmd/start.sh"
 source "$SCRIPT_DIR/cmd/solana.sh"
@@ -118,6 +119,9 @@ main() {
             ;;
         provision-meters)
             cmd_provision_meters "$@"
+            ;;
+        onboard-meter)
+            cmd_onboard_meter "$@"
             ;;
         logs)
             cmd_logs "$@"

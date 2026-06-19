@@ -22,10 +22,10 @@ ORACLE_REST = os.getenv("AGGREGATOR_BRIDGE_REST", "http://localhost:4030")
 ORACLE_GRPC = os.getenv("AGGREGATOR_BRIDGE_GRPC", "localhost:5030")
 INGEST_URL = f"{ORACLE_REST}/v1/private-network/ingest"
 KAFKA_TOPIC = os.getenv("KAFKA_TOPIC_METER_READINGS", "meter.readings")
-# api_key_auth gates ingest (auth.rs); the aggregator seeds `e2e-test-key` in its
-# static GRIDTOKENX_API_KEYS for the harness (docker-compose.yml:755). Without it the
-# request is rejected at the auth layer (401) before signature verification runs.
-API_KEY = os.getenv("AGGREGATOR_API_KEY", "e2e-test-key")
+# Ingest auth is validated via IAM (aggregator_api::auth), NOT the static GRIDTOKENX_API_KEYS
+# list -- the legacy `e2e-test-key` (still in that list) is rejected 401. The accepted harness
+# key is the simulator's SMARTMETER_AGGREGATOR_API_KEY. Missing/wrong -> 401 before sig check.
+API_KEY = os.getenv("AGGREGATOR_API_KEY", "engineering-department-api-key-2025")
 HEADERS = {"X-API-KEY": API_KEY}
 
 

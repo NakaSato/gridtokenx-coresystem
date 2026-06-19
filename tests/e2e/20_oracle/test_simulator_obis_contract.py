@@ -41,10 +41,10 @@ import redis_util
 
 ORACLE_REST = os.getenv("AGGREGATOR_BRIDGE_REST", "http://localhost:4030")
 INGEST_URL = f"{ORACLE_REST}/v1/private-network/ingest"
-# api_key_auth gates ingest (auth.rs); the aggregator seeds `e2e-test-key` in its
-# static GRIDTOKENX_API_KEYS for the harness (docker-compose.yml:755). The real
+# Ingest auth is validated via IAM (aggregator_api::auth); the accepted harness key is the
+# simulator's SMARTMETER_AGGREGATOR_API_KEY (legacy `e2e-test-key` is rejected 401). The real
 # simulator sends the same header (aggregator_bridge.py:174-176).
-API_KEY = os.getenv("AGGREGATOR_API_KEY", "e2e-test-key")
+API_KEY = os.getenv("AGGREGATOR_API_KEY", "engineering-department-api-key-2025")
 HEADERS = {"X-API-KEY": API_KEY}
 
 # OBIS codes the simulator emits and DlmsStack consumes (aggregator_bridge.py:47-49,

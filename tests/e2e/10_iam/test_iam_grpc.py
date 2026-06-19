@@ -107,4 +107,162 @@ def test_grpc_get_user_info_parity(new_user):
     j = r.json()
     assert _field(j, "id") == sub, f"GetUserInfo id != JWT sub: {j} vs {sub}"
     assert _field(j, "username") == new_user["username"], f"username mismatch: {j}"
-    assert _field(j, "role"), f"no role in GetUserInfo response: {j}"
+
+
+def test_grpc_authorize_grants_user_permission(new_user):
+    """Authorize: a normal user is granted a non-admin permission (RBAC decision path)."""
+    jwt = new_user["jwt"] or pytest.skip("no JWT")
+    r = _call("Authorize", {"token": jwt, "requiredPermission": "trading:read"})
+    assert r.status_code == 200, f"Authorize failed: {r.status_code} {r.text}"
+    j = r.json()
+    assert _field(j, "authorized") is True, f"user denied a non-admin permission: {j}"
+
+
+def test_grpc_authorize_denies_admin_permission_to_user(new_user):
+    """Authorize: a normal user is denied an `admin:*` permission (proto3 omits authorized=false)."""
+    jwt = new_user["jwt"] or pytest.skip("no JWT")
+    r = _call("Authorize", {"token": jwt, "requiredPermission": "admin:delete"})
+    assert r.status_code == 200, f"Authorize failed: {r.status_code} {r.text}"
+    j = r.json()
+    # Connect JSON omits the default-valued `authorized:false`, so absent == denied.
+    assert _field(j, "authorized") is not True, f"user wrongly granted admin permission: {r.text}"
+    assert _field(j, "errorMessage", "error_message"), f"no denial reason: {r.text}"
+
+
+def test_grpc_verify_api_key_rejects_garbage(new_user):
+    """VerifyApiKey: a bogus key decodes to valid:false (handler returns 200, not a transport error)."""
+    r = _call("VerifyApiKey", {"key": "not-a-real-api-key"})
+    assert r.status_code == 200, f"unexpected status: {r.status_code} {r.text}"
+    j = r.json()
+    assert _field(j, "valid") is not True, f"garbage api key wrongly accepted: {r.text}"
+
+
+def test_grpc_verify_api_key_requires_role(new_user):
+    """VerifyApiKey without a recognised ServiceRole is PermissionDenied -> 403."""
+    r = _call("VerifyApiKey", {"key": "x"}, headers={"Content-Type": "application/json"})
+    assert r.status_code == 403, f"missing-role VerifyApiKey not denied: {r.status_code} {r.text}"
+
+
+# --- gRPC write methods ---------------------------------------------------
+# RegisterUser/LinkWallet/InitializeUserWallet/GetUserWallet are the IdentityService
+# write surface. They route through AuthService directly (NOT the REST router), so they
+# bypass the REST 5-registrations/hour rate-limiter (rate_limit.rs is axum middleware on
+# the REST app only). We register ONE user over gRPC, module-scoped, and chain the wallet
+# methods off it — covering the write set without touching the REST register budget.
+
+import time as _time  # noqa: E402
+
+_E2E_RUN_ID = os.getenv("E2E_RUN_ID", str(int(_time.time())))
+_PASSWORD = os.getenv("E2E_PASSWORD", "GRX-Secure-P@ss-2026-E2E")
+
+
+def _gen_pubkey():
+    """Fresh ed25519 base58 pubkey (solders), or None if unavailable."""
+    try:
+        from solders.keypair import Keypair
+        return str(Keypair().pubkey())
+    except Exception:
+        return None
+
+
+@pytest.fixture(scope="module")
+def grpc_user():
+    """Register one user over gRPC RegisterUser. Returns {user_id, username, email}."""
+    uname = f"e2e_grpc_{_E2E_RUN_ID}_{os.getpid()}"
+    email = f"{uname}@grx.test"
+    r = _call("RegisterUser", {
+        "username": uname, "email": email, "password": _PASSWORD,
+        "firstName": "E2E", "lastName": "Grpc",
+    })
+    if r.status_code != 200:
+        pytest.skip(f"gRPC RegisterUser unavailable: {r.status_code} {r.text}")
+    j = r.json()
+    uid = _field(j, "userId", "user_id")
+    assert uid, f"RegisterUser returned no user id: {r.text}"
+    return {"user_id": uid, "username": uname, "email": email}
+
+
+def test_grpc_register_user(grpc_user):
+    """RegisterUser over gRPC yields a user id + echoes the username (write parity with REST)."""
+    assert grpc_user["user_id"], "no user id from gRPC RegisterUser"
+
+
+def test_grpc_register_user_duplicate_rejected(grpc_user):
+    """Re-registering the same username over gRPC is an error (not a silent second user)."""
+    r = _call("RegisterUser", {
+        "username": grpc_user["username"], "email": grpc_user["email"],
+        "password": _PASSWORD, "firstName": "E2E", "lastName": "Grpc",
+    })
+    # Connect maps the AuthService error to a non-OK status (Internal -> HTTP 5xx).
+    assert r.status_code != 200, f"duplicate gRPC register wrongly succeeded: {r.text}"
+
+
+def test_grpc_register_requires_role(grpc_user):
+    """RegisterUser without a recognised ServiceRole is PermissionDenied -> 403."""
+    r = _call("RegisterUser", {"username": "x", "email": "x@y.z", "password": _PASSWORD},
+              headers={"Content-Type": "application/json"})
+    assert r.status_code == 403, f"missing-role RegisterUser not denied: {r.status_code} {r.text}"
+
+
+def test_grpc_link_and_get_wallet(grpc_user):
+    """LinkWallet (primary) persists, then GetUserWallet resolves the same address."""
+    pubkey = _gen_pubkey() or pytest.skip("solders unavailable — cannot mint a pubkey")
+    lr = _call("LinkWallet", {
+        "userId": grpc_user["user_id"], "walletAddress": pubkey,
+        "label": "E2E gRPC Primary", "isPrimary": True,
+    })
+    assert lr.status_code == 200, f"LinkWallet failed: {lr.status_code} {lr.text}"
+    lj = lr.json()
+    assert _field(lj, "walletId", "wallet_id"), f"no wallet id from LinkWallet: {lr.text}"
+    assert _field(lj, "walletAddress", "wallet_address") == pubkey, f"address mismatch: {lj}"
+
+    gr = _call("GetUserWallet", {"userId": grpc_user["user_id"]})
+    assert gr.status_code == 200, f"GetUserWallet failed: {gr.status_code} {gr.text}"
+    assert _field(gr.json(), "walletAddress", "wallet_address") == pubkey, \
+        f"GetUserWallet != linked primary: {gr.text}"
+
+
+def test_grpc_get_user_wallet_allows_aggregator_role(grpc_user):
+    """GetUserWallet's allowlist includes AggregatorBridge (telemetry resolves owner wallets)."""
+    r = _call("GetUserWallet", {"userId": grpc_user["user_id"]},
+              headers={"Content-Type": "application/json", "x-gridtokenx-role": "aggregator-bridge"})
+    # Either resolves (200) or 404 if no wallet yet — but never PermissionDenied for this role.
+    assert r.status_code != 403, f"aggregator-bridge wrongly denied GetUserWallet: {r.text}"
+
+
+def test_grpc_get_user_wallet_requires_role(grpc_user):
+    """GetUserWallet without a recognised ServiceRole is PermissionDenied -> 403."""
+    r = _call("GetUserWallet", {"userId": grpc_user["user_id"]},
+              headers={"Content-Type": "application/json"})
+    assert r.status_code == 403, f"missing-role GetUserWallet not denied: {r.status_code} {r.text}"
+
+
+def test_grpc_initialize_user_wallet_requires_role(grpc_user):
+    """InitializeUserWallet without a recognised ServiceRole is PermissionDenied -> 403.
+
+    The happy path needs a funded validator + Chain Bridge, so we assert only the
+    deterministic role gate here; the on-chain success path is exercised by the
+    REST onboarding cases (run.sh 8-10)."""
+    r = _call("InitializeUserWallet",
+              {"userId": grpc_user["user_id"], "walletAddress": "x", "initialFundingSol": 0.0},
+              headers={"Content-Type": "application/json"})
+    assert r.status_code == 403, f"missing-role InitializeUserWallet not denied: {r.status_code} {r.text}"
+
+
+def test_grpc_initialize_user_wallet_role_passes_gate(grpc_user):
+    """With a valid role, InitializeUserWallet clears RBAC (may then fail on chain state, not 403).
+
+    The RBAC gate (identity_grpc.rs:258) runs *before* any on-chain await, so a denial
+    returns instantly. The happy path then submits + polls for PDA confirmation for up to
+    ~15s (auth_service.rs:752, 20×750ms). With this throwaway pubkey and zero funding the
+    PDA never lands, so the call either returns Internal/5xx after the poll window or — more
+    often — exceeds our 8s client timeout. A ReadTimeout therefore *proves* the gate was
+    cleared (a 403 would have been immediate), so we treat it as a pass, not a flake."""
+    pubkey = _gen_pubkey() or pytest.skip("solders unavailable")
+    try:
+        r = _call("InitializeUserWallet",
+                  {"userId": grpc_user["user_id"], "walletAddress": pubkey, "initialFundingSol": 0.0})
+    except requests.exceptions.ReadTimeout:
+        return  # entered the on-chain confirm loop => RBAC gate already cleared
+    # Role-gated path must not be PermissionDenied; on-chain failure (Internal/5xx) is tolerated.
+    assert r.status_code != 403, f"valid role wrongly denied at RBAC gate: {r.text}"

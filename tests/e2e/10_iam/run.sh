@@ -118,4 +118,130 @@ WL=$(auth_json GET "$IAM_URL/api/v1/me/wallets" "$JWT")
 assert_status "$(hs)" "200" "list wallets authorized"
 assert_contains "$WL" "$SEC_WALLET" "linked wallet present in list"
 
+# --- Case 12: Refresh token -> new access_token --------------------------
+log_info "Case 12: refresh exchanges valid JWT for a fresh access_token"
+REF=$(refresh_token "$JWT")
+assert_status "$(hs)" "200" "refresh authorized"
+assert_nonempty "$(echo "$REF" | jq -r '.access_token // empty')" "refresh returns access_token"
+assert_eq "$(echo "$REF" | jq -r '.token_type // empty')" "Bearer" "refresh token_type=Bearer"
+
+# --- Case 13: Refresh without token rejected ----------------------------
+log_info "Case 13: refresh without bearer token rejected"
+http_json POST "$IAM_URL/api/v1/auth/refresh" "" "${GATEWAY_HEADERS[@]}" >/dev/null
+if [ "$(hs)" == "401" ] || [ "$(hs)" == "403" ]; then
+    log_success "unauthenticated refresh blocked [$(hs)]"
+else
+    log_fail "unauthenticated refresh not blocked (got $(hs))"
+fi
+
+# --- Case 14: Resend verification is anti-enumeration -------------------
+# Generic 200 ack whether the email is known, unknown, or already verified.
+log_info "Case 14: resend-verification returns generic ack (anti-enumeration)"
+resend_verification "$E2E_EMAIL" >/dev/null
+assert_status "$(hs)" "200" "resend-verification (known email) 200"
+resend_verification "nobody-${E2E_RUN_ID}@grx.test" >/dev/null
+assert_status "$(hs)" "200" "resend-verification (unknown email) 200 — no enumeration"
+
+# --- Case 15: Forgot password generic ack -------------------------------
+log_info "Case 15: forgot-password returns generic ack for any email"
+FP=$(forgot_password "$E2E_EMAIL")
+assert_status "$(hs)" "200" "forgot-password (known email) 200"
+assert_contains "$FP" "reset" "forgot-password generic message mentions reset"
+forgot_password "ghost-${E2E_RUN_ID}@grx.test" >/dev/null
+assert_status "$(hs)" "200" "forgot-password (unknown email) 200 — no enumeration"
+
+# --- Case 16: Reset password with invalid token rejected ----------------
+log_info "Case 16: reset-password with bogus token rejected"
+reset_password "invalid-token-${E2E_RUN_ID}" "GRX-New-P@ss-2026" >/dev/null
+if [ "$(hs)" == "400" ] || [ "$(hs)" == "404" ]; then
+    log_success "invalid reset token rejected [$(hs)]"
+else
+    log_fail "invalid reset token not rejected (got $(hs))"
+fi
+
+# --- Case 17: Fetch single wallet by id (GET /me/wallets/{id}) -----------
+log_info "Case 17: fetch single wallet by id"
+SEC_ID=$(echo "$WL" | jq -r --arg a "$SEC_WALLET" 'if type=="array" then .[] else .wallets[] end | select(.wallet_address==$a) | .id' | head -1)
+if [ -n "$SEC_ID" ]; then
+    GW=$(auth_json GET "$IAM_URL/api/v1/me/wallets/$SEC_ID" "$JWT")
+    assert_status "$(hs)" "200" "get single wallet authorized"
+    assert_eq "$(echo "$GW" | jq -r '.wallet_address // empty')" "$SEC_WALLET" "wallet address matches id"
+else
+    log_warn "secondary wallet id not found in list — skipping single-wallet GET/PATCH/DELETE"
+fi
+
+# --- Case 18: PATCH no-op body rejected (400) ---------------------------
+log_info "Case 18: PATCH wallet with non-actionable body rejected"
+if [ -n "$SEC_ID" ]; then
+    auth_json PATCH "$IAM_URL/api/v1/me/wallets/$SEC_ID" "$JWT" '{"is_primary":false}' >/dev/null
+    assert_status "$(hs)" "400" "PATCH is_primary:false rejected (only is_primary:true supported)"
+fi
+
+# --- Case 19: PATCH promotes secondary to primary -----------------------
+log_info "Case 19: PATCH is_primary:true promotes secondary wallet"
+if [ -n "$SEC_ID" ]; then
+    PW=$(auth_json PATCH "$IAM_URL/api/v1/me/wallets/$SEC_ID" "$JWT" '{"is_primary":true}')
+    assert_status "$(hs)" "200" "promote secondary wallet authorized"
+    assert_eq "$(echo "$PW" | jq -r '.is_primary')" "true" "secondary wallet now primary"
+fi
+
+# --- Case 20: DELETE wallet — primary blocked, secondary unlinked -------
+log_info "Case 20: cannot delete primary; non-primary unlinks"
+if [ -n "$SEC_ID" ]; then
+    # SEC_ID is now primary (case 19) -> delete must be rejected.
+    auth_json DELETE "$IAM_URL/api/v1/me/wallets/$SEC_ID" "$JWT" >/dev/null
+    assert_status "$(hs)" "400" "deleting primary wallet rejected"
+    # The other (original) wallet is now non-primary -> deletable.
+    OTHER_ID=$(echo "$WL" | jq -r --arg a "$SEC_WALLET" 'if type=="array" then .[] else .wallets[] end | select(.wallet_address!=$a) | .id' | head -1)
+    if [ -n "$OTHER_ID" ]; then
+        auth_json DELETE "$IAM_URL/api/v1/me/wallets/$OTHER_ID" "$JWT" >/dev/null
+        if [ "$(hs)" == "200" ] || [ "$(hs)" == "204" ]; then
+            log_success "non-primary wallet unlinked [$(hs)]"
+        else
+            log_fail "non-primary wallet delete failed (got $(hs))"
+        fi
+    else
+        log_warn "no non-primary wallet found to unlink"
+    fi
+fi
+
+# --- Case 21: System config exposes chain wiring -------------------------
+log_info "Case 21: GET /system/config returns environment + program ids"
+CFG=$(http_json GET "$IAM_URL/api/v1/system/config" "" "${GATEWAY_HEADERS[@]}")
+assert_status "$(hs)" "200" "system config reachable"
+assert_nonempty "$(echo "$CFG" | jq -r '.environment // empty')" "config has environment"
+assert_nonempty "$(echo "$CFG" | jq -r '.registry_program_id // empty')" "config has registry_program_id"
+
+# --- Case 22: Liveness probe --------------------------------------------
+# Ops endpoints hit IAM directly on $IAM_URL (host->container), bypassing the APISIX
+# ip-restriction that gates them on the public gateway. No auth / gateway headers needed.
+log_info "Case 22: GET /health is a public liveness probe"
+H=$(http_json GET "$IAM_URL/health")
+assert_status "$(hs)" "200" "/health returns 200"
+assert_eq "$(echo "$H" | jq -r '.status // empty')" "ok" "/health status=ok"
+assert_eq "$(echo "$H" | jq -r '.service // empty')" "gridtokenx-iam" "/health identifies service"
+
+# --- Case 23: Liveness (k8s live) ---------------------------------------
+log_info "Case 23: GET /health/live"
+HL=$(http_json GET "$IAM_URL/health/live")
+assert_status "$(hs)" "200" "/health/live returns 200"
+assert_eq "$(echo "$HL" | jq -r '.status // empty')" "alive" "/health/live status=alive"
+
+# --- Case 24: Readiness checks Postgres + Redis -------------------------
+log_info "Case 24: GET /health/ready validates deps"
+HR=$(http_json GET "$IAM_URL/health/ready")
+assert_status "$(hs)" "200" "/health/ready returns 200 (deps up)"
+assert_eq "$(echo "$HR" | jq -r '.status // empty')" "ready" "/health/ready status=ready"
+assert_eq "$(echo "$HR" | jq -r '.checks.postgres.status // empty')" "ok" "readiness: postgres ok"
+assert_eq "$(echo "$HR" | jq -r '.checks.redis.status // empty')" "ok" "readiness: redis ok"
+
+# --- Case 25: Prometheus metrics ----------------------------------------
+log_info "Case 25: GET /metrics exposes Prometheus text"
+M=$(http_json GET "$IAM_URL/metrics")
+assert_status "$(hs)" "200" "/metrics returns 200"
+assert_contains "$M" "# " "metrics body is Prometheus exposition format"
+
+# --- Pytest cases (gRPC) — same folder, dispatched here so the suite is self-contained.
+pytest_suite "$HERE" || log_fail "IAM pytest cases failed"
+
 suite_summary

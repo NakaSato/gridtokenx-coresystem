@@ -30,7 +30,7 @@ import crypto
 import redis_util
 
 ORACLE = os.getenv("AGGREGATOR_BRIDGE_REST", "http://localhost:4030")
-API_KEY = os.getenv("GRIDTOKENX_API_KEY", "e2e-test-key")
+API_KEY = os.getenv("AGGREGATOR_API_KEY", "engineering-department-api-key-2025")
 INGEST = f"{ORACLE}/v1/private-network/ingest"
 
 
@@ -64,7 +64,7 @@ def _send(meter: str, priv, ts_ms: int):
     sig = crypto.sign_telemetry(priv, meter, 10.0, ts_ms)
     return requests.post(
         INGEST,
-        timeout=8,
+        timeout=20,
         headers={"X-API-KEY": API_KEY},
         json={
             "protocol": "dlms",

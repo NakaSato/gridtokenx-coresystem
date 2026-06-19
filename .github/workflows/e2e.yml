@@ -121,6 +121,20 @@ jobs:
           E2E_RUN_ANCHOR: ${{ github.event.inputs.run_anchor == 'true' && '1' || '0' }}
         run: just e2e
 
+      - name: Meter service DB-gated e2e (#[ignore] suite)
+        working-directory: gridtokenx-meter-service
+        env:
+          # Stack Postgres (see tests/e2e/env.sh). The suite mints + verifies its
+          # own JWT, so JWT_SECRET is arbitrary (>=32 chars); only DATABASE_URL
+          # must reach a schema'd DB with a wallet-bearing user — seeded by the
+          # registration flow in `just e2e` above. Tests SKIP (pass) if none.
+          DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@localhost:7001/gridtokenx
+          JWT_SECRET: ci-meter-e2e-secret-minimum-32-characters-long-xxxx
+        # Advisory until the DB host/port + seeding are confirmed green in CI,
+        # mirroring the verify-conns preflight. Promote to a hard gate once stable.
+        continue-on-error: true
+        run: cargo test -p gridtokenx-meter-service --test e2e_http -- --ignored --nocapture
+
       - name: Tear down
         if: always()
         run: ./scripts/app.sh stop || true

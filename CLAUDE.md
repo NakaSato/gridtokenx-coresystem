@@ -7,6 +7,38 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ---
 
+## Workflow Rule: Test-First, Then Summarize (mandatory after every code change)
+
+After editing code, **before** moving to the next step or reporting "done":
+
+### Step 1 — Run tests first (verify, don't assume)
+
+Run the narrowest tests covering what you changed, then widen if needed:
+
+- **Single service (default):** `cd gridtokenx-<service> && cargo test` — or scope to one crate/test:
+  `cargo test -p iam-logic` · `cargo test test_order_matching -- --nocapture`.
+- **Fast compile check before tests:** `cd gridtokenx-<service> && cargo check`.
+- **Frontend submodules** (`gridtokenx-trading`, `gridtokenx-explorer`): use their own `npm test` / `npm run build`, not `cargo`.
+- **Workspace-wide** (only if change spans services): `just test` / `just clippy`.
+- **Cross-service / integration changes:** `just e2e`, `just test-registration`, `just test-edge` (need infra up: `just orb-up`).
+
+Rules:
+- **Never `cargo` from repo root** — each service is its own workspace; `cd` in first.
+- **Report the real result** — paste pass/fail + relevant output. If tests can't run (missing infra, validator, broker), say so explicitly and state what's unverified. Do not claim success without evidence.
+- If a touched submodule has no test for the change, say that — don't silently skip.
+
+### Step 2 — Then summarize as a list
+
+After tests, give a 3-part list:
+
+- **What to do** — the goal / next step and why.
+- **What actions** — concrete actions taken (files changed with `path:line`, commands run).
+- **What result** — outcome: test results (pass/fail), what's verified vs still pending, follow-ups.
+
+This rule overrides any tendency to report completion before tests run.
+
+---
+
 ## Quick Orientation
 
 - This repo is a **superproject**: every `gridtokenx-*` service is a **git submodule** (see `.gitmodules`). After clone or branch switch run `git submodule update --init --recursive`. A `git status` showing modified submodule pointers is normal — commit the pointer in the superproject, the code inside the submodule.
@@ -15,7 +47,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Each service = **independent Cargo workspace** — no root `Cargo.toml`. Don't `cargo` from repo root; `cd` into the service first.
 - IAM Service = **modular monolith** with 6 sub-crates. Others: layered modules, single crate.
 - Two interconnected platforms: **Exchange** (IAM + Trading, direct blockchain) and **Infrastructure** (Aggregator Bridge + edge, produces validated telemetry). Gateway: **APISIX** (`:4001`, user-facing); **API orchestrator** at `:4000`. IoT/edge telemetry ingresses directly to the Aggregator Bridge IoT gateway (Ed25519-signed payloads; no separate edge proxy).
-- **Not every submodule is a Rust backend.** `gridtokenx-trading-service` (Rust, `crates/`) = the matching/settlement backend; `gridtokenx-trading` (Next.js, `app/`) = its **Trading UI frontend** — different repos, easy to confuse. `gridtokenx-explorer` (Next.js) = block/chain explorer frontend. `gridtokenx-wasm` = Rust→WASM client crate. `gridtokenx-telemetry` is a **plain dir, not a submodule** (Rust crate, no `.gitmodules` entry). `infra/` (untracked) holds local-dev assets: `aggregator-bridge/`, `certs/`, `solana/`.
+- **Not every submodule is a Rust backend.** `gridtokenx-trading-service` (Rust, `crates/`) = the matching/settlement backend; `gridtokenx-trading` (Next.js, `app/`) = its **Trading UI frontend** — different repos, easy to confuse. `gridtokenx-explorer` (Next.js) = block/chain explorer frontend. The Rust→WASM client crate lives at `gridtokenx-trading/wasm/` (inside the Trading frontend submodule) — there is no top-level `gridtokenx-wasm` submodule. `gridtokenx-telemetry` is a **plain dir, not a submodule** (Rust crate, no `.gitmodules` entry). `infra/` (untracked) holds local-dev assets: `aggregator-bridge/`, `certs/`, `solana/`.
 
 ---
 
@@ -334,7 +366,7 @@ just openadr-e2e        # OpenADR / OpenLEADR VTN↔VEN demand-response flow
 ### Aggregator Bridge
 - Validates Ed25519 signatures from Edge Gateways. Device identity verified cryptographically.
 - 15-minute aggregation windows for energy data before settlement.
-- Disseminates verified readings to **zone-partitioned Redis Streams + Kafka** (no InfluxDB — none in tree; verified no `influx` dep/client).
+- Disseminates verified readings to **zone-partitioned Redis Streams** (operational path), and writes realtime history to its **own independent InfluxDB v2 instance** (the `aggregator-influxdb` compose service; dedicated to this service, not shared). Async fire-and-forget so InfluxDB never blocks ingest; gated on `INFLUXDB_URL` (degrades to disabled when unset/unreachable).
 
 ### Chain Bridge
 - **Only** service that directly touches Solana RPC.
