@@ -128,7 +128,22 @@ _pm_map_meter() {
         log_error "$meter_id: map verify failed (got '$rb')" >&2
         return 1
     fi
-    log_success "mapped $key = $uid" >&2
+
+    # Also map meter -> owner wallet. The Aggregator Bridge resolve_wallet() reads
+    # gridtokenx:meters:{serial}:wallet to pick the surplus-mint recipient; its
+    # Postgres fallback only resolves meters that exist as a PG row, which these
+    # Redis-mapped meters do not. Without this key mints are skipped ("no wallet
+    # registered for meter ..."). Resolve the user's wallet from the IAM DB.
+    local pg="${IAM_PG_CONTAINER:-gridtokenx-postgres}"
+    local wallet; wallet=$(docker exec "$pg" psql -U "${IAM_PG_USER:-gridtokenx_user}" \
+        -d "${IAM_PG_DB:-gridtokenx}" -tAc \
+        "SELECT wallet_address FROM users WHERE id='$uid'" 2>/dev/null | tr -d '[:space:]')
+    if [ -n "$wallet" ]; then
+        docker exec "$PM_REDIS" redis-cli SET "gridtokenx:meters:${meter_id}:wallet" "$wallet" >/dev/null 2>&1
+        log_success "mapped $key = $uid (wallet $wallet)" >&2
+    else
+        log_warn "mapped $key = $uid — no wallet_address for user yet (mint will skip until set)" >&2
+    fi
 }
 
 # ── Single meter ─────────────────────────────────────────────────────────────

@@ -119,7 +119,12 @@ uv run python /tmp/onb.py' 2>/dev/null)
         [ -z "$pub" ] || [ -z "$body" ] && { log_error "signing failed for meter $meter"; continue; }
         docker exec "$PM_REDIS" redis-cli SET "gridtokenx:devices:${meter}:pubkey" "$pub" >/dev/null
         docker exec "$PM_REDIS" redis-cli SET "gridtokenx:meters:${meter}:user_id" "$uid" >/dev/null
-        log_success "meter $meter added (pubkey + owner)"
+        # Mint recipient: the Aggregator Bridge resolve_wallet() reads
+        # gridtokenx:meters:{serial}:wallet (Postgres fallback only resolves meters
+        # that exist as a PG row, which these Redis-mapped meters do not). Without
+        # this key surplus mints are skipped ("no wallet registered for meter ...").
+        docker exec "$PM_REDIS" redis-cli SET "gridtokenx:meters:${meter}:wallet" "$wallet" >/dev/null
+        log_success "meter $meter added (pubkey + owner + wallet)"
 
         # 7. send telemetry  8. verify accepted
         local resp http
