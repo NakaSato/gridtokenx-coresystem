@@ -341,7 +341,7 @@ services:
       - ./infra/certs/server.key:/app/infra/certs/server.key:ro
       - ./infra/certs/ca.crt:/app/infra/certs/ca.crt:ro
     healthcheck:
-      test: ["CMD", "/bin/bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/5040"]
+      test: ["CMD", "/usr/bin/busybox", "nc", "-z", "127.0.0.1", "5040"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -419,7 +419,7 @@ services:
       chain-bridge:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: ["CMD", "/usr/bin/busybox", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -691,7 +691,7 @@ services:
       - gridtokenx-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: ["CMD", "/usr/bin/busybox", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health"]
       interval: 30s
       timeout: 10s
       retries: 3
