@@ -20,6 +20,13 @@
   body,
 ) = {
 
+  // ── PDF METADATA ──────────────────────────────────────────────────────────
+  // Populates the PDF title/author fields (was empty) for accessibility + outline.
+  set document(
+    title: title,
+    author: authors.map(a => a.at("name", default: "")).filter(n => n != ""),
+  )
+
   // ── PAGE ──────────────────────────────────────────────────────────────────
   set page(
     paper: "a4",
@@ -108,7 +115,7 @@
     #v(0.8em, weak: true)
   ]
 
-  // ── HEADING L3 ── Arabic, italic, smaller ─────────────────────────────────
+  // ── HEADING L3 ── Arabic, italic (same 12pt as L2; tighter spacing) ───────
   show heading.where(level: 3): it => [
     #v(0.8em, weak: true)
     #text(
@@ -126,9 +133,13 @@
 
   // ── FIGURES ───────────────────────────────────────────────────────────────
   set figure(numbering: "1")
-  show figure.where(kind: image): set figure(supplement: [Fig.])
+  // Thai-localized cross-reference supplements (was English "Fig."/"Table"/"Section").
+  show figure.where(kind: image): set figure(supplement: [รูปที่])
+  show figure.where(kind: table): set figure(supplement: [ตารางที่])
   show figure.where(kind: table): set figure(numbering: "I")
   show figure.where(kind: table): set figure.caption(position: top)
+  // Heading refs (@sec:…) render "หัวข้อ N"; figures/tables/equations keep their own supplement.
+  set ref(supplement: it => if it.func() == heading { [หัวข้อ] } else { it.supplement })
 
   show figure.where(kind: table): it => [
     #v(1em, weak: true)
@@ -141,11 +152,13 @@
         } else {
           (bottom: 0.35pt + luma(205))
         },
+        // Zebra striping for scanability; header fill is set below and wins on y == 0.
+        fill: (x, y) => if y > 0 and calc.odd(y) { luma(249) },
       )
       #show table.cell.where(y: 0): set table.cell(fill: luma(242))
-      #show table.cell.where(y: 0): set text(size: 6.5pt, weight: "bold")
-      #text(size: 9pt, font: ("Times New Roman"))[
-        #smallcaps([Table #it.counter.display(it.numbering)]) \
+      #show table.cell.where(y: 0): set text(size: 7pt, weight: "bold")
+      #text(size: 9pt, font: ("TH Sarabun New", "Times New Roman"))[
+        #text(weight: "bold")[#it.supplement #it.counter.display(it.numbering)] \
         #v(0.35em, weak: true)
         #smallcaps(it.caption.body)
         #v(0.7em, weak: true)
@@ -162,7 +175,7 @@
     #align(center)[
       #it.body
       #v(0.8em, weak: true)
-      #text(size: 12pt)[
+      #text(size: 9pt)[
         #it.caption.supplement #it.counter.display(it.numbering). #it.caption.body
       ]
     ]
