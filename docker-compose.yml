@@ -393,7 +393,8 @@ services:
       - ./infra/certs/server.key:/app/infra/certs/server.key:ro
       - ./infra/certs/ca.crt:/app/infra/certs/ca.crt:ro
     healthcheck:
-      test: ["CMD", "/usr/bin/busybox", "nc", "-z", "127.0.0.1", "5040"]
+      # BusyBox nc has no -z flag; -w 1 connect-probe returns 0 iff 5040 is open.
+      test: ["CMD", "/usr/bin/busybox", "nc", "-w", "1", "127.0.0.1", "5040"]
       interval: 10s
       timeout: 5s
       retries: 3
