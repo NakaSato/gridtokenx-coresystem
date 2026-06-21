@@ -2,8 +2,41 @@
 
 Canonical message matches Rust Oracle Bridge: f"{meter_id}:{kwh}:{timestamp_ms}".
 """
+import base64
+import hashlib
+import hmac
+import json
+import time
+
 import base58
 from cryptography.hazmat.primitives.asymmetric import ed25519
+
+
+def _b64url(raw: bytes) -> str:
+    return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
+
+
+def mint_hs256_jwt(secret: str, sub: str = "e2e-test", ttl_secs: int = 300) -> str:
+    """Mint a minimal HS256 JWT with stdlib only (no PyJWT in the e2e venv).
+
+    Noti's gRPC auth gate (`crates/noti-api/src/grpc.rs`) requires
+    `Authorization: Bearer <token>` where the token is HS256-signed with the
+    service's `JWT_SECRET` and decoded with jsonwebtoken's `Validation::default()`
+    — which deserializes `sub` and REQUIRES a non-expired `exp`. So the payload
+    carries both.
+    """
+    header = _b64url(
+        json.dumps({"alg": "HS256", "typ": "JWT"}, separators=(",", ":")).encode()
+    )
+    payload = _b64url(
+        json.dumps(
+            {"sub": sub, "exp": int(time.time()) + ttl_secs},
+            separators=(",", ":"),
+        ).encode()
+    )
+    signing_input = f"{header}.{payload}".encode("ascii")
+    sig = hmac.new(secret.encode("utf-8"), signing_input, hashlib.sha256).digest()
+    return f"{header}.{payload}.{_b64url(sig)}"
 
 
 def new_identity():

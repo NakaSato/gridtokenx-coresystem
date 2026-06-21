@@ -47,6 +47,8 @@ import os
 import pytest
 import requests
 
+import crypto
+
 # gRPC (ConnectRPC) base — mirror test_noti.py / env.sh (host 5060 in compose).
 GRPC = os.getenv("NOTI_GRPC", "localhost:5060")
 GRPC_BASE = os.getenv("NOTI_HTTP", f"http://{GRPC}")
@@ -66,10 +68,20 @@ ACTING_USER = "00000000-0000-0000-0000-000000000001"
 
 AUTH_HEADERS = {ROLE_HEADER: "admin", USER_ID_HEADER: ACTING_USER}
 
+# Noti's gRPC gate also requires an HS256 bearer signed with the service JWT_SECRET
+# (crates/noti-api/src/grpc.rs), on top of the role RBAC. Mint one (override via env).
+NOTI_JWT_SECRET = os.getenv(
+    "NOTI_JWT_SECRET",
+    "dev-jwt-secret-key-minimum-32-characters-long-for-development-2025",
+)
+_BEARER = crypto.mint_hs256_jwt(NOTI_JWT_SECRET)
+
 
 def _grpc(method, body, timeout=8):
+    headers = {"Content-Type": "application/json",
+               "Authorization": f"Bearer {_BEARER}", **AUTH_HEADERS}
     r = requests.post(f"{GRPC_BASE}/{SVC}/{method}", json=body,
-                      headers={"Content-Type": "application/json"}, timeout=timeout)
+                      headers=headers, timeout=timeout)
     try:
         return r.status_code, r.json()
     except ValueError:

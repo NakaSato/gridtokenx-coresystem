@@ -12,14 +12,25 @@ import time
 import pytest
 import requests
 
+import crypto
+
 GRPC = os.getenv("NOTI_GRPC", "localhost:5050")
 BASE = os.getenv("NOTI_HTTP", f"http://{GRPC}")
 SVC = "noti.NotificationService"
 
+# Noti's gRPC gate (crates/noti-api/src/grpc.rs) requires an HS256 bearer signed
+# with the service JWT_SECRET. Mint one with the dev secret (override via env).
+NOTI_JWT_SECRET = os.getenv(
+    "NOTI_JWT_SECRET",
+    "dev-jwt-secret-key-minimum-32-characters-long-for-development-2025",
+)
+_BEARER = crypto.mint_hs256_jwt(NOTI_JWT_SECRET)
+
 
 def call(method, body, timeout=8):
     r = requests.post(f"{BASE}/{SVC}/{method}", json=body,
-                      headers={"Content-Type": "application/json"}, timeout=timeout)
+                      headers={"Content-Type": "application/json",
+                               "Authorization": f"Bearer {_BEARER}"}, timeout=timeout)
     try:
         return r.status_code, r.json()
     except ValueError:
