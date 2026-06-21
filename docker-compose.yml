@@ -288,11 +288,18 @@ services:
       - gridtokenx-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
+      # check_port_connectivity verifies the AMQP 5672 listener actually accepts,
+      # not just that the Erlang node is up (which `ping` does) — so dependents
+      # gated on service_healthy (noti/iam/trading/aggregator) don't start in the
+      # window before 5672 binds and crash-loop on "connection refused".
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q check_port_connectivity"]
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 30s
+      # 60s grace: check_port_connectivity exits 64 ("rabbit app not running")
+      # until the broker fully boots — longer than `ping` took, so give the
+      # rabbit app room to come up before failures count against health.
+      start_period: 60s
     deploy:
       resources:
         limits:
