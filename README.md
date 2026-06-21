@@ -318,7 +318,6 @@ gridtokenx-coresystem/                # superproject (git submodules)
 ├── gridtokenx-explorer/             # Blockchain Explorer
 ├── apisix_conf/                     # APISIX Gateway Configuration
 ├── docker-compose.yml               # Main Docker Compose
-├── docker-compose.db.yml            # Database-specific Compose
 ├── Justfile                         # Task Runner (Nushell)
 ├── grx.nu                           # Nushell Helper
 ├── academic/                        # Whitepaper / thesis (Typst)

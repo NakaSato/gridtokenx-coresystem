@@ -61,6 +61,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   # PgDog - Rust connection pooler / load balancer / sharder (https://docs.pgdog.dev)
   # Sole Postgres pooler for the stack (replaced PgBouncer). Every service points
@@ -85,6 +86,12 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 64M
 
   # Redis Cache for API (Primary)
   redis:
@@ -110,6 +117,13 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+        reservations:
+          memory: 256M
 
   # Kafka cluster 1: Commands & Events (Low-volume, strict order, durable)
   kafka-cmd:
@@ -136,11 +150,20 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+      # Bound JVM heap so the broker can't grow to the image default (-Xmx1G) and
+      # OOM the 16GiB host when all three brokers run. Low-volume cluster → 512m.
+      KAFKA_HEAP_OPTS: "-Xmx512m -Xms256m"
     volumes:
       - kafka_cmd_data:/var/lib/kafka/data
     networks:
       - gridtokenx-network
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
     healthcheck:
       test: ["CMD", "nc", "-z", "localhost", "9001"]
       interval: 30s
@@ -173,11 +196,20 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+      # High-TPS market/telemetry cluster — slightly larger heap (768m) than the
+      # cmd/audit brokers, still bounded well under the 1G image default.
+      KAFKA_HEAP_OPTS: "-Xmx768m -Xms384m"
     volumes:
       - kafka_market_data:/var/lib/kafka/data
     networks:
       - gridtokenx-network
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1280M
+        reservations:
+          memory: 640M
     healthcheck:
       test: ["CMD", "nc", "-z", "localhost", "9002"]
       interval: 30s
@@ -210,11 +242,19 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+      # Low-volume audit cluster (long retention, few events) → 512m heap.
+      KAFKA_HEAP_OPTS: "-Xmx512m -Xms256m"
     volumes:
       - kafka_audit_data:/var/lib/kafka/data
     networks:
       - gridtokenx-network
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
     healthcheck:
       test: ["CMD", "nc", "-z", "localhost", "9003"]
       interval: 30s
@@ -282,6 +322,12 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+        reservations:
+          memory: 96M
 
   # Apache APISIX - User Gateway (Public Internet / Web Clients)
   apisix:
@@ -303,6 +349,12 @@ services:
       - postgres
       - redis
     restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
     healthcheck:
       test: ["CMD", "/bin/bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9080"]
       interval: 10s
@@ -351,6 +403,12 @@ services:
     networks:
       - gridtokenx-network
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 192M
 
   iam-service:
     build:
@@ -427,6 +485,12 @@ services:
     networks:
       - gridtokenx-network
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+        reservations:
+          memory: 256M
 
   # Meter Service - Smart Energy Dashboard read API (meters + meter_readings)
   meter-service:
@@ -458,6 +522,12 @@ services:
     networks:
       - gridtokenx-network
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
 
   # Trading Service
   trading-service:
@@ -498,7 +568,7 @@ services:
       CHAIN_BRIDGE_CLIENT_KEY: /app/infra/certs/client.key
       CHAIN_BRIDGE_TLS_DOMAIN: chain-bridge
       CHAIN_BRIDGE_SERVICE_IDENTITY: spiffe://gridtokenx.th/prod/trading-service/api
-      SOLANA_PAYER_KEY: EzudwoHvNPAc4dpPi5ndU8MEZVHVzq3Pj3Thm9ooKmiJ
+      SOLANA_PAYER_KEY: ${SOLANA_PAYER_KEY}
       SOLANA_WS_URL: ${SOLANA_WS_URL:-ws://host.docker.internal:8002}
       IAM_SERVICE_URL: http://apisix:9080
       INTERNAL_API_KEY: ${ENGINEERING_API_KEY:-engineering-department-api-key-2025}
@@ -542,6 +612,18 @@ services:
     networks:
       - gridtokenx-network
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 384M
+    healthcheck:
+      test: ["CMD", "/usr/bin/busybox", "wget", "-q", "-O", "/dev/null", "http://localhost:8093/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
 
   # Aggregator Bridge + IoT Ingestion Gateway
   aggregator-bridge:
@@ -618,6 +700,18 @@ services:
       - gridtokenx-network
       - edge-tier
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+        reservations:
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "/usr/bin/busybox", "wget", "-q", "-O", "/dev/null", "http://localhost:4010/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
 
   # Independent InfluxDB v2 — realtime telemetry history for the Aggregator
   # Bridge ONLY. Dedicated instance; not shared with any other service.
@@ -645,6 +739,12 @@ services:
     networks:
       - gridtokenx-network
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 384M
 
   noti-service:
     build:
@@ -654,7 +754,6 @@ services:
     ports:
       - "${NOTI_HTTP_PORT:-4060}:8080"
       - "${NOTI_GRPC_PORT:-5060}:8090"
-      - "${NOTI_GRPC_PORT:-5060}:8090/udp"
     environment:
       # Routed through PgDog (Rust pooler) instead of PgBouncer — pgdog:6432
       # fronts the same Postgres primary for the gridtokenx_noti schema.
@@ -690,6 +789,12 @@ services:
     networks:
       - gridtokenx-network
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
     healthcheck:
       test: ["CMD", "/usr/bin/busybox", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health"]
       interval: 30s
@@ -729,6 +834,12 @@ services:
       retries: 3
       start_period: 15s
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
 
   # Block Explorer (Next.js) — Solana explorer UI
   explorer:
@@ -755,6 +866,12 @@ services:
       timeout: 10s
       retries: 3
       start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
 
   # Mailpit SMTP Server (Development Email Testing)
   mailpit:
@@ -787,6 +904,10 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 128M
   # Smart Meter Simulator (Python/FastAPI)
   smartmeter-simulator:
     build:
@@ -836,6 +957,12 @@ services:
       timeout: 10s
       start_period: 20s
       retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
 
   # Smart Meter Simulator UI (React/Next.js Static)
   smartmeter-ui:
@@ -861,6 +988,12 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+        reservations:
+          memory: 96M
 
   # ============================================
   # Monitoring Stack: Prometheus + Grafana
@@ -899,6 +1032,12 @@ services:
       timeout: 10s
       retries: 3
       start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+        reservations:
+          memory: 256M
 
   # PostgreSQL Exporter
   postgres-exporter:
@@ -914,6 +1053,10 @@ services:
       pgdog:
         condition: service_healthy
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
 
   # Redis Exporter
   redis-exporter:
@@ -929,6 +1072,10 @@ services:
       redis:
         condition: service_healthy
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
 
   # Kafka Exporter
   kafka-exporter:
@@ -952,6 +1099,10 @@ services:
       kafka-audit:
         condition: service_healthy
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
 
   # Node Exporter (Host Metrics)
   node-exporter:
@@ -971,6 +1122,10 @@ services:
     networks:
       - gridtokenx-network
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
 
   # cAdvisor (Container Metrics)
   cadvisor:
@@ -988,6 +1143,10 @@ services:
     networks:
       - gridtokenx-network
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
 
   # Grafana - Visualization
   grafana:
@@ -1025,6 +1184,12 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
 
   # HashiCorp Vault (Security Plane)
   vault:
@@ -1044,6 +1209,12 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 64M
 
   # OpenADR 3 VTN (openleadr-rs) — local demand-response test target for the
   # Aggregator Bridge's "openleadr" dispatch adapter (OPENLEADR_VTN_URL).
@@ -1060,13 +1231,19 @@ services:
       RUST_LOG: openleadr_vtn=info
       # Internal OAuth provider; URL is container-internal (port 3000).
       OAUTH_TOKEN_URL: http://localhost:3000/auth/token
-      DATABASE_URL: postgres://openadr:openadr@openleadr-vtn-db:5432/openadr
+      DATABASE_URL: postgres://openadr:${OPENLEADR_PG_PASSWORD:-openadr}@openleadr-vtn-db:5432/openadr
     networks:
       - gridtokenx-network
     depends_on:
       openleadr-vtn-db:
         condition: service_healthy
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+        reservations:
+          memory: 96M
 
   openleadr-vtn-db:
     image: postgres:17-alpine
@@ -1074,7 +1251,7 @@ services:
     environment:
       POSTGRES_USER: openadr
       POSTGRES_DB: openadr
-      POSTGRES_PASSWORD: openadr
+      POSTGRES_PASSWORD: ${OPENLEADR_PG_PASSWORD:-openadr}
       TZ: ${TZ}
     ports:
       - "${OPENLEADR_PG_PORT:-7030}:5432"
@@ -1088,6 +1265,12 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+        reservations:
+          memory: 96M
 
   # One-shot seeder: waits for the VTN to run its own migrations on boot, then
   # inserts the default dev OAuth clients (bl-client / ven-client) idempotently.
@@ -1095,7 +1278,7 @@ services:
     image: postgres:17-alpine
     container_name: gridtokenx-openleadr-vtn-seed
     environment:
-      PGPASSWORD: openadr
+      PGPASSWORD: ${OPENLEADR_PG_PASSWORD:-openadr}
     volumes:
       - ./scripts/openleadr-vtn/seed-users.sql:/seed-users.sql:ro
     networks:
