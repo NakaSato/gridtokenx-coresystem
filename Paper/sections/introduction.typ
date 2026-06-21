@@ -4,9 +4,38 @@
 
 การเปลี่ยนผ่านไปสู่ระบบ Smart Grid บริบทประเทศไทยตามแผนแม่บทการพัฒนาโครงข่ายไฟฟ้าประเทศไทย มีการใช้โครงสร้างพื้นฐานมาตรวัดขั้นสูง (Advanced Metering Infrastructure: AMI) ทำให้ข้อมูลการผลิตและการใช้พลังงานมีความละเอียดมากขึ้น การบูรณาการทรัพยากรพลังงานแบบกระจายศูนย์ (Distributed Energy Resources: DER) เช่น ระบบผลิตไฟฟ้าพลังงานแสงอาทิตย์บนหลังคา สถานีอัดประจุยานยนต์ไฟฟ้า (EV) และระบบกักเก็บพลังงานด้วยแบตเตอรี่ (Battery Energy Storage System: BESS) ต้องคำนึงถึงข้อกำหนดด้านการเชื่อมต่อ DER, Microgrid controller, Islanding และข้อจำกัดของโครงข่ายแรงดันต่ำ @ieee1547_2018 @ieee2030_7 @guerrero2019decentralized
 
-บทความนี้มีส่วนสนับสนุนหลักสามประการ ประการแรก การออกแบบสถาปัตยกรรมแบบลดการพึ่งพากัน (decoupled) ที่แยกการตรวจสอบข้อมูลนอกเชนผ่าน Aggregator Bridge ได้แก่ การตรวจลายเซ็น Ed25519 ของข้อมูลมาตรวัดตามมาตรฐาน DLMS/COSEM และการประเมินเงื่อนไข Grid stability ร่วมกับการจับคู่คำสั่งด้วย Continuous Double Auction (CDA) ออกจากการชำระธุรกรรมบนเชน (on-chain settlement) อย่างชัดเจน ประการที่สอง การออกแบบขอบเขตความเชื่อถือ (trust boundary) ของการชำระธุรกรรมบนเครือข่าย Anchor/Solana-compatible แบบ Proof-of-Authority (PoA) consortium โดยบล็อกเชนตรวจสอบลายเซ็น Ed25519 ของทั้งผู้ซื้อและผู้ขาย การกันส่งซ้ำผ่าน order nullifier และสถานะ escrow ขณะที่เงื่อนไขปริมาณพลังงานและ oracle attestation ถูกบังคับใช้ในชั้น off-chain ทำให้บล็อกเชนทำหน้าที่เป็นชั้น settlement และ audit พร้อมระบุเงื่อนไขความถูกต้อง (invariants) ของระบบไว้อย่างชัดเจน (ดู @sec:settlement-model-invariants) และประการที่สาม การพัฒนาชุดจำลอง AMI ที่อาศัยแบบจำลองโครงข่ายด้วย pandapower และ smart-meter simulator เพื่อสร้างข้อมูลมาตรวัดแบบ deterministic พร้อมการวัดอัตราการรับข้อมูลของเส้นทาง telemetry ingest เบื้องต้น ทั้งนี้ขอบเขตของงานเป็นการออกแบบและประเมินเชิงสถาปัตยกรรมบนระบบจำลอง ไม่ใช่การวัดจากเครือข่ายไฟฟ้าภาคสนามหรือเครือข่าย Solana production
+บทความนี้มีส่วนสนับสนุนหลักสามประการ ประการแรก การออกแบบสถาปัตยกรรมแบบลดการพึ่งพากัน (decoupled) ที่แยกการตรวจสอบข้อมูลนอกเชนผ่าน Aggregator Bridge ได้แก่ การตรวจลายเซ็น Ed25519 ของข้อมูลมาตรวัดตามมาตรฐาน DLMS/COSEM และการประเมินเงื่อนไข Grid stability ร่วมกับการจับคู่คำสั่งด้วย Continuous Double Auction (CDA) ออกจากการชำระธุรกรรมบนเชน (on-chain settlement) อย่างชัดเจน ประการที่สอง การออกแบบขอบเขตความเชื่อถือ (trust boundary) ของการชำระธุรกรรมบนเครือข่าย Anchor/Solana-compatible แบบ Proof of Authority (PoA) consortium โดยบล็อกเชนตรวจสอบลายเซ็น Ed25519 ของทั้งผู้ซื้อและผู้ขาย การกันส่งซ้ำผ่าน order nullifier และสถานะ escrow ขณะที่เงื่อนไขปริมาณพลังงานและ oracle attestation ถูกบังคับใช้ในชั้น off-chain ทำให้บล็อกเชนทำหน้าที่เป็นชั้น settlement และ audit พร้อมระบุเงื่อนไขความถูกต้อง (invariants) ของระบบไว้อย่างชัดเจน (ดู @sec:settlement-model-invariants) และประการที่สาม การพัฒนาชุดจำลอง AMI ที่อาศัยแบบจำลองโครงข่ายด้วย pandapower และ smart-meter simulator เพื่อสร้างข้อมูลมาตรวัดแบบ deterministic พร้อมการวัดอัตราการรับข้อมูลของเส้นทาง telemetry ingest เบื้องต้น ทั้งนี้ขอบเขตของงานเป็นการออกแบบและประเมินเชิงสถาปัตยกรรมบนระบบจำลอง ไม่ใช่การวัดจากเครือข่ายไฟฟ้าภาคสนามหรือเครือข่าย Solana production
 
-ในด้านกลไกเชิงเศรษฐศาสตร์ ระบบใช้โทเคนพลังงาน (energy token) ที่ออกจากการผลิตจริงและรับรองด้วย Renewable Energy Certificate (ERC/REC) ร่วมกับเหรียญ stablecoin ที่ตรึงค่ากับเงินบาท (THBG) สำหรับการตั้งราคาและชำระธุรกรรม และโทเคน GRX สำหรับการ stake และการกำกับดูแล (governance) โดยรายละเอียดของโปรแกรมที่เกี่ยวข้องอธิบายไว้ใน @sec:smart-contract-programs
+ในด้านกลไกเชิงเศรษฐศาสตร์ ระบบใช้โทเคนพลังงาน (energy token) ที่ออกจากการผลิตจริงและรับรองด้วย Renewable Energy Certificate (REC; ระบบบนเชนใช้ตัวระบุชื่อ erc) ร่วมกับเหรียญ stablecoin ที่ตรึงค่ากับเงินบาท (THBG) สำหรับการตั้งราคาและชำระธุรกรรม และโทเคน GRX สำหรับการ stake และการกำกับดูแล (governance) โดยรายละเอียดแบบจำลองราคาอธิบายไว้ใน @sec:pricing-market-mechanism และรายละเอียดของโปรแกรมที่เกี่ยวข้องอธิบายไว้ใน @sec:smart-contract-programs
 
-บทความนี้จัดเรียงเนื้อหาดังนี้ @sec:related-work ทบทวนงานวิจัยที่เกี่ยวข้องด้านบล็อกเชนและตลาดพลังงานแบบ Peer-to-Peer @sec:settlement-model-invariants อธิบายแบบจำลองการชำระธุรกรรมและเงื่อนไขความถูกต้อง (invariants) ของระบบ @sec:system-architecture อธิบายสถาปัตยกรรมและการเชื่อมต่อระหว่างองค์ประกอบหลัก @sec:evaluation สรุปการประเมินเชิงสถาปัตยกรรม และ @sec:discussion_limitations อภิปรายผล ข้อจำกัด และแนวทางพัฒนาระบบในอนาคต
+บทความนี้จัดเรียงเนื้อหาดังนี้ @sec:related-work ทบทวนงานวิจัยที่เกี่ยวข้องด้านบล็อกเชนและตลาดพลังงานแบบ Peer-to-Peer @sec:threat-model กำหนดแบบจำลองระบบ ความเชื่อถือ และผู้โจมตี @sec:settlement-model-invariants อธิบายแบบจำลองการชำระธุรกรรมและเงื่อนไขความถูกต้อง (invariants) ของระบบ @sec:pricing-market-mechanism อธิบายกลไกราคา CDA และการคำนวณ settlement @sec:system-architecture อธิบายสถาปัตยกรรม การเชื่อมต่อ และรายละเอียด implementation หลัก @sec:experimental-setup ระบุรายละเอียดการทดลองและภาระงาน @sec:evaluation สรุปการประเมินเชิงสถาปัตยกรรม และ @sec:discussion_limitations อภิปรายผล ข้อจำกัด และแนวทางพัฒนาระบบในอนาคต ตัวย่อที่ใช้บ่อยในบทความสรุปไว้ใน @tbl:acronyms
 
+#figure(
+  text(size: 7.5pt)[
+    #table(
+      columns: (auto, 1fr),
+      align: (left + horizon, left + horizon),
+      inset: 3.5pt,
+      table.header([*ตัวย่อ*], [*ความหมาย*]),
+      [AMI], [Advanced Metering Infrastructure — โครงสร้างพื้นฐานมาตรวัดขั้นสูง],
+      [DER], [Distributed Energy Resource — ทรัพยากรพลังงานแบบกระจายศูนย์],
+      [VPP], [Virtual Power Plant],
+      [CDA], [Continuous Double Auction — ตลาดประมูลสองทางแบบต่อเนื่อง],
+      [PoA], [Proof of Authority],
+      [PoH], [Proof of History],
+      [DAO], [Decentralized Autonomous Organization],
+      [PDA], [Program Derived Address],
+      [CPI], [Cross-Program Invocation],
+      [SPL], [Solana Program Library (Token)],
+      [REC], [Renewable Energy Certificate],
+      [OPF], [Optimal Power Flow],
+      [DSO], [Distribution System Operator],
+      [DLMS/COSEM], [Device Language Message Specification / COSEM (IEC 62056)],
+      [mTLS], [Mutual TLS],
+      [SPIFFE], [Secure Production Identity Framework for Everyone],
+      [BESS], [Battery Energy Storage System],
+      [GRX / THBG], [โทเคนกำกับดูแล / stablecoin ตรึงเงินบาท],
+    )
+  ],
+  caption: [Abbreviations used in this paper.],
+) <tbl:acronyms>

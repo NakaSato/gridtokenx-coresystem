@@ -133,11 +133,24 @@
   show figure.where(kind: table): it => [
     #v(1em, weak: true)
     #align(center)[
-      #text(size: 12pt)[
+      #set par(justify: false, first-line-indent: 0pt)
+      #set table(
+        inset: (x: 4pt, y: 3pt),
+        stroke: (x, y) => if y == 0 {
+          (top: 0.7pt + black, bottom: 0.5pt + black)
+        } else {
+          (bottom: 0.35pt + luma(205))
+        },
+      )
+      #show table.cell.where(y: 0): set table.cell(fill: luma(242))
+      #show table.cell.where(y: 0): set text(size: 6.5pt, weight: "bold")
+      #text(size: 9pt, font: ("Times New Roman"))[
         #smallcaps([Table #it.counter.display(it.numbering)]) \
-        #v(0.5em, weak: true)
+        #v(0.35em, weak: true)
         #smallcaps(it.caption.body)
-        #v(0.8em, weak: true)
+        #v(0.7em, weak: true)
+      ]
+      #text(size: 7pt)[
         #it.body
       ]
     ]
@@ -158,6 +171,7 @@
 
   // ── EQUATIONS ─────────────────────────────────────────────────────────────
   set math.equation(numbering: "(1)")
+  show math.equation: set text(size: 10pt)
   show math.equation: set block(spacing: 1.2em)
 
   // ─────────────────────────────────────────────────────────────────────────
