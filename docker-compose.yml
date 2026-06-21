@@ -400,6 +400,10 @@ services:
     depends_on:
       nats:
         condition: service_healthy
+      # Default mode (CHAIN_BRIDGE_INSECURE=false) signs via Vault Transit, so
+      # the Vault service must be ready before the bridge serves signing ops.
+      vault:
+        condition: service_healthy
     networks:
       - gridtokenx-network
     restart: unless-stopped
