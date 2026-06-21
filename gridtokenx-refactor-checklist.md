@@ -14,8 +14,8 @@
 
 ## Phase 2 — aggregator-bridge single crate → 4-layer
 
-- [x] **P2.1** workspace `crates/` = `oracle-{core,persistence,logic,protocol,api}`. *(already on `main`)*
-- [x] **P2.3** extract `oracle-stacks` crate (dlms/sunspec/ocpp/openadr). *(already on `main`)*
+- [x] **P2.1** workspace `crates/` = `aggregator-{core,persistence,logic,protocol,api}`. *(already on `main`)*
+- [x] **P2.3** extract `aggregator-stacks` crate (dlms/sunspec/ocpp/openadr). *(already on `main`)*
 - [x] **P2.4** AppState prune 13→9 fields (slice A).
 - [~] **P2.4-deep** split AppState (9) → `IngressState` / `BlockchainState`. *(cosmetic, low value)*
 
@@ -40,8 +40,8 @@
 ## Cross-cutting follow-ups (open)
 
 - [x] thread NATS envelope `correlation_id` into audit entries (was `""`). `sign_and_submit` + `record_audit` gained a `correlation_id: &str` param; NATS path threads `envelope.correlation_id`, gRPC path passes `""` (no envelope id). Tests updated, 97 passed / 12 ignored.
-- [ ] apply `migrations/0001_audit_log.sql` to shared IAM DB (chain-bridge has no migration runner).
-- [ ] `git add gridtokenx-telemetry/` in superproject (plain dir, not yet a submodule).
+- [x] apply `migrations/0001_audit_log.sql` to shared IAM DB — folded into IAM migration set as `gridtokenx-iam-service/migrations/20260620000000_add_chain_bridge_audit_log.sql` (idempotent `CREATE TABLE IF NOT EXISTS`); `sqlx migrate run` applied + recorded in `_sqlx_migrations` (success, 2026-06-20). Reproducible on fresh deploys.
+- [x] `git add gridtokenx-telemetry/` in superproject — tracked (`ARCHITECTURE.md`, `Cargo.toml`, `src/lib.rs`, `src/time.rs`); plain dir, not a submodule.
 - [ ] commit `gridtokenx-refactor-plan.md` + this checklist in the superproject.
 - [ ] optional: clippy sweep of chain-bridge root crate to pass `cargo clippy -- -D warnings` (many pre-existing warns: `field_reassign_with_default`, deref-refs).
 

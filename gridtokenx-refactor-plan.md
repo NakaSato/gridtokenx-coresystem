@@ -1,14 +1,14 @@
 # GridTokenX Refactor Plan (grounded)
 
-> Corrects `gridtokenx-rust-structure.md` against actual repo state (verified 2026-06-07).
-> Target architecture from that doc is sound; its "current state" claims were largely stale/wrong.
+> Corrects the original `gridtokenx-rust-structure.md` design doc against actual repo state (verified 2026-06-07).
+> That source doc has since been deleted (superseded by this plan); its target architecture was sound but its "current state" claims were largely stale/wrong.
 > Checkbox/test view: [`gridtokenx-refactor-checklist.md`](gridtokenx-refactor-checklist.md).
 
 ## Status (2026-06-07)
 
 **Plan substantively complete.** All phases landed; only intentional deferrals + one blocked item remain.
 
-- ✅ Done: P1.1, P1.2 (god-files) · P2 (oracle 6-crate, pre-existing) · P3/D (de-fork) · B (telemetry) · E1/E2/E3 (policy/audit/pre-sign) · E4a (binary → `crates/chain-bridge-api`, root virtual manifest).
+- ✅ Done: P1.1, P1.2 (god-files) · P2 (aggregator 6-crate, pre-existing) · P3/D (de-fork) · B (telemetry) · E1/E2/E3 (policy/audit/pre-sign) · E4a (binary → `crates/chain-bridge-api`, root virtual manifest).
 - ⏳ Deferred (structural, no behavior gain): E4b (logic extraction + persistence de-fork) · P2.4-deep (AppState IngressState/BlockchainState).
 - ⛔ Blocked: C (NATS traceparent — needs OTLP + collector).
 - chain-bridge commits: `c92a45a` (god-file split) → `edf7f29` (E1-E3) → `fd170e6` (E4a). Tests: 97 passed / 12 ignored from service root.
@@ -19,7 +19,7 @@
 |---|---|---|
 | iam, noti | done | ✅ done (4-layer) |
 | trading-service | refactor target | ✅ already done — `trading-engine` + `trading-{core,persistence,logic,api,protocol,infra}` + compat shims |
-| aggregator-bridge | refactor target | ✅ **DONE** — 6-crate workspace `oracle-{core,persistence,logic,protocol,api}` + `oracle-stacks` (the "single crate, 555L" claim was stale at writing; split already on `main`). |
+| aggregator-bridge | refactor target | ✅ **DONE** — 6-crate workspace `aggregator-{core,persistence,logic,protocol,api}` + `aggregator-stacks` (the "single crate, 555L" claim was stale at writing; split already on `main`). |
 | chain-bridge | flat `rpc::{account,...}` | ✅ **DONE** — multi-crate workspace (root = virtual manifest); binary+lib in `crates/chain-bridge-api` (god-files split into `api/` + `nats_consumer/`); ports in `chain-bridge-core`, adapters in `chain-bridge-persistence`. edition 2024. |
 | blockchain-core | thin types kernel | ❌ fat behavior lib (auth/config/rpc/wallet/policy/instructions); consumed by all 5 services; trading **forked** it into `blockchain-core-compat` = real drift |
 
@@ -37,9 +37,9 @@ Debunked doc claims: no `shard_for` fn anywhere (anti-pattern #4 fabricated); §
 - ⚠️ edition 2024 — keep.
 
 ## Phase 2 — aggregator-bridge (single → 4-layer) ✅ DONE (2.4-deep deferred)
-1. Workspace `crates/`: oracle-{core,persistence,logic,protocol,api}.
+1. Workspace `crates/`: aggregator-{core,persistence,logic,protocol,api}.
 2. Move: models+traits→core; `infra/`(kafka,rabbitmq,crypto,meter_registry)→persistence; `ingester/`+`dispatch/`+`aggregator`→logic; `grpc/`→protocol+api; handlers/router/main→api.
-3. Extract `oracle-stacks` crate from `protocol/stacks/` (dlms/sunspec/ocpp/openadr).
+3. Extract `aggregator-stacks` crate from `protocol/stacks/` (dlms/sunspec/ocpp/openadr).
 4. Shrink AppState (13 fields) → IngressState / BlockchainState.
 
 ## Phase 3 — blockchain-core de-fork (D1-A) ✅ DONE
@@ -48,7 +48,7 @@ Debunked doc claims: no `shard_for` fn anywhere (anti-pattern #4 fabricated); §
 3. Verify trading builds on real crate.
 
 ## Phase 4 — cross-cutting
-- Extract `gridtokenx-telemetry` shared crate (lift oracle `telemetry::init_telemetry`).
+- Extract `gridtokenx-telemetry` shared crate (lift aggregator-bridge `telemetry::init_telemetry`).
 - NATS W3C `traceparent` propagation (real gap).
 
 ## Skip / defer
@@ -67,7 +67,7 @@ Phase 1 → 3 (cheap drift kill) → 2 → 4. Verify `cargo check && cargo test`
 |---|---|---|
 | P1.1 | chain-bridge `api.rs` (1667L) god-file split → `api/{provider,service}.rs` + `api/tests.rs`. `provider.rs` = `SolanaProvider` trait + Real/Surfpool impls + `BlockhashCache`; `service.rs` = `ChainBridgeGrpcService` (gRPC handlers + `extract_role` + `sign_and_submit`). `mod.rs` re-exports shared `use super::*` imports. Mechanical, no behavior change. Landed in commit `3eab5c4`. | ✅ 2026-06-07 |
 | P1.2 | chain-bridge `nats_consumer.rs` (913L) god-file split → `nats_consumer/{mod,consumer,dedup,tests}.rs`. `consumer.rs` (447L) = `NatsConsumer` subscribe loop + `handle_{submit,simulate,cancel}` + `claim_or_replay`; `dedup.rs` = `DedupRecord`/`DedupState`; `mod.rs` = struct + shared imports. Mechanical, no behavior change. Landed in commit `3eab5c4`. | ✅ 2026-06-07 |
-| P2 | aggregator-bridge single crate → 6-crate workspace `oracle-{core,persistence,logic,protocol,api}` + bonus `oracle-stacks` (plan 2.3 dlms/sunspec/ocpp/openadr). `src/` = `main.rs` only; `oracle-api` re-exports logic/persistence/protocol/stacks/core. **Already committed to `main`** (predates this plan — plan's "single crate, biggest 555L" reality was stale at writing; that 555L file is now `oracle-api/src/ingester/zone_ingester.rs`). AppState prune (2.4) = slice A (13→9). Deeper IngressState/BlockchainState split = not done, optional polish. | ✅ pre-existing |
+| P2 | aggregator-bridge single crate → 6-crate workspace `aggregator-{core,persistence,logic,protocol,api}` + bonus `aggregator-stacks` (plan 2.3 dlms/sunspec/ocpp/openadr). `src/` = `main.rs` only; `aggregator-api` re-exports logic/persistence/protocol/stacks/core. **Already committed to `main`** (predates this plan — plan's "single crate, biggest 555L" reality was stale at writing; that 555L file is now `aggregator-api/src/ingester/zone_ingester.rs`). AppState prune (2.4) = slice A (13→9). Deeper IngressState/BlockchainState split = not done, optional polish. | ✅ pre-existing |
 | A | aggregator-bridge AppState prune: removed ocpp/sunspec/openadr_stack + settlement_signer dead fields (13→9 fields). `cargo check` 0 errors. | ✅ 2026-06-07 |
 | D | trading-service iam-protocol-compat deleted; repointed to real `iam-protocol` cross-workspace path dep. `cargo check` 0 errors. | ✅ 2026-06-07 |
 | B | gridtokenx-telemetry shared crate (fmt-only, JSON default + `LOG_FORMAT=pretty`). New sibling crate; path dep into all 5 services; per-service `telemetry` modules → thin re-export shims; chain-bridge `fmt::init()` → `gridtokenx_telemetry::init`. All 5 `cargo check` 0 errors. | ✅ 2026-06-07 |
