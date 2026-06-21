@@ -481,7 +481,7 @@ services:
       chain-bridge:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "/usr/bin/busybox", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health"]
+      test: ["CMD", "/usr/bin/busybox", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -623,7 +623,7 @@ services:
         reservations:
           memory: 384M
     healthcheck:
-      test: ["CMD", "/usr/bin/busybox", "wget", "-q", "-O", "/dev/null", "http://localhost:8093/health"]
+      test: ["CMD", "/usr/bin/busybox", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8093/health"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -711,7 +711,7 @@ services:
         reservations:
           memory: 256M
     healthcheck:
-      test: ["CMD", "/usr/bin/busybox", "wget", "-q", "-O", "/dev/null", "http://localhost:4010/health"]
+      test: ["CMD", "/usr/bin/busybox", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:4010/health"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -800,7 +800,7 @@ services:
         reservations:
           memory: 128M
     healthcheck:
-      test: ["CMD", "/usr/bin/busybox", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health"]
+      test: ["CMD", "/usr/bin/busybox", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
       interval: 30s
       timeout: 10s
       retries: 3
