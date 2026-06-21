@@ -1,0 +1,3 @@
+# Stray timestamp-named compile outputs (e.g. 20260621-091954.pdf).
+# main.pdf is the tracked build artifact — keep it.
+20[0-9][0-9]*.pdf
