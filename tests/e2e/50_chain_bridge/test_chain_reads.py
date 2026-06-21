@@ -57,10 +57,12 @@ MTLS = (
 
 BASE = os.getenv("CHAIN_BRIDGE_HTTP", f"{'https' if MTLS else 'http'}://{GRPC}")
 
-# meter-service is the only non-Admin role permitted to query chain.tx.status
-# (consumer.rs:873). Its SPIFFE URI maps to ServiceRole::MeterService
-# (gridtokenx-blockchain-core/src/auth.rs:137).
-STATUS_IDENTITY = "spiffe://gridtokenx.th/prod/meter-service"
+# chain.tx.status RBAC permits meter-service OR Admin (consumer.rs:904). The dev
+# cert set ships an `admin` client cert (SPIFFE …/prod/admin → ServiceRole::Admin)
+# but no meter-service cert, so the suite authenticates status as Admin and signs
+# the envelope with the admin key (CHAIN_BRIDGE_REQUIRE_SIGNED_NATS defaults true).
+STATUS_IDENTITY = "spiffe://gridtokenx.th/prod/admin"
+STATUS_CERT = "admin"
 
 
 def _client_cert(name: str):
@@ -281,10 +283,12 @@ def test_request_airdrop_local_validator():
 def test_nats_status_unknown_signature_not_found():
     """chain.tx.status for an unknown signature -> reply on
     chain.tx.statusresult.{cid} with found=false, status 'NotFound'
-    (consumer.rs:836; reply subject per nats_schema.rs:123). Dev accepts an
-    unsigned envelope (CHAIN_BRIDGE_REQUIRE_SIGNED_NATS=false); RBAC requires a
-    meter-service / Admin identity (consumer.rs:873). Envelope JSON is serde
-    snake_case (TxStatusMessage, nats_schema.rs:122)."""
+    (consumer.rs:836; reply subject per nats_schema.rs:123). RBAC requires a
+    meter-service / Admin identity (consumer.rs:904); the bridge enforces envelope
+    signing (CHAIN_BRIDGE_REQUIRE_SIGNED_NATS defaults true), so the envelope carries
+    an Admin-signed `auth`. Envelope JSON is serde snake_case (TxStatusMessage,
+    nats_schema.rs:122)."""
+    import envelope_auth  # provided on sys.path via conftest.py
     import nats_util  # provided on sys.path via conftest.py
 
     if not nats_util.reachable():
@@ -300,8 +304,8 @@ def test_nats_status_unknown_signature_not_found():
         "signature": zero_sig,
         "service_identity": STATUS_IDENTITY,
         "created_at_ms": int(time.time() * 1000),
-        # auth omitted -> unsigned; accepted in dev (log-only).
     }
+    envelope["auth"] = envelope_auth.sign_for("status", envelope, STATUS_CERT)
 
     result = nats_util.request_reply_sync(
         "chain.tx.status", reply, envelope, timeout=20.0

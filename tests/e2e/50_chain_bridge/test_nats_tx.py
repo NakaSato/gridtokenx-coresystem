@@ -32,8 +32,11 @@ Tx construction (verified against `gridtokenx-chain-bridge/.../api/service.rs` +
     move, always simulates/lands), and ComputeBudget is base-allowlisted by policy.
   - A real recent blockhash (read via Chain Bridge) so simulate doesn't fault on a
     zero blockhash (the bridge only auto-fills a zero blockhash on the SUBMIT path).
-  - `CHAIN_BRIDGE_REQUIRE_SIGNED_NATS` is false in dev → the envelope `auth` field is
-    omitted and accepted (log-only).
+  - `CHAIN_BRIDGE_REQUIRE_SIGNED_NATS` defaults true (docker-compose.yml:393), so the
+    envelope MUST carry a valid `auth`: an ECDSA P-256/SHA-256 signature over the
+    canonical bytes, made with the `settlement-service` dev mTLS client key (its SPIFFE
+    SAN equals `service_identity`). Built via `lib/envelope_auth.py`, which mirrors
+    `gridtokenx-blockchain-core/src/rpc/envelope_auth.rs`.
 
 Run: cd tests/e2e && python -m pytest 50_chain_bridge/test_nats_tx.py -v
 Skips gracefully if NATS / Chain Bridge / validator are unreachable.
@@ -51,6 +54,7 @@ from solders.pubkey import Pubkey
 from solders.transaction import Transaction
 
 import chain
+import envelope_auth
 import nats_util
 
 # Dev signing key the insecure bridge uses; tx fee-payer must equal it (see header).
@@ -59,6 +63,8 @@ COMPUTE_BUDGET_PROGRAM = Pubkey.from_string("ComputeBudget1111111111111111111111
 # A known-mappable SPIFFE identity (settlement-service) → non-Unknown ServiceRole so
 # the consumer's RBAC gate passes (blockchain-core/src/auth.rs).
 SERVICE_IDENTITY = "spiffe://gridtokenx.th/prod/settlement-service"
+# Dev mTLS client cert whose SPIFFE SAN == SERVICE_IDENTITY; signs the envelope auth.
+SERVICE_CERT = "settlement-service"
 KEY_ID = "platform_admin"
 
 # Test-only DIRECT Solana RPC, used solely to CONFIRM a submitted signature landed
@@ -133,6 +139,7 @@ def test_nats_submit_signs_and_lands():
         "service_identity": SERVICE_IDENTITY,
         "created_at_ms": int(time.time() * 1000),
     }
+    envelope["auth"] = envelope_auth.sign_for("submit", envelope, SERVICE_CERT)
 
     result = nats_util.request_reply_sync("chain.tx.submit", reply, envelope, timeout=30.0)
 
@@ -161,6 +168,7 @@ def test_nats_simulate_returns_result_no_land():
         "service_identity": SERVICE_IDENTITY,
         "created_at_ms": int(time.time() * 1000),
     }
+    envelope["auth"] = envelope_auth.sign_for("simulate", envelope, SERVICE_CERT)
 
     result = nats_util.request_reply_sync("chain.tx.simulate", reply, envelope, timeout=30.0)
 
