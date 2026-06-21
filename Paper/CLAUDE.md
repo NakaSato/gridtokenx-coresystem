@@ -11,8 +11,8 @@ A single **academic paper** written in [Typst](https://typst.app) — not a code
 Fonts are vendored in `font/` (not installed system-wide), so **every invocation must pass `--font-path font/`** or Thai/Times glyphs fall back and the layout breaks.
 
 ```bash
-# One-shot PDF
-typst compile main.typ --font-path font/ main.pdf
+# One-shot PDF — then open it
+typst compile main.typ --font-path font/ main.pdf && open main.pdf
 
 # Live preview while editing (recompiles on save)
 typst watch main.typ --font-path font/ main.pdf
@@ -23,11 +23,15 @@ typst compile main.typ --font-path font/ /tmp/check.pdf
 
 There is no build script or `justfile` — drive `typst` directly.
 
+**Rule: every successful compile → rebuild `main.pdf` and open it.** After any content/template
+change, run `typst compile main.typ --font-path font/ main.pdf && open main.pdf` so the freshly
+built PDF opens for review (macOS `open`). Don't leave the user to open it manually.
+
 ## Structure
 
-- `main.typ` — entry point. Sets paper metadata (title/authors/abstract/keywords in the `ieee-conf` show rule) and `#include`s each section **in reading order**. Adding a section = create `sections/<name>.typ` + add an `#include` line here. The bibliography is rendered last from `references.bib`.
+- `main.typ` — entry point. Sets paper metadata (title/authors/abstract/keywords in the `ieee-conf` show rule), imports the `@preview/equate:0.3.3` package (per-line equation numbering, `breakable` + `sub-numbering`, format `(1.1)`), and `#include`s each section **in reading order**. Adding a section = create `sections/<name>.typ` + add an `#include` line here. The bibliography is rendered last from `references.bib`. Because `main.typ` pulls a `@preview` package, the **first** compile needs network access (Typst caches it after).
 - `ieee-template.typ` — the `ieee-conf` layout function (page geometry, two-column body, heading numbering `I.A.1.`, figure/table/equation styling, title block). All visual formatting lives here; section files contain only content. Edit this to change look, not the sections.
-- `sections/*.typ` — content body, one file per paper section (`introduction`, `related-work`, `settlement-model-invariants`, `system-design`, `evaluation`, `discussion_limitations`, `conclusion`).
+- `sections/*.typ` — content body, one file per paper section, currently in this reading order: `introduction`, `related-work`, `threat-model`, `settlement-model-invariants`, `pricing-market-mechanism`, `system-design`, `experimental-setup`, `evaluation`, `evaluation-bench`, `discussion_limitations`, `conclusion`. (The `#include` order in `main.typ` is the source of truth — keep this list in sync if you reorder.)
 - `references.bib` — BibTeX, rendered IEEE style.
 - `font/` — vendored TTFs: **TH Sarabun New** (Thai body), Times New Roman (English body/headings), Courier (code). Referenced by family name in the template's `set text(font: ...)`.
 - `picture/` — figures (PNG) pulled in via `#figure(image(...))`.

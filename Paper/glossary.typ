@@ -1,0 +1,28 @@
+// Acronym / glossary entries, rendered by glossarium in the Introduction.
+// Pure data — imported by main.typ (register) and sections/introduction.typ (print).
+#let glossary-entries = (
+  (key: "ami", short: "AMI", long: "Advanced Metering Infrastructure", description: [โครงสร้างพื้นฐานมาตรวัดขั้นสูง]),
+  (key: "der", short: "DER", long: "Distributed Energy Resource", description: [ทรัพยากรพลังงานแบบกระจายศูนย์]),
+  (key: "vpp", short: "VPP", long: "Virtual Power Plant"),
+  (key: "cda", short: "CDA", long: "Continuous Double Auction", description: [ตลาดประมูลสองทางแบบต่อเนื่อง]),
+  (key: "poa", short: "PoA", long: "Proof of Authority"),
+  (key: "poh", short: "PoH", long: "Proof of History"),
+  (key: "dao", short: "DAO", long: "Decentralized Autonomous Organization"),
+  (key: "pda", short: "PDA", long: "Program Derived Address"),
+  (key: "cpi", short: "CPI", long: "Cross-Program Invocation"),
+  (key: "spl", short: "SPL", long: "Solana Program Library (Token)"),
+  (key: "rec", short: "REC", long: "Renewable Energy Certificate"),
+  (key: "opf", short: "OPF", long: "Optimal Power Flow"),
+  (key: "dso", short: "DSO", long: "Distribution System Operator"),
+  (key: "dlms", short: "DLMS/COSEM", long: "Device Language Message Specification / COSEM (IEC 62056)"),
+  (key: "mtls", short: "mTLS", long: "Mutual TLS"),
+  (key: "spiffe", short: "SPIFFE", long: "Secure Production Identity Framework for Everyone"),
+  (key: "bess", short: "BESS", long: "Battery Energy Storage System"),
+  (key: "grxthbg", short: "GRX / THBG", long: "Governance token / THB-pegged stablecoin", description: [โทเคนกำกับดูแล / stablecoin ตรึงเงินบาท]),
+  (key: "bft", short: "BFT", long: "Byzantine Fault Tolerance"),
+  (key: "cu", short: "CU", long: "Compute Unit", description: [หน่วยประมวลผลบนเชนของ Solana]),
+  (key: "dvp", short: "DvP", long: "Delivery-versus-Payment", description: [การส่งมอบพร้อมชำระเงินแบบ atomic]),
+  (key: "iam", short: "IAM", long: "Identity and Access Management"),
+  (key: "rbac", short: "RBAC", long: "Role-Based Access Control"),
+  (key: "svm", short: "SVM", long: "Solana Virtual Machine"),
+)
