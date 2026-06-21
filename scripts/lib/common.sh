@@ -128,6 +128,7 @@ show_help() {
     echo "  restart   Restart all services"
     echo "  status    Check service status"
     echo "  init      Initialize blockchain and deploy programs"
+    echo "  reseed    Re-seed on-chain accounts only (mints/registry/shards); no build/deploy"
     echo "  register  Register admin user"
     echo "  seed      Seed database with test users (SQL)"
     echo "  provision-meter <meter_id> [user_type] [email]"

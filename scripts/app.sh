@@ -15,6 +15,7 @@ export PATH="$HOME/.cargo/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH
 #   doctor    - Check system dependencies and health
 #   status    - Check service status
 #   init      - Initialize blockchain and deploy programs
+#   reseed    - Re-seed on-chain accounts only (mints/registry/shards), no build/deploy
 #   register  - Register admin user
 #   seed      - Seed database with test users
 #   provision-meter - Create on-chain user + map a meter id to it (Redis)
@@ -107,6 +108,9 @@ main() {
             ;;
         init)
             cmd_init
+            ;;
+        reseed)
+            cmd_reseed
             ;;
         register)
             cmd_register "$@"

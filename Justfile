@@ -199,6 +199,29 @@ verify-conns:
 benchmark:
     (cd gridtokenx-trading-service/crates/trading-engine; cargo bench --bench matching_benchmark)
 
+# Telemetry-ingest saturation benchmark (paper review #1/#2): ramp signed-reading
+# load across meter-fleet sizes, measure Aggregator Bridge accept+verify+disseminate
+# throughput + loss over N repeats. Needs `just orb-up` (bridge :4030 + Redis :7010);
+# NO validator. Tune via env: RAMP, DURATION, INTERVAL, REPEATS. Summarize with
+# `scripts/bench-ingest-summary.py bench-ingest-results.csv`.
+bench-ingest:
+    bash scripts/bench-ingest.sh
+
+# Settlement compute-unit benchmark (paper review #3): runs the golden escrow
+# settlement test and logs `BENCH_SETTLE_CU {compute_units}` for the
+# settle_offchain_match instruction. CU is the meaningful, validator-independent
+# on-chain cost metric (localnet latency is not representative). Needs anchor +
+# a validator/surfpool. Grep output for BENCH_SETTLE_CU.
+bench-settlement:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd gridtokenx-anchor
+    # pipefail makes anchor's exit status govern (tee would otherwise mask a failed
+    # test); the grep just extracts the CU line and must not fail the recipe.
+    anchor test tests/escrow_settlement.ts 2>&1 | tee /tmp/bench-settlement.log
+    grep -E 'BENCH_SETTLE_CU|settles a signed' /tmp/bench-settlement.log || \
+      echo "(no BENCH_SETTLE_CU — test did not reach the settle path)"
+
 # --- Solana Localnet ---
 
 # Start local solana test validator
@@ -208,6 +231,13 @@ solana-up:
 # Stop local solana test validator
 solana-down:
     ./scripts/app.sh solana stop
+
+# Re-seed on-chain accounts after a validator ledger reset (mints/registry/shards,
+# correct registry authority) WITHOUT rebuilding/redeploying programs. Use when IAM
+# verify / register_user simulation fails (InvalidMint / AccountOwnedByWrongProgram /
+# UnauthorizedAuthority) but programs are still deployed.
+chain-reseed:
+    ./scripts/app.sh reseed
 
 # --- Solana Mainnet Simulation (Surfpool) ---
 
