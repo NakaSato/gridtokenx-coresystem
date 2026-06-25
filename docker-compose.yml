@@ -701,6 +701,11 @@ services:
       # to plaintext HTTP.
       IOT_GATEWAY_TLS_CERT: /app/infra/certs/aggregator-bridge.crt
       IOT_GATEWAY_TLS_KEY: /app/infra/certs/aggregator-bridge.key
+      # Vault Transit: unwrap per-meter rotated GUEK versions (key rotation). Unset
+      # VAULT_ADDR to disable the versioned path (legacy unversioned key only).
+      VAULT_ADDR: http://vault:8200
+      VAULT_TOKEN: ${VAULT_TOKEN:-root}
+      VAULT_METER_KEK_NAME: ${VAULT_METER_KEK_NAME:-gridtokenx-meter-kek}
     volumes:
       - ./infra/aggregator-bridge/signing-key.bin:/app/aggregator-bridge-signing-key.bin:ro
       - ./infra/certs/ca.crt:/app/infra/certs/ca.crt:ro
@@ -959,6 +964,14 @@ services:
       # Off by default; the bridge accepts both plaintext and encrypted frames,
       # so flip this without lockstep once the bridge image carries the decrypt path.
       AGGREGATOR_ENCRYPT_ENABLED: ${SMARTMETER_ENCRYPT_ENABLED:-false}
+      # Per-meter key rotation with Vault-KEK wrapping. Needs encryption on + Vault.
+      # Each meter gets a random GUEK wrapped by the Transit KEK; only the wrapped
+      # blob is seeded to Redis, frames carry a key version (kid), and keys rotate
+      # via POST /api/v1/simulation/keys/rotate.
+      AGGREGATOR_KEY_ROTATION_ENABLED: ${SMARTMETER_KEY_ROTATION_ENABLED:-false}
+      VAULT_ADDR: http://vault:8200
+      VAULT_TOKEN: ${VAULT_TOKEN:-root}
+      VAULT_METER_KEK_NAME: ${VAULT_METER_KEK_NAME:-gridtokenx-meter-kek}
       # X-API-KEY for the bridge ingest endpoint; must match one of the bridge's
       # GRIDTOKENX_API_KEYS (api_key_auth rejects unauthenticated ingest with 401).
       AGGREGATOR_API_KEY: ${SMARTMETER_AGGREGATOR_API_KEY:-engineering-department-api-key-2025}
