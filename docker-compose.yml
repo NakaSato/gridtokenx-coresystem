@@ -978,6 +978,11 @@ services:
       # blob is seeded to Redis, frames carry a key version (kid), and keys rotate
       # via POST /api/v1/simulation/keys/rotate.
       AGGREGATOR_KEY_ROTATION_ENABLED: ${SMARTMETER_KEY_ROTATION_ENABLED:-false}
+      # Key versions kept live (current + prior) before pruning the wrapped blob
+      # from Redis; the prior ones are the grace window for in-flight frames.
+      AGGREGATOR_KEY_GRACE_VERSIONS: ${SMARTMETER_KEY_GRACE_VERSIONS:-2}
+      # Background auto-rotation interval (seconds). 0 = manual rotate only.
+      AGGREGATOR_KEY_ROTATION_INTERVAL_S: ${SMARTMETER_KEY_ROTATION_INTERVAL_S:-0}
       VAULT_ADDR: http://vault:8200
       VAULT_TOKEN: ${VAULT_TOKEN:-root}
       VAULT_METER_KEK_NAME: ${VAULT_METER_KEK_NAME:-gridtokenx-meter-kek}
