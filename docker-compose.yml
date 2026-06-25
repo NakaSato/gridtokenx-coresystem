@@ -955,6 +955,10 @@ services:
       AGGREGATOR_BRIDGE_URL: https://aggregator-bridge:4010
       AGGREGATOR_TLS_CA: /app/infra/certs/ca.crt
       AGGREGATOR_DLMS_ENABLED: ${SMARTMETER_DLMS_ENABLED:-true}
+      # AES-256-GCM per-meter payload encryption (DLMS security-suite aligned).
+      # Off by default; the bridge accepts both plaintext and encrypted frames,
+      # so flip this without lockstep once the bridge image carries the decrypt path.
+      AGGREGATOR_ENCRYPT_ENABLED: ${SMARTMETER_ENCRYPT_ENABLED:-false}
       # X-API-KEY for the bridge ingest endpoint; must match one of the bridge's
       # GRIDTOKENX_API_KEYS (api_key_auth rejects unauthenticated ingest with 401).
       AGGREGATOR_API_KEY: ${SMARTMETER_AGGREGATOR_API_KEY:-engineering-department-api-key-2025}
