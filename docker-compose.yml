@@ -446,6 +446,10 @@ services:
       ENCRYPTION_SECRET: ${ENCRYPTION_SECRET}
       API_KEY_SECRET: ${API_KEY_SECRET}
       ENVIRONMENT: development
+      # Auth rate-limit budgets ("limit,window_secs"). Dev raises the tight prod
+      # register cap (5/hour) so a large simulator fleet can onboard in one boot.
+      IAM_REGISTER_LIMIT: ${IAM_REGISTER_LIMIT:-10000,3600}
+      IAM_LOGIN_LIMIT: ${IAM_LOGIN_LIMIT:-10000,60}
       NTP_SERVERS: ${NTP_SERVERS:-time.cloudflare.com:123,time.google.com:123}
       VAULT_ADDR: http://vault:8200
       VAULT_TOKEN: root
@@ -692,11 +696,18 @@ services:
       # IAM gRPC (ConnectRPC) for GetUserWallet — the mint path resolves each bin's
       # recipient wallet here. The identity client reads IAM_SERVICE_URL (not IAM_GRPC_URL).
       IAM_SERVICE_URL: http://iam-service:8090
+      # IoT gateway TLS: encrypts DLMS/COSEM meter telemetry in transit. Server cert
+      # SAN covers `aggregator-bridge` (run `just gen-certs`). Unset both to fall back
+      # to plaintext HTTP.
+      IOT_GATEWAY_TLS_CERT: /app/infra/certs/aggregator-bridge.crt
+      IOT_GATEWAY_TLS_KEY: /app/infra/certs/aggregator-bridge.key
     volumes:
       - ./infra/aggregator-bridge/signing-key.bin:/app/aggregator-bridge-signing-key.bin:ro
       - ./infra/certs/ca.crt:/app/infra/certs/ca.crt:ro
       - ./infra/certs/clients/aggregator-bridge.crt:/app/infra/certs/client.crt:ro
       - ./infra/certs/clients/aggregator-bridge.key:/app/infra/certs/client.key:ro
+      - ./infra/certs/aggregator-bridge.crt:/app/infra/certs/aggregator-bridge.crt:ro
+      - ./infra/certs/aggregator-bridge.key:/app/infra/certs/aggregator-bridge.key:ro
     depends_on:
       redis:
         condition: service_healthy
@@ -933,9 +944,16 @@ services:
       PYTHONPATH: /app:/app/src
       AUTOSTART_SIMULATION: "true"
       METRICS_PORT: 9091
+      # Sim clock start (ISO-8601). Empty → engine falls back to TODAY 08:00 UTC
+      # (real-world wall-clock day), instead of the image-baked fixed date. Set a
+      # pinned value via SMARTMETER_SIM_START_TIME only for byte-identical replay.
+      SIMULATION_START_TIME: ${SMARTMETER_SIM_START_TIME:-}
       # DLMS/COSEM REST egress to the Aggregator Bridge IoT gateway. In-network
-      # the bridge ingest is aggregator-bridge:4010 (host maps it to :4030).
-      AGGREGATOR_BRIDGE_URL: http://aggregator-bridge:4010
+      # the bridge ingest is aggregator-bridge:4010 (host maps it to :4030). TLS:
+      # the bridge serves HTTPS (IOT_GATEWAY_TLS_*); AGGREGATOR_TLS_CA points httpx
+      # at the dev CA so cert verification passes (SAN = aggregator-bridge).
+      AGGREGATOR_BRIDGE_URL: https://aggregator-bridge:4010
+      AGGREGATOR_TLS_CA: /app/infra/certs/ca.crt
       AGGREGATOR_DLMS_ENABLED: ${SMARTMETER_DLMS_ENABLED:-true}
       # X-API-KEY for the bridge ingest endpoint; must match one of the bridge's
       # GRIDTOKENX_API_KEYS (api_key_auth rejects unauthenticated ingest with 401).
@@ -960,6 +978,7 @@ services:
     volumes:
       - ./gridtokenx-smartmeter-simulator/data:/app/data
       - ./gridtokenx-smartmeter-simulator/backend/src/smart_meter_simulator:/app/src/smart_meter_simulator:rw
+      - ./infra/certs/ca.crt:/app/infra/certs/ca.crt:ro
     networks:
       - gridtokenx-network
     restart: unless-stopped

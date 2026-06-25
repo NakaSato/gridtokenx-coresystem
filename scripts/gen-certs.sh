@@ -86,6 +86,19 @@ else
         "DNS:localhost,DNS:chain-bridge,IP:127.0.0.1" "serverAuth"
 fi
 
+# --- Aggregator Bridge IoT-gateway server cert --------------------------------
+# Serves TLS on the IoT gateway (:4010) so meter telemetry (DLMS/COSEM REST) is
+# encrypted in transit. Separate from the Chain Bridge cert so its SAN can carry
+# the aggregator-bridge hostname without touching chain-bridge mTLS.
+if usable "$CERT_DIR/aggregator-bridge.crt"; then
+    echo "aggregator-bridge.crt: still valid, skipping"
+else
+    echo "Generating Aggregator Bridge IoT-gateway server cert"
+    issue_leaf "$CERT_DIR/aggregator-bridge.crt" "$CERT_DIR/aggregator-bridge.key" \
+        "aggregator-bridge" \
+        "DNS:localhost,DNS:aggregator-bridge,IP:127.0.0.1" "serverAuth"
+fi
+
 # --- Client certs (one per SPIFFE identity; auth.rs ServiceRole table) --------
 # filename:spiffe-uri
 IDENTITIES=(
@@ -118,4 +131,5 @@ echo "Done. Layout:"
 echo "  $CERT_DIR/ca.crt              — trust anchor (mount into clients + server)"
 echo "  $CERT_DIR/ca.key              — dev CA key (NEVER mount into containers)"
 echo "  $CERT_DIR/server.{crt,key}    — Chain Bridge server (SAN: localhost, chain-bridge, 127.0.0.1)"
+echo "  $CERT_DIR/aggregator-bridge.{crt,key} — Aggregator Bridge IoT gateway (SAN: localhost, aggregator-bridge, 127.0.0.1)"
 echo "  $CLIENT_DIR/<svc>.{crt,key}   — per-SPIFFE-identity client certs"
