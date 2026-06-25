@@ -107,6 +107,7 @@ IDENTITIES=(
     "trading-service-api:spiffe://gridtokenx.th/prod/trading-service/api"
     "trading-service-matcher:spiffe://gridtokenx.th/prod/trading-service/matcher"
     "aggregator-bridge:spiffe://gridtokenx.th/prod/aggregator-bridge"
+    "smartmeter-simulator:spiffe://gridtokenx.th/prod/smartmeter-simulator"
     "settlement-service:spiffe://gridtokenx.th/prod/settlement-service"
     "reporting-service:spiffe://gridtokenx.th/prod/reporting-service"
     "admin:spiffe://gridtokenx.th/prod/admin"

@@ -701,6 +701,10 @@ services:
       # to plaintext HTTP.
       IOT_GATEWAY_TLS_CERT: /app/infra/certs/aggregator-bridge.crt
       IOT_GATEWAY_TLS_KEY: /app/infra/certs/aggregator-bridge.key
+      # mTLS: require + verify a client cert (the simulator's) against this CA —
+      # transport-layer auth on top of the API key. Empty = server-auth TLS only
+      # (default); set to /app/infra/certs/ca.crt to require client certs.
+      IOT_GATEWAY_TLS_CLIENT_CA: ${IOT_GATEWAY_TLS_CLIENT_CA:-}
       # Vault Transit: unwrap per-meter rotated GUEK versions (key rotation). Unset
       # VAULT_ADDR to disable the versioned path (legacy unversioned key only).
       VAULT_ADDR: http://vault:8200
@@ -968,6 +972,10 @@ services:
       # at the dev CA so cert verification passes (SAN = aggregator-bridge).
       AGGREGATOR_BRIDGE_URL: https://aggregator-bridge:4010
       AGGREGATOR_TLS_CA: /app/infra/certs/ca.crt
+      # mTLS client cert the sim presents when the bridge requires client auth.
+      # Harmless when the bridge only does server-auth TLS (server ignores it).
+      AGGREGATOR_TLS_CLIENT_CERT: ${AGGREGATOR_TLS_CLIENT_CERT:-/app/infra/certs/smartmeter-simulator.crt}
+      AGGREGATOR_TLS_CLIENT_KEY: ${AGGREGATOR_TLS_CLIENT_KEY:-/app/infra/certs/smartmeter-simulator.key}
       AGGREGATOR_DLMS_ENABLED: ${SMARTMETER_DLMS_ENABLED:-true}
       # AES-256-GCM per-meter payload encryption (DLMS security-suite aligned).
       # Off by default; the bridge accepts both plaintext and encrypted frames,
@@ -1010,6 +1018,8 @@ services:
       - ./gridtokenx-smartmeter-simulator/data:/app/data
       - ./gridtokenx-smartmeter-simulator/backend/src/smart_meter_simulator:/app/src/smart_meter_simulator:rw
       - ./infra/certs/ca.crt:/app/infra/certs/ca.crt:ro
+      - ./infra/certs/clients/smartmeter-simulator.crt:/app/infra/certs/smartmeter-simulator.crt:ro
+      - ./infra/certs/clients/smartmeter-simulator.key:/app/infra/certs/smartmeter-simulator.key:ro
     networks:
       - gridtokenx-network
     restart: unless-stopped
