@@ -706,6 +706,11 @@ services:
       VAULT_ADDR: http://vault:8200
       VAULT_TOKEN: ${VAULT_TOKEN:-root}
       VAULT_METER_KEK_NAME: ${VAULT_METER_KEK_NAME:-gridtokenx-meter-kek}
+      # Secure (locked-down) mode: neutralizes every ingest bypass — ignores the
+      # AGGREGATOR_ALLOW_UNVERIFIED_TELEMETRY escape hatch, refuses the unsigned
+      # `simulator` protocol, and requires an authenticated dlms-enc frame on the
+      # meter path (no plaintext downgrade). Default off so dev/e2e keep bypasses.
+      AGGREGATOR_REQUIRE_SECURE: ${AGGREGATOR_REQUIRE_SECURE:-false}
     volumes:
       - ./infra/aggregator-bridge/signing-key.bin:/app/aggregator-bridge-signing-key.bin:ro
       - ./infra/certs/ca.crt:/app/infra/certs/ca.crt:ro
@@ -735,7 +740,11 @@ services:
         reservations:
           memory: 256M
     healthcheck:
-      test: ["CMD", "/usr/bin/busybox", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:4010/health"]
+      # IoT gateway terminates TLS (IOT_GATEWAY_TLS_CERT/KEY) → :4010 is HTTPS with a
+      # self-signed dev cert. busybox-static wget can't verify it (no --no-check-certificate),
+      # so probe TCP liveness instead: nc reads EOF from /dev/null, connects, exits 0 if the
+      # listener is up. Works for plaintext fallback too (TCP connect succeeds either way).
+      test: ["CMD", "/usr/bin/busybox", "sh", "-c", "/usr/bin/busybox nc -w 3 127.0.0.1 4010 </dev/null"]
       interval: 30s
       timeout: 10s
       retries: 5

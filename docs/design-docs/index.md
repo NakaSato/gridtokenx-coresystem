@@ -18,5 +18,7 @@ must survive, the alternatives that were rejected, and the constraints future ch
 | Doc | Summary |
 | :--- | :--- |
 | [core-beliefs.md](core-beliefs.md) | The non-negotiable principles every design must honor |
+| [api-design-guide.md](api-design-guide.md) | API conventions across services |
+| [openadr-scale-proposal.md](openadr-scale-proposal.md) | RFC: full-feature, large-scale, certifiable OpenADR (hybrid VTN) |
 
 _Add subsystem design docs here as they are written._

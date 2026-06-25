@@ -106,6 +106,7 @@ log "starting test bridge on :$HTTP_PORT (log: $BRIDGE_LOG)"
     REDIS_URL="redis://localhost:7010" \
     KAFKA_BOOTSTRAP_SERVERS="localhost:29001" \
     GRIDTOKENX_API_KEYS="$API_KEY" \
+    IAM_SERVICE_URL="http://127.0.0.1:1" \
     IOT_GATEWAY_PORT="$HTTP_PORT" \
     GRPC_PORT="$GRPC_PORT" \
     GRID_STATUS_PUBLISH_SECS=5 \
