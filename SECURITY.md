@@ -48,7 +48,7 @@ GridTokenX implements defense-in-depth across all layers:
 ### Edge Device Security
 - **Ed25519 signature verification** on every telemetry packet at the Aggregator Bridge IoT gateway — the primary device-authentication boundary
 - **Per-device key identity** verified cryptographically on ingest
-- **Note:** the former Envoy mTLS edge (`:4002`) has been removed; IoT devices now ingress directly to the Aggregator Bridge. Transport-level mTLS for the edge path is no longer enforced — see `docs/exec-plans/tech-debt-tracker.md` (TD-003)
+- **Optional telemetry hardening (off by default, `just secure-up` to enable):** the smart-meter → Aggregator Bridge DLMS path layers TLS, **mutual TLS** (client-cert auth), per-meter **AES-256-GCM** payload encryption with a replay counter, **Vault-KEK-wrapped key rotation** (raw key never at rest), and an **ingest lockdown** that rejects every bypass. This restores transport-level mTLS for the meter path that the former Envoy edge (`:4002`) gave up — see [docs/telemetry-security.md](docs/telemetry-security.md) and `docs/exec-plans/tech-debt-tracker.md` (TD-003)
 
 ### Service Mesh Security
 - **SPIFFE/SPIRE** workload identity — services authenticate via cryptographic SVIDs
