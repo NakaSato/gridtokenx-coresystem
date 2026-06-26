@@ -715,6 +715,11 @@ services:
       # `simulator` protocol, and requires an authenticated dlms-enc frame on the
       # meter path (no plaintext downgrade). Default off so dev/e2e keep bypasses.
       AGGREGATOR_REQUIRE_SECURE: ${AGGREGATOR_REQUIRE_SECURE:-false}
+      # At-rest encryption of Redis stream payloads: AES-256-GCM the disseminated
+      # DeviceReading with a Vault-KEK-wrapped fleet-wide SEK, so the full register
+      # set is opaque in the zone/unified streams (the in-process ingester
+      # decrypts). Needs Vault. Default off. Influx/Kafka unaffected (energy-only).
+      AGGREGATOR_ENCRYPT_STREAMS: ${AGGREGATOR_ENCRYPT_STREAMS:-false}
     volumes:
       - ./infra/aggregator-bridge/signing-key.bin:/app/aggregator-bridge-signing-key.bin:ro
       - ./infra/certs/ca.crt:/app/infra/certs/ca.crt:ro
