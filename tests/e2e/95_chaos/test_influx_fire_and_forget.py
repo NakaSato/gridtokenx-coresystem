@@ -83,11 +83,6 @@ def _stub():
     return oracle_pb2_grpc.OracleServiceStub(grpc.insecure_channel(ORACLE_GRPC))
 
 
-def _meter_id() -> str:
-    # LDN is a fixed 8-byte frame field — keep the id <= 8 chars so it round-trips.
-    return f"C{int(time.time() * 1000) % 1_000_000}"
-
-
 def _ingest_encrypted(stub, meter_id, priv, enc_key, *, import_wh=5000, export_wh=1200):
     """Build + sign an encrypted v4 frame and push it via BulkRawIngest. Returns the
     gRPC response (processed_count / status)."""
@@ -104,11 +99,46 @@ def _ingest_encrypted(stub, meter_id, priv, enc_key, *, import_wh=5000, export_w
         raise
 
 
-def _wait_stream_grew(before: int, timeout: float = 10.0) -> bool:
+def _register(prefix: str):
+    """Register a fresh secure meter (pubkey + enckey + owner). ≤8 chars for the LDN."""
+    pk, pub_hex = crypto.new_identity()
+    meter = f"{prefix}{int(time.time() * 1000) % 1_000_000}"
+    enc_key = bytes(range(32))
+    redis_util.register_device_key(meter, pub_hex)
+    redis_util.register_meter(meter, USER_ID)
+    redis_util.register_enckey(meter, enc_key.hex())
+    return meter, pk, enc_key
+
+
+def _max_zone_stream_id() -> tuple:
+    """Largest (ms, seq) entry id across all zone streams, or (0, 0).
+
+    A MAXLEN-safe dissemination progress marker: new XADDs advance the stream id
+    monotonically even when the producer-side cap (REDIS_STREAM_MAXLEN, commit
+    5a8e6b6) trims older entries — so this keeps working where `stream_total_len()`
+    goes flat at saturation. It also needs NO plaintext payload: zone-stream entries
+    are encrypted at rest (`{"enc": {...}}`), so per-device matching isn't possible."""
+    c = redis_util.client()
+    mx = (0, 0)
+    for k in c.scan_iter(match="gridtokenx:events:zone_*"):
+        try:
+            ents = c.xrevrange(k, count=1)
+        except Exception:
+            continue
+        if ents:
+            ms, _, seq = ents[0][0].partition("-")
+            cur = (int(ms), int(seq or 0))
+            if cur > mx:
+                mx = cur
+    return mx
+
+
+def _wait_new_entry(before: tuple, timeout: float = 12.0) -> bool:
+    """Wait until a new zone-stream entry is appended past `before` (id advanced)."""
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
-            if redis_util.stream_total_len() > before:
+            if _max_zone_stream_id() > before:
                 return True
         except Exception:
             pass
@@ -127,19 +157,16 @@ def influx_restored():
 
 
 def test_ingest_survives_influxdb_down(influx_restored):
-    pk, pub_hex = crypto.new_identity()
-    enc_key = bytes(range(32))  # deterministic 32-byte AES-256 key
-    meter = _meter_id()
-    redis_util.register_device_key(meter, pub_hex)
-    redis_util.register_meter(meter, USER_ID)
-    redis_util.register_enckey(meter, enc_key.hex())
+    meter, pk, enc_key = _register("C")
     stub = _stub()
     try:
-        # 1. Baseline (InfluxDB UP): an encrypted reading is decrypted + disseminates.
-        before = redis_util.stream_total_len()
+        # 1. Baseline (InfluxDB UP): an encrypted reading is decrypted + disseminates
+        #    (processed_count==1 proves the bridge handled THIS reading; the new
+        #    zone-stream entry proves it fanned out).
+        before = _max_zone_stream_id()
         r = _ingest_encrypted(stub, meter, pk, enc_key, import_wh=7000)
         assert r.processed_count == 1, f"baseline ingest failed: {r}"
-        assert _wait_stream_grew(before), "baseline reading did not disseminate (precondition broken)"
+        assert _wait_new_entry(before), "baseline reading did not disseminate (precondition broken)"
 
         # 2. Break InfluxDB mid-run.
         stop = subprocess.run(["docker", "stop", INFLUX_CONTAINER], capture_output=True, text=True)
@@ -147,11 +174,11 @@ def test_ingest_survives_influxdb_down(influx_restored):
         assert not _container_running(INFLUX_CONTAINER), "influx container still running after stop"
 
         # 3. With InfluxDB DOWN: ingest must still be processed AND still disseminate.
-        before2 = redis_util.stream_total_len()
+        before2 = _max_zone_stream_id()
         r2 = _ingest_encrypted(stub, meter, pk, enc_key, import_wh=9000)
         assert r2.processed_count == 1, \
             f"ingest blocked/failed while InfluxDB down — NOT fire-and-forget: {r2}"
-        assert _wait_stream_grew(before2), \
+        assert _wait_new_entry(before2), \
             "reading did not disseminate while InfluxDB down — write path coupled to InfluxDB"
     finally:
         redis_util.unregister_device(meter)
