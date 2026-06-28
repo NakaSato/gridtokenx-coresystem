@@ -20,33 +20,74 @@ GridTokenX follows a **Modern Microservices Architecture** orchestrated by a hig
 
 ```mermaid
 graph TD
-    subgraph "Public Entry"
-        Client[Trading UI / Portal] -->|HTTPS/WSS| APISIX[Apache APISIX :4001]
-        EdgeMeter[Smart Meter] -->|Ed25519-signed HTTP| OracleB
+    subgraph entry["Public Entry"]
+        Client["Trading UI / Explorer / Portal"]
+        EdgeMeter["Smart Meter / Edge Gateway"]
     end
 
-    subgraph "GridTokenX Service Mesh"
-        APISIX -->|ConnectRPC| APIS[API Services Orchestrator :4000]
-        APIS <-->|gRPC| IAM[IAM Service :4010/5010]
-        APIS <-->|gRPC| Trading[Trading Service :4020/5020]
-        APIS <-->|gRPC| OracleB[Aggregator Bridge :4030/5030]
+    subgraph mesh["GridTokenX Service Mesh (Rust)"]
+        APISIX["Apache APISIX<br/>:4001"]
+        APIS["API Orchestrator<br/>:4000"]
+        IAM["IAM Service<br/>:4010 / :5010"]
+        Trading["Trading Service<br/>:8093 / :8092"]
+        OracleB["Aggregator Bridge<br/>:4030"]
+        Noti["Noti Service<br/>:5050"]
     end
 
-    subgraph "Blockchain Interface"
-        IAM & Trading & OracleB -->|gRPC| ChainBridge[Chain Bridge :5040]
+    subgraph signing["Signing Authority"]
+        ChainBridge["Chain Bridge<br/>:5040"]
+        Vault["HashiCorp Vault<br/>Transit signing"]
     end
 
-    subgraph "Blockchain Layer"
-        ChainBridge -->|RPC| Solana[Solana Blockchain]
+    subgraph chain["Blockchain Layer"]
+        Solana["Solana<br/>Registry · Trading · Energy Token · Oracle · Governance"]
     end
 
-    subgraph "Messaging & Persistence"
-        IAM & Trading & OracleB -->|Kafka| Events[Kafka: cmd/market/audit]
-        IAM & Trading & OracleB -->|RabbitMQ| Tasks[RabbitMQ :5672]
-        IAM & Trading & OracleB -->|Redis| Live[Redis Pub/Sub]
-        IAM & Trading -->|SQLx| PostgreS[(PostgreSQL 17)]
-        OracleB -->|Streams| ZoneRedis[Redis Streams: zone-partitioned]
+    subgraph msg["Messaging"]
+        Kafka["Kafka<br/>cmd / market / audit"]
+        Rabbit["RabbitMQ<br/>tasks + DLQ"]
+        NATS["NATS JetStream<br/>chain.tx.*"]
+        Redis["Redis Pub/Sub"]
     end
+
+    subgraph store["Persistence"]
+        Postgres[("PostgreSQL 17<br/>+ PgDog pooler")]
+        ZoneRedis["Redis Streams<br/>zone-partitioned"]
+        Influx[("InfluxDB v2<br/>telemetry history")]
+    end
+
+    %% --- request path ---
+    Client -->|HTTPS / WSS| APISIX
+    EdgeMeter -->|Ed25519-signed DLMS/COSEM| OracleB
+    APISIX -->|ConnectRPC| APIS
+    APIS <-->|gRPC| IAM
+    APIS <-->|gRPC| Trading
+    APIS <-->|gRPC| OracleB
+
+    %% --- blockchain path ---
+    IAM & Trading -->|gRPC reads| ChainBridge
+    OracleB -->|chain.tx.mint| NATS
+    NATS --> ChainBridge
+    ChainBridge --> Vault
+    ChainBridge -->|RPC| Solana
+
+    %% --- messaging + persistence ---
+    IAM & Trading & OracleB -->|events| Kafka
+    IAM & Trading & Noti -->|tasks| Rabbit
+    IAM & Trading -->|live| Redis
+    IAM & Trading -->|SQLx| Postgres
+    Noti -->|SQLx| Postgres
+    OracleB -->|readings| ZoneRedis
+    OracleB -.->|async| Influx
+
+    classDef rust fill:#dea584,stroke:#8b4513,color:#000;
+    classDef infra fill:#cfe8ff,stroke:#1c6fb5,color:#000;
+    classDef chainNode fill:#e6d4ff,stroke:#7b2fbe,color:#000;
+    classDef edge fill:#fff3c4,stroke:#b58900,color:#000;
+    class APIS,IAM,Trading,OracleB,Noti,ChainBridge rust;
+    class Kafka,Rabbit,NATS,Redis,Postgres,ZoneRedis,Influx,APISIX,Vault infra;
+    class Solana chainNode;
+    class EdgeMeter,Client edge;
 ```
 
 ### Two Interconnected Platforms
@@ -63,12 +104,24 @@ GridTokenX is architected as **two distinct but interconnected platforms**:
 
 ### Edge-to-Blockchain Data Flow
 
-```
-Edge Meter → Edge Gateway → Aggregator Bridge ───┐
-                                              IAM Service ─┐
-User/Web → APISIX (User Gateway) ───────────────┼→ Trading Service─┼→ Solana Blockchain
-                                              Oracle Service─┘
-                                              Chain Bridge ──┘
+```mermaid
+flowchart LR
+    Meter["Smart Meter"] -->|Ed25519 DLMS| Bridge["Aggregator Bridge"]
+    Bridge -->|15-min bin| Settle["Surplus Settlement"]
+    Settle -->|chain.tx.mint| CB["Chain Bridge"]
+
+    User["User / Web"] -->|HTTPS| GW["APISIX"]
+    GW --> API["API Orchestrator"]
+    API --> Tr["Trading Service"]
+    Tr -->|settle match| CB
+    API --> IAM["IAM Service"]
+    IAM -->|register PDA| CB
+
+    CB -->|signed tx| SOL["Solana"]
+
+    style Meter fill:#fff3c4,stroke:#b58900
+    style User fill:#fff3c4,stroke:#b58900
+    style SOL fill:#e6d4ff,stroke:#7b2fbe
 ```
 
 ---
@@ -151,6 +204,65 @@ User/Web → APISIX (User Gateway) ───────────────
 ### 6. Edge Gateway (`gridtokenx-edge-gateway`) — Edge Aggregation
 -   **Role**: Local aggregation, buffering, protocol translation, Ed25519 signing. Hardware-specific (RPi, rppal, MQTT).
 -   **Communication**: Sends validated telemetry directly to the Aggregator Bridge IoT gateway (Ed25519-signed payloads)
+
+---
+
+## Features
+
+A domain-grouped inventory of platform capabilities.
+
+### Identity & Access (IAM Service)
+-   User registration + KYC workflows
+-   Secure wallet custody — Ed25519 keypair generation, AES-256-GCM encryption (never plaintext)
+-   argon2id password hashing, scoped JWT auth, API keys
+-   On-chain Registry PDA lifecycle (idempotent register → verify → claim)
+-   Governance program control
+
+### Trading (Trading Service)
+-   In-memory order book with Continuous Double Auction (CDA) matching
+-   Conditional orders — stop-loss, take-profit
+-   Recurring DCA (dollar-cost-averaging) orders
+-   VPP (Virtual Power Plant) aggregation
+-   ERC / REC certificate management
+-   On-chain settlement routed through Chain Bridge
+-   40+ gRPC RPCs
+
+### Telemetry & Edge (Aggregator Bridge + Edge Gateway)
+-   Ed25519-signed DLMS/COSEM telemetry ingest from smart meters
+-   Per-device cryptographic identity verification
+-   Zone-partitioned Redis Streams for operational dissemination
+-   15-minute settlement-window aggregation
+-   Surplus mint over NATS (`chain.tx.mint`) → Solana
+-   Independent InfluxDB v2 realtime history (async, fire-and-forget)
+-   High-throughput ingest (20k+ readings/sec)
+
+### Blockchain (Chain Bridge + Anchor)
+-   5 Anchor programs — Registry, Trading, Energy Token, Oracle, Governance
+-   SPL Token-2022 standard
+-   Sole Solana RPC gateway — Vault Transit signing, isolated by mTLS + RBAC
+-   NATS JetStream async tx submission; gRPC synchronous reads
+-   Shared `gridtokenx-blockchain-core` types
+
+### Notifications (Noti Service)
+-   Email pipeline — register → verify → welcome
+-   Independent DB schema; RabbitMQ task queues + DLQ for guaranteed delivery
+
+### Demand Response
+-   OpenADR / OpenLEADR VTN ↔ VEN demand-response flow
+
+### Frontends
+-   Trading UI (Next.js, `:11001`)
+-   Blockchain Explorer (`:11002`)
+-   Smart Meter Simulator + map (`:12011`)
+-   Admin Portal (separate repo)
+
+### Platform & Observability
+-   APISIX user-facing gateway (`:4001`) + API orchestrator (`:4000`)
+-   Hybrid messaging — Kafka (event sourcing, 3 clusters), RabbitMQ (task queues), Redis 7 (real-time)
+-   PostgreSQL 17 (+ PgDog pooler), Transactional Outbox pattern
+-   HashiCorp Vault secrets management + rotation
+-   Prometheus, Grafana, Loki, Tempo, OpenTelemetry, SigNoz observability
+-   Surfpool mainnet simulation; matching + ingest-saturation benchmarks
 
 ---
 
