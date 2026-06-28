@@ -211,5 +211,10 @@ graphify-out/
 calc_disc.cjs
 check_pda.rs
 data/
+
+# Generated / exported artifacts (not source — keep them out of `git add -A`)
+bench-ingest-results.csv
+/system.html
+*.docx
 # Added by code-review-graph
 .code-review-graph/
