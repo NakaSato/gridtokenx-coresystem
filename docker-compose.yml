@@ -1093,6 +1093,13 @@ services:
     volumes:
       - prometheus_data:/prometheus
       - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring:/etc/prometheus/rules:ro
+      # mTLS client identity for scraping the aggregator-bridge /metrics gateway.
+      # reporting-service = a read-only observer cert (any CA-signed client passes
+      # IOT_GATEWAY_TLS_CLIENT_CA). The top-level client.crt/key are 0-byte placeholders.
+      - ./infra/certs/ca.crt:/etc/prometheus/certs/ca.crt:ro
+      - ./infra/certs/clients/reporting-service.crt:/etc/prometheus/certs/client.crt:ro
+      - ./infra/certs/clients/reporting-service.key:/etc/prometheus/certs/client.key:ro
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"

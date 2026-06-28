@@ -38,3 +38,23 @@ groups:
       annotations:
         summary: "Zero ingestion activity from Aggregator Bridge"
         description: "No new attestation batches have been received in the last 5 minutes. Check Aggregator Bridge health."
+
+    - alert: AggregatorSurplusMintDisabled
+      expr: aggregator_settlement_path{path="disabled"} == 1
+      for: 5m
+      labels:
+        severity: warning
+        team: grid-ops
+      annotations:
+        summary: "Aggregator surplus mint path is DISABLED"
+        description: "aggregator_settlement_path reports the mint path as disabled (MINT_VIA_CHAIN_BRIDGE unset or NATS unreachable). Completed billing bins evict without minting surplus to meter owners."
+
+    - alert: AggregatorMintSkipSpike
+      expr: sum(rate(aggregator_mint_total{outcome="skipped"}[15m])) / clamp_min(sum(rate(aggregator_mint_total[15m])), 0.001) > 0.10
+      for: 15m
+      labels:
+        severity: warning
+        team: grid-ops
+      annotations:
+        summary: "Surplus mints are being skipped at a high rate"
+        description: "More than 10% of completed surplus bins are skipped (no recipient wallet / owner-resolve error) over 15m. Likely unregistered meters generating surplus — check meter-service registration and the meters/users join."
