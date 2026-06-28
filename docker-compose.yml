@@ -121,7 +121,10 @@ services:
     deploy:
       resources:
         limits:
-          memory: 768M
+          # Dataset outgrew 768M (zone streams ~785k entries → ~1GB RDB) and
+          # OOM-crash-looped (1515 restarts). Raised to fit; durable fix is
+          # producer-side XADD MAXLEN to bound the zone streams.
+          memory: 2G
         reservations:
           memory: 256M
 
@@ -657,6 +660,11 @@ services:
       GRPC_PORT: 50051
       NTP_SERVERS: ${NTP_SERVERS:-time.cloudflare.com:123,time.google.com:123}
       REDIS_URL: redis://redis:6379
+      # Bound the per-zone Redis streams. Default is 100k/stream; with 10 zones +
+      # the unified stream that is ~1.1M entries (~1GB) and OOM-crash-loops the
+      # 2G redis. 10k/stream (~110k total, ~150MB) keeps recent telemetry for
+      # dissemination/e2e without unbounded growth.
+      REDIS_STREAM_MAXLEN: ${REDIS_STREAM_MAXLEN:-10000}
       KAFKA_CMD_BROKERS: kafka-cmd:9001
       KAFKA_MARKET_BROKERS: kafka-market:9002
       KAFKA_AUDIT_BROKERS: kafka-audit:9003
