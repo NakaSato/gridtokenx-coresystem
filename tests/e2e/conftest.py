@@ -20,6 +20,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "proto"))
 # `pytest` runs (not via run.sh) still authenticate. Suites read os.getenv("AGGREGATOR_API_KEY").
 os.environ.setdefault("AGGREGATOR_API_KEY", "engineering-department-api-key-2025")
 
+# Aggregator Bridge gRPC ingest (BulkRawIngest) lands on host :50051 — docker-compose
+# pins GRPC_PORT=50051 (compose:655,660); the container default 5030 is not published.
+# Mirror env.sh so direct `pytest` runs (suites read os.getenv with a stale 5030 default)
+# target the right port without an explicit override.
+os.environ.setdefault("AGGREGATOR_BRIDGE_GRPC", "localhost:50051")
+
 IAM_URL = os.getenv("IAM_URL", "http://localhost:4010")
 E2E_RUN_ID = os.getenv("E2E_RUN_ID", str(int(time.time())))
 E2E_PASSWORD = os.getenv("E2E_PASSWORD", "GRX-Secure-P@ss-2026-E2E")

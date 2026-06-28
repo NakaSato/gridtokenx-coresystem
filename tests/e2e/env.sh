@@ -13,7 +13,7 @@ export IAM_GRPC="${IAM_GRPC:-localhost:5010}"
 export TRADING_URL="${TRADING_URL:-http://localhost:4020}"    # REST + settlement metrics (docker host map 4020->8093)
 export TRADING_GRPC="${TRADING_GRPC:-localhost:5020}"          # docker host map 5020->8092
 export AGGREGATOR_BRIDGE_REST="${AGGREGATOR_BRIDGE_REST:-http://localhost:4030}"  # IoT gateway port (start.sh launches with IOT_GATEWAY_PORT=4030; the binary's internal 4010 default collides with IAM)
-export AGGREGATOR_BRIDGE_GRPC="${AGGREGATOR_BRIDGE_GRPC:-localhost:5030}"  # NOTE: telemetry test uses 5030
+export AGGREGATOR_BRIDGE_GRPC="${AGGREGATOR_BRIDGE_GRPC:-localhost:50051}"  # docker-compose pins GRPC_PORT=50051 and maps host 50051:50051 (compose:655,660). The container default 5030 is NOT published — gRPC ingest (BulkRawIngest) lands on 50051.
 export CHAIN_BRIDGE_GRPC="${CHAIN_BRIDGE_GRPC:-localhost:5040}"
 export NOTI_GRPC="${NOTI_GRPC:-localhost:5060}"  # docker-compose publishes noti ConnectRPC at host 5060 (container 8090)
 export SIMULATOR_URL="${SIMULATOR_URL:-http://localhost:12010}"
