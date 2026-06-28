@@ -296,4 +296,10 @@ else
     esac
 fi
 
+# --- Case 13: jwt-auth validation depth (pytest) --------------------------
+# Well-formed-but-invalid tokens (expired / wrong-signature / unknown consumer)
+# must 401 — proving the gateway VALIDATES exp+signature+key, not just presence.
+# Lives in test_gateway_jwt.py (needs the python venv to mint HS256 tokens).
+pytest_suite "$HERE" || E2E_FAIL=$((E2E_FAIL+1))
+
 suite_summary

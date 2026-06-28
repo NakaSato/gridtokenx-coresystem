@@ -16,7 +16,8 @@ def _b64url(raw: bytes) -> str:
     return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
 
 
-def mint_hs256_jwt(secret: str, sub: str = "e2e-test", ttl_secs: int = 300) -> str:
+def mint_hs256_jwt(secret: str, sub: str = "e2e-test", ttl_secs: int = 300,
+                   **extra_claims) -> str:
     """Mint a minimal HS256 JWT with stdlib only (no PyJWT in the e2e venv).
 
     Noti's gRPC auth gate (`crates/noti-api/src/grpc.rs`) requires
@@ -24,15 +25,19 @@ def mint_hs256_jwt(secret: str, sub: str = "e2e-test", ttl_secs: int = 300) -> s
     service's `JWT_SECRET` and decoded with jsonwebtoken's `Validation::default()`
     — which deserializes `sub` and REQUIRES a non-expired `exp`. So the payload
     carries both.
+
+    `ttl_secs` may be negative to mint an already-expired token (exp in the past).
+    `extra_claims` are merged into the payload — e.g. APISIX's jwt-auth maps a token
+    to its consumer via the `key` claim, so pass `key="gridtokenx-iam-service"` to
+    target the gateway consumer.
     """
     header = _b64url(
         json.dumps({"alg": "HS256", "typ": "JWT"}, separators=(",", ":")).encode()
     )
+    claims = {"sub": sub, "exp": int(time.time()) + ttl_secs}
+    claims.update(extra_claims)
     payload = _b64url(
-        json.dumps(
-            {"sub": sub, "exp": int(time.time()) + ttl_secs},
-            separators=(",", ":"),
-        ).encode()
+        json.dumps(claims, separators=(",", ":")).encode()
     )
     signing_input = f"{header}.{payload}".encode("ascii")
     sig = hmac.new(secret.encode("utf-8"), signing_input, hashlib.sha256).digest()

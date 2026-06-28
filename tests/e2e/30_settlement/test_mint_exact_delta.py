@@ -30,108 +30,58 @@ here at the envelope without needing an on-chain read.
 SKIP semantics (anti-false-green): no mint within MINT_WAIT → SKIP loudly, never
 a silent pass. Slow by construction (window past grace + flush poll interval).
 """
-import datetime
 import os
 import sys
 import time
 
 import pytest
-import requests
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
-import crypto
 import nats_util
-import redis_util
+import settlement_ingest as si
 
-ORACLE = os.getenv("AGGREGATOR_BRIDGE_REST", "http://localhost:4030")
-API_KEY = os.getenv("AGGREGATOR_API_KEY", "engineering-department-api-key-2025")
-INGEST = f"{ORACLE}/v1/private-network/ingest"
+# Ingest over the encrypted DLMS gRPC path (BulkRawIngest) — the plaintext REST path
+# is mTLS/secure-gated on a hardened stack. See lib/settlement_ingest.py.
 SUBJECT = os.getenv("MINT_NATS_SUBJECT", "chain.tx.mint")
-HEADERS = {"X-API-KEY": API_KEY}
 
-WINDOW_MS = 15 * 60 * 1000
 GRID_DECIMALS_SCALE = 1_000_000_000  # GRID = 9 decimals; bridge scales energy_kwh by this
 
 MINT_WAIT = float(os.getenv("MINT_WAIT_SECS", "240"))
-BACKDATE_MS = int(os.getenv("MINT_BACKDATE_SECS", str(20 * 60))) * 1000
+BACKDATE_SECS = int(os.getenv("MINT_BACKDATE_SECS", str(20 * 60)))
 OWNER_USER = "00000000-0000-0000-0000-000000000001"
 
-
-def _oracle_up() -> bool:
-    try:
-        requests.get(f"{ORACLE}/health", timeout=3)
-        return True
-    except Exception:
-        return False
-
-
-def _redis_up() -> bool:
-    try:
-        redis_util.client().ping()
-        return True
-    except Exception:
-        return False
-
+grpc = pytest.importorskip("grpc")
+try:
+    import oracle_pb2  # noqa: F401  (presence check; used via lib)
+    import oracle_pb2_grpc  # noqa: F401
+except ImportError:
+    pytest.skip("oracle proto stubs not on path", allow_module_level=True)
 
 pytestmark = [
-    pytest.mark.skipif(not _oracle_up(), reason=f"aggregator REST not reachable at {ORACLE}"),
-    pytest.mark.skipif(not _redis_up(), reason="Redis not reachable (lib/redis_util)"),
+    pytest.mark.skipif(not si.grpc_up(), reason=f"aggregator gRPC not reachable at {si.ORACLE_GRPC}"),
     pytest.mark.skipif(not nats_util.reachable(), reason=f"NATS not reachable at {nats_util.NATS_URL}"),
 ]
-
-
-def _new_meter(prefix: str):
-    pk, pub_hex = crypto.new_identity()
-    meter = f"{prefix}-{int(time.time() * 1000) % 1_000_000}"
-    wallet = f"Wa11et{meter.replace('-', '')}".ljust(43, "1")[:43]
-    redis_util.register_device_key(meter, pub_hex)
-    redis_util.register_meter(meter, OWNER_USER, wallet=wallet)
-    return {"meter": meter, "priv": pk, "wallet": wallet}
-
-
-def _payload(meter, priv, *, kwh, generated, consumed, ts_ms):
-    dt = datetime.datetime.fromtimestamp(ts_ms / 1000, tz=datetime.timezone.utc)
-    iso = dt.isoformat(timespec="milliseconds").replace("+00:00", "Z")
-    sig = crypto.sign_telemetry(priv, meter, kwh, ts_ms)
-    return {
-        "protocol": "dlms",
-        "device_id": meter,
-        "payload": {
-            "device_id": meter,
-            "timestamp": iso,
-            "kwh": float(kwh),
-            "energy_generated": float(generated),
-            "energy_consumed": float(consumed),
-            "signature": sig,
-        },
-    }
-
-
-def _ingest(payload):
-    r = requests.post(INGEST, json=payload, headers=HEADERS, timeout=20)
-    assert r.status_code in (200, 202), f"reading rejected: {r.status_code} {r.text}"
 
 
 def test_mint_amount_equals_net_surplus_in_kwh_and_atomic_units():
     """A clean-surplus meter and a mixed gen/consume meter, each in one closed
     window. Assert each mint's energy_kwh == that meter's NET surplus exactly, and
     that energy_kwh * 1e9 is the integer atomic amount the bridge will mint."""
-    clean = _new_meter("E2E-DELTA-CLEAN")   # 40 gen, 0 con → net 40
-    mixed = _new_meter("E2E-DELTA-MIXED")   # 30 gen, 12 con → net 18
-    ts_ms = int(time.time() * 1000) - BACKDATE_MS  # closed past grace
+    clean = si.new_meter("C", OWNER_USER)   # 40 gen, 0 con → net 40
+    mixed = si.new_meter("M", OWNER_USER)   # 30 gen, 12 con → net 18
+    ts_sec = int(time.time()) - BACKDATE_SECS  # closed past grace
+    stub = si.stub()
 
     clean_net = 40.0
     mixed_gen, mixed_con = 30.0, 12.0
     mixed_net = mixed_gen - mixed_con  # 18.0
 
     def _trigger():
-        _ingest(_payload(clean["meter"], clean["priv"], kwh=clean_net,
-                         generated=clean_net, consumed=0, ts_ms=ts_ms))
-        # sign the canonical kwh value (handlers.rs resolves kwh first); net is
-        # generated - consumed (dlms.rs).
-        _ingest(_payload(mixed["meter"], mixed["priv"], kwh=mixed_gen,
-                         generated=mixed_gen, consumed=mixed_con, ts_ms=ts_ms))
+        si.ingest(stub, clean, generated=clean_net, consumed=0, ts_sec=ts_sec)
+        # distinct ts (different 15-min bin) so a shared enc_key never reuses the GCM
+        # nonce; net = generated - consumed (dlms.rs).
+        si.ingest(stub, mixed, generated=mixed_gen, consumed=mixed_con, ts_sec=ts_sec - 900)
 
     def _matches(msg):
         key = str(msg.get("idempotency_key", ""))
@@ -140,8 +90,7 @@ def test_mint_amount_equals_net_surplus_in_kwh_and_atomic_units():
     try:
         msgs = nats_util.collect_sync(SUBJECT, _trigger, match=_matches, timeout=MINT_WAIT, want=2)
     finally:
-        redis_util.unregister_device(clean["meter"])
-        redis_util.unregister_device(mixed["meter"])
+        si.cleanup(clean, mixed)
 
     clean_mints = [m for m in msgs if str(m.get("idempotency_key", "")).startswith(f"mint:{clean['meter']}:")]
     mixed_mints = [m for m in msgs if str(m.get("idempotency_key", "")).startswith(f"mint:{mixed['meter']}:")]

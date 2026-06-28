@@ -48,32 +48,41 @@ NOTE: slow by construction. The window must be closed past grace (default 120s);
 backdating makes a bin eligible immediately, but the flush loop polls on an
 interval (default 30s), so allow ~MINT_WAIT seconds for the envelope.
 """
-import datetime
 import os
 import sys
 import time
 
 import pytest
-import requests
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
 import crypto
+import dlms_frame
 import nats_util
 import redis_util
 
-ORACLE = os.getenv("AGGREGATOR_BRIDGE_REST", "http://localhost:4030")
-API_KEY = os.getenv("AGGREGATOR_API_KEY", "engineering-department-api-key-2025")
-INGEST = f"{ORACLE}/v1/private-network/ingest"
+# Ingest over the ENCRYPTED DLMS gRPC path (OracleService/BulkRawIngest), not plaintext
+# REST: a hardened stack runs the IoT REST gateway in mTLS + secure-DLMS mode (plaintext
+# REST → 426 / TLS-only), whereas an AES-256-GCM v4 frame over an insecure gRPC channel
+# is accepted on dev AND secure stacks (mirrors 20_oracle/test_dlms_secure_frame.py). The
+# settlement pipeline (zone stream → billing bin → flush → chain.tx.mint) is identical
+# regardless of ingest transport. gRPC host port is 50051 on the compose stack.
+ORACLE_GRPC = os.getenv("AGGREGATOR_BRIDGE_GRPC", "localhost:50051")
 SUBJECT = os.getenv("MINT_NATS_SUBJECT", "chain.tx.mint")
-HEADERS = {"X-API-KEY": API_KEY}
+
+grpc = pytest.importorskip("grpc")
+try:
+    import oracle_pb2
+    import oracle_pb2_grpc
+except ImportError:
+    pytest.skip("oracle proto stubs not on path", allow_module_level=True)
 
 # Window must close past grace (default 120s) before the flush loop (default 30s
 # interval) mints. Backdating makes the bin eligible at once; this is the wait for
 # the envelope to land. Override via MINT_WAIT_SECS for faster/slower deployments.
 MINT_WAIT = float(os.getenv("MINT_WAIT_SECS", "150"))
 # Backdate far enough that floor(ts) window end is well past grace.
-BACKDATE_MS = int(os.getenv("MINT_BACKDATE_SECS", str(20 * 60))) * 1000
+BACKDATE_SECS = int(os.getenv("MINT_BACKDATE_SECS", str(20 * 60)))
 OWNER_USER = "00000000-0000-0000-0000-000000000001"
 
 # The mint envelope is signed: the aggregator attaches an `auth` EnvelopeAuth block
@@ -84,9 +93,9 @@ ENVELOPE_AUTH_SCHEME_V1 = "ecdsa-p256-sha256-v1"
 _STRAY_AUTH_KEYS = {"signature", "envelope_auth", "sig"}
 
 
-def _oracle_up() -> bool:
+def _grpc_up() -> bool:
     try:
-        requests.get(f"{ORACLE}/health", timeout=3)
+        grpc.channel_ready_future(grpc.insecure_channel(ORACLE_GRPC)).result(timeout=4)
         return True
     except Exception:
         return False
@@ -101,45 +110,39 @@ def _redis_up() -> bool:
 
 
 pytestmark = [
-    pytest.mark.skipif(not _oracle_up(), reason=f"aggregator REST not reachable at {ORACLE}"),
+    pytest.mark.skipif(not _grpc_up(), reason=f"aggregator gRPC not reachable at {ORACLE_GRPC}"),
     pytest.mark.skipif(not _redis_up(), reason="Redis not reachable (lib/redis_util)"),
     pytest.mark.skipif(not nats_util.reachable(), reason=f"NATS not reachable at {nats_util.NATS_URL}"),
 ]
 
 
+def _stub():
+    return oracle_pb2_grpc.OracleServiceStub(grpc.insecure_channel(ORACLE_GRPC))
+
+
 def _new_meter(prefix: str):
-    """Register an Ed25519 smart meter with an owner wallet. Returns the handle."""
+    """Register an Ed25519 smart meter (+ AES enckey for secure-frame ingest) with an
+    owner wallet. LDN is an 8-byte frame field, so keep the id short. Returns handle."""
     pk, pub_hex = crypto.new_identity()
-    meter = f"{prefix}-{int(time.time() * 1000) % 1_000_000}"
-    wallet = f"Wa11et{meter.replace('-', '')}".ljust(43, "1")[:43]
+    meter = f"{prefix[:1]}{int(time.time() * 1000) % 1_000_000}"  # <=8 chars, fits LDN
+    enc_key = bytes(range(32))  # 32-byte AES-256 key
+    wallet = f"Wa11et{meter}".ljust(43, "1")[:43]
     redis_util.register_device_key(meter, pub_hex)
+    redis_util.register_enckey(meter, enc_key.hex())
     redis_util.register_meter(meter, OWNER_USER, wallet=wallet)
-    return {"meter": meter, "priv": pk, "wallet": wallet}
+    return {"meter": meter, "priv": pk, "wallet": wallet, "enc_key": enc_key}
 
 
-def _payload(meter, priv, *, kwh, generated, consumed, ts_ms):
-    """Signed DLMS REST payload. Signs the canonical `kwh` value (handlers.rs
-    resolves `kwh` first); net is `generated - consumed` (dlms.rs)."""
-    dt = datetime.datetime.fromtimestamp(ts_ms / 1000, tz=datetime.timezone.utc)
-    iso = dt.isoformat(timespec="milliseconds").replace("+00:00", "Z")
-    sig = crypto.sign_telemetry(priv, meter, kwh, ts_ms)
-    return {
-        "protocol": "dlms",
-        "device_id": meter,
-        "payload": {
-            "device_id": meter,
-            "timestamp": iso,
-            "kwh": float(kwh),
-            "energy_generated": float(generated),
-            "energy_consumed": float(consumed),
-            "signature": sig,
-        },
-    }
-
-
-def _ingest(payload):
-    r = requests.post(INGEST, json=payload, headers=HEADERS, timeout=20)
-    assert r.status_code in (200, 202), f"reading rejected: {r.status_code} {r.text}"
+def _ingest(stub, meter, priv, enc_key, *, generated, consumed, ts_sec):
+    """Build + sign an encrypted v4 frame (export_wh = generated kWh, import_wh =
+    consumed kWh, both in Wh) at `ts_sec`, push via BulkRawIngest. The bridge decrypts,
+    derives net = generated - consumed, and the closed window flushes a mint if net>0."""
+    tlv = dlms_frame.build_tlv(import_wh=int(consumed * 1000), export_wh=int(generated * 1000))
+    frame = dlms_frame.frame_from_tlv(meter, tlv, enc_key, ts_sec=ts_sec)
+    sig = crypto.sign_raw(priv, frame)
+    req = oracle_pb2.BulkRawRequest(payload=dlms_frame.bulk_payload([(frame, sig)]), meter_count=1)
+    resp = stub.BulkRawIngest(req, timeout=10)
+    assert resp.processed_count == 1, f"encrypted reading rejected: {resp}"
 
 
 def test_surplus_window_mints_to_owner_and_consumer_does_not():
@@ -147,15 +150,19 @@ def test_surplus_window_mints_to_owner_and_consumer_does_not():
     wallet on `chain.tx.mint`; a backdated deficit window (same closed window)
     mints nothing. The negative case is asserted ONLY once a surplus mint is
     actually observed — otherwise we skip (anti-false-green)."""
-    surplus = _new_meter("E2E-MINT-SURPLUS")
-    deficit = _new_meter("E2E-MINT-DEFICIT")
-    ts_ms = int(time.time() * 1000) - BACKDATE_MS  # window already closed past grace
+    surplus = _new_meter("S")  # E2E-MINT-SURPLUS (LDN is 8 bytes; keep id short)
+    deficit = _new_meter("D")  # E2E-MINT-DEFICIT
+    ts_sec = int(time.time()) - BACKDATE_SECS  # window already closed past grace
     gen = 50  # surplus: net = 50 - 0
+    stub = _stub()
 
     def _trigger():
-        _ingest(_payload(surplus["meter"], surplus["priv"], kwh=gen, generated=gen, consumed=0, ts_ms=ts_ms))
-        # deficit: generated 0, consumed 5 -> net = -5; sign canonical kwh (0).
-        _ingest(_payload(deficit["meter"], deficit["priv"], kwh=0, generated=0, consumed=5, ts_ms=ts_ms))
+        _ingest(stub, surplus["meter"], surplus["priv"], surplus["enc_key"],
+                generated=gen, consumed=0, ts_sec=ts_sec)
+        # deficit: generated 0, consumed 5 -> net = -5. Distinct ts (different 15-min
+        # bin) so a shared enc_key never reuses the GCM nonce (nonce = manuf++ts++ver).
+        _ingest(stub, deficit["meter"], deficit["priv"], deficit["enc_key"],
+                generated=0, consumed=5, ts_sec=ts_sec - 900)
 
     def _matches(m):
         key = str(m.get("idempotency_key", ""))
@@ -164,8 +171,9 @@ def test_surplus_window_mints_to_owner_and_consumer_does_not():
     try:
         msgs = nats_util.collect_sync(SUBJECT, _trigger, match=_matches, timeout=MINT_WAIT, want=2)
     finally:
-        redis_util.unregister_device(surplus["meter"])
-        redis_util.unregister_device(deficit["meter"])
+        for h in (surplus, deficit):
+            redis_util.unregister_device(h["meter"])
+            redis_util.unregister_enckey(h["meter"])
 
     surplus_mints = [m for m in msgs if str(m.get("idempotency_key", "")).startswith(f"mint:{surplus['meter']}:")]
     deficit_mints = [m for m in msgs if str(m.get("idempotency_key", "")).startswith(f"mint:{deficit['meter']}:")]
