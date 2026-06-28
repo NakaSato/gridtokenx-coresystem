@@ -178,6 +178,9 @@ site/
 *.crt
 *.p12
 *.pfx
+# Signing keys (e.g. aggregator-bridge-signing-key.bin) — the .key/.keypair
+# patterns above miss the .bin form, so an `git add -A` could commit one.
+*signing-key*
 
 # Secrets
 secrets/
