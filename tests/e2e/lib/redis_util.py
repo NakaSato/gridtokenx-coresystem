@@ -51,7 +51,12 @@ def unregister_device(meter_id: str):
 
 
 def stream_total_len(pattern: str = "gridtokenx:events:zone_*") -> int:
-    """Sum XLEN across all zone streams — used to assert dissemination fan-out."""
+    """Sum XLEN across all zone streams — used to assert dissemination fan-out.
+
+    NOTE: prefer `max_zone_stream_id` / `wait_zone_stream_advanced` for dissemination
+    asserts. Total length goes flat once a stream hits its producer-side XADD MAXLEN
+    cap (REDIS_STREAM_MAXLEN, aggregator commit 5a8e6b6) — appends then trim the oldest,
+    so `len > before` can never be observed at saturation."""
     c = client()
     total = 0
     for key in c.scan_iter(match=pattern):
@@ -60,6 +65,45 @@ def stream_total_len(pattern: str = "gridtokenx:events:zone_*") -> int:
         except redis.exceptions.ResponseError:
             pass  # not a stream
     return total
+
+
+def max_zone_stream_id(pattern: str = "gridtokenx:events:zone_*") -> tuple:
+    """Largest (ms, seq) entry id across all zone streams, or (0, 0).
+
+    A MAXLEN-safe dissemination progress marker: a new XADD advances the stream id
+    monotonically even when the cap trims older entries (so it works where
+    `stream_total_len` saturates), and it needs NO plaintext payload — zone-stream
+    entries are encrypted at rest (`{"enc": {...}}`) so per-device matching isn't
+    possible on a secure stack."""
+    import time as _t
+    c = client()
+    mx = (0, 0)
+    for key in c.scan_iter(match=pattern):
+        try:
+            ents = c.xrevrange(key, count=1)
+        except redis.exceptions.ResponseError:
+            continue  # not a stream
+        if ents:
+            ms, _, seq = ents[0][0].partition("-")
+            cur = (int(ms), int(seq or 0))
+            if cur > mx:
+                mx = cur
+    return mx
+
+
+def wait_zone_stream_advanced(before: tuple, timeout: float = 12.0,
+                              pattern: str = "gridtokenx:events:zone_*") -> bool:
+    """Wait until a new zone-stream entry is appended past `before` (id advanced)."""
+    import time as _t
+    deadline = _t.time() + timeout
+    while _t.time() < deadline:
+        try:
+            if max_zone_stream_id(pattern) > before:
+                return True
+        except Exception:
+            pass
+        _t.sleep(0.5)
+    return False
 
 
 def find_disseminated_reading(device_id: str, count: int = 200,

@@ -104,17 +104,17 @@ def test_encrypted_frame_decrypted_and_ingested(device):
 
 def test_encrypted_frame_disseminated(device):
     """An ingested encrypted reading fans out to a zone Redis Stream (async)."""
-    before = redis_util.stream_total_len()
+    # Assert the stream id ADVANCES, not that total length grows: producer-side XADD
+    # MAXLEN (REDIS_STREAM_MAXLEN, aggregator commit 5a8e6b6) trims oldest on append,
+    # so `stream_total_len() > before` goes flat once a stream saturates.
+    before = redis_util.max_zone_stream_id()
     frame, sig = _signed_frame(device["meter_id"], device["priv"], device["enc_key"])
     resp = _grpc_or_skip(_stub(), _bulk_request([(frame, sig)]))
     assert resp.processed_count == 1, f"encrypted frame not ingested: {resp}"
 
-    deadline = time.time() + 10
-    while time.time() < deadline:
-        if redis_util.stream_total_len() > before:
-            return
-        time.sleep(0.5)
-    pytest.fail("no zone stream growth after ingested encrypted frame (fan-out failed)")
+    assert redis_util.wait_zone_stream_advanced(before, timeout=10), (
+        "no zone stream advance after ingested encrypted frame (fan-out failed)"
+    )
 
 
 def test_mixed_bulk_batch_only_valid_counts(device):

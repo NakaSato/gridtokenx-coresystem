@@ -110,42 +110,6 @@ def _register(prefix: str):
     return meter, pk, enc_key
 
 
-def _max_zone_stream_id() -> tuple:
-    """Largest (ms, seq) entry id across all zone streams, or (0, 0).
-
-    A MAXLEN-safe dissemination progress marker: new XADDs advance the stream id
-    monotonically even when the producer-side cap (REDIS_STREAM_MAXLEN, commit
-    5a8e6b6) trims older entries — so this keeps working where `stream_total_len()`
-    goes flat at saturation. It also needs NO plaintext payload: zone-stream entries
-    are encrypted at rest (`{"enc": {...}}`), so per-device matching isn't possible."""
-    c = redis_util.client()
-    mx = (0, 0)
-    for k in c.scan_iter(match="gridtokenx:events:zone_*"):
-        try:
-            ents = c.xrevrange(k, count=1)
-        except Exception:
-            continue
-        if ents:
-            ms, _, seq = ents[0][0].partition("-")
-            cur = (int(ms), int(seq or 0))
-            if cur > mx:
-                mx = cur
-    return mx
-
-
-def _wait_new_entry(before: tuple, timeout: float = 12.0) -> bool:
-    """Wait until a new zone-stream entry is appended past `before` (id advanced)."""
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        try:
-            if _max_zone_stream_id() > before:
-                return True
-        except Exception:
-            pass
-        time.sleep(0.5)
-    return False
-
-
 @pytest.fixture
 def influx_restored():
     """Ensure the dedicated InfluxDB container is restarted after the test, whatever
@@ -163,10 +127,10 @@ def test_ingest_survives_influxdb_down(influx_restored):
         # 1. Baseline (InfluxDB UP): an encrypted reading is decrypted + disseminates
         #    (processed_count==1 proves the bridge handled THIS reading; the new
         #    zone-stream entry proves it fanned out).
-        before = _max_zone_stream_id()
+        before = redis_util.max_zone_stream_id()
         r = _ingest_encrypted(stub, meter, pk, enc_key, import_wh=7000)
         assert r.processed_count == 1, f"baseline ingest failed: {r}"
-        assert _wait_new_entry(before), "baseline reading did not disseminate (precondition broken)"
+        assert redis_util.wait_zone_stream_advanced(before), "baseline reading did not disseminate (precondition broken)"
 
         # 2. Break InfluxDB mid-run.
         stop = subprocess.run(["docker", "stop", INFLUX_CONTAINER], capture_output=True, text=True)
@@ -174,11 +138,11 @@ def test_ingest_survives_influxdb_down(influx_restored):
         assert not _container_running(INFLUX_CONTAINER), "influx container still running after stop"
 
         # 3. With InfluxDB DOWN: ingest must still be processed AND still disseminate.
-        before2 = _max_zone_stream_id()
+        before2 = redis_util.max_zone_stream_id()
         r2 = _ingest_encrypted(stub, meter, pk, enc_key, import_wh=9000)
         assert r2.processed_count == 1, \
             f"ingest blocked/failed while InfluxDB down — NOT fire-and-forget: {r2}"
-        assert _wait_new_entry(before2), \
+        assert redis_util.wait_zone_stream_advanced(before2), \
             "reading did not disseminate while InfluxDB down — write path coupled to InfluxDB"
     finally:
         redis_util.unregister_device(meter)
