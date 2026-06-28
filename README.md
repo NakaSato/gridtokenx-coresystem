@@ -247,8 +247,17 @@ A domain-grouped inventory of platform capabilities.
 -   Email pipeline — register → verify → welcome
 -   Independent DB schema; RabbitMQ task queues + DLQ for guaranteed delivery
 
-### Demand Response
--   OpenADR / OpenLEADR VTN ↔ VEN demand-response flow
+### Demand Response (Aggregator Bridge — VPP flex dispatch)
+Autonomous, fleet-driven demand response with no external SCADA feed — the meter fleet is itself the frequency sensor.
+
+-   **Fleet-as-sensor frequency monitoring** — each meter reading carries instantaneous grid frequency; a rolling-window `FrequencyMonitor` folds samples into a mean (implausible <40Hz / >70Hz dropped)
+-   **Grid-status publishing** — periodic task turns the mean into `GridStatusEvent`s on Kafka (`gridtokenx.aggregator.grid_status`), the dispatch engine's trigger
+-   **VTN dispatch (OpenADR 3 / OpenLEADR)** — dispatch engine emits flex events on a VTN; `openleadr` adapter (openleadr-rs v0.2.3) preferred over the IEEE 2030.5 adapter; requires ≥1 completed aggregation bin
+-   **VEN listener + execution** — polling listener consumes `DISPATCH_SETPOINT` events from a utility VTN and executes them (positive setpoint → FLEX_UP, negative → FLEX_DOWN); multi-interval events executed per-window, deduped by id + modificationDateTime, retried on failure
+-   **VEN self-registration** — listener registers a VEN object on the VTN at startup (best-effort)
+-   **Execution reports** — VEN posts dispatch execution reports back to the VTN, closing the loop
+-   **IEEE 2030.5 (SEP2)** — alternate dispatch standard adapter alongside OpenADR
+-   E2E coverage: `tests/e2e/85_openadr/` proves telemetry → frequency monitor → grid-status → Kafka → dispatch → VTN event → VEN execute → report (gated `E2E_RUN_OPENADR=1`)
 
 ### Frontends
 -   Trading UI (Next.js, `:11001`)
