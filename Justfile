@@ -228,6 +228,12 @@ bench-settlement:
 solana-up:
     ./scripts/app.sh solana start
 
+# SOLANA_RESET=0 is honored by scripts/lib/common.sh::solana_validator_start; TTL=0
+# disables the auto-kill timer so the resumed ledger isn't reaped mid-session.
+# Start validator PRESERVING the existing test-ledger (no --reset, no chain-reseed needed)
+solana-up-keep:
+    with-env {SOLANA_RESET: "0", SOLANA_VALIDATOR_TTL: "0"} { ./scripts/app.sh solana start }
+
 # Stop local solana test validator
 solana-down:
     ./scripts/app.sh solana stop
@@ -238,6 +244,16 @@ solana-down:
 # UnauthorizedAuthority) but programs are still deployed.
 chain-reseed:
     ./scripts/app.sh reseed
+
+# Seed/repair the dev API key in IAM so bridge ingest authenticates. Recomputes the
+# HMAC the running IAM binary expects (fixes legacy-hash vs HMAC-migrated-DB drift).
+seed-apikey:
+    ./scripts/app.sh seed-apikey
+
+# Drift guard: ask live IAM whether the dev key validates (bridge ingest auth).
+# Append --fix to auto-repair: just check-apikey --fix
+check-apikey *args:
+    ./scripts/app.sh check-apikey {{args}}
 
 # --- Solana Mainnet Simulation (Surfpool) ---
 
@@ -308,3 +324,59 @@ session-list:
 #   just session-pick "1-3,6"         # mixed
 session-pick spec="":
     bash scripts/session.sh --pick {{spec}}
+
+# --- Smart-meter telemetry security (TLS/mTLS, AES-GCM, Vault-KEK rotation) ---
+
+# Provision the Vault Transit KEK that wraps per-meter GUEKs (idempotent; the
+# dev Vault is in-memory, so re-run after `just orb-up`).
+provision-kek:
+    bash scripts/provision-meter-kek.sh
+
+# Rotate per-meter encryption keys. No arg = whole keyed fleet; pass a meter_id
+# to rotate one. Needs the sim up with AGGREGATOR_KEY_ROTATION_ENABLED=true.
+rotate-keys meter="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    port="${SMARTMETER_PORT:-12010}"
+    if [ -n "{{meter}}" ]; then body='{"meter_id":"{{meter}}"}'; else body='{}'; fi
+    curl -s -X POST "http://localhost:${port}/api/v1/simulation/keys/rotate" \
+      -H 'Content-Type: application/json' -d "$body" | python3 -m json.tool
+
+# Show each meter's current encryption key version (kid).
+key-status:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    port="${SMARTMETER_PORT:-12010}"
+    curl -s "http://localhost:${port}/api/v1/simulation/keys/status" | python3 -m json.tool
+
+# Tail the sim's outbound DLMS ingest status to the bridge (the httpx POST lines):
+# a quick "is telemetry flowing and accepted (202)?" check.
+sim-ingest:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    docker logs gridtokenx-smartmeter-simulator --since 30s 2>&1 \
+      | grep -oE 'private-network/ingest "HTTP/1.1 [0-9]+ [A-Za-z ]+"' | sort | uniq -c
+
+# Tail recent sim logs (default 2m).
+sim-logs since="2m":
+    docker logs gridtokenx-smartmeter-simulator --since {{since}}
+
+# Bring the stack up in SECURE mode: all telemetry hardening on (mTLS, AES-GCM,
+# Vault-KEK rotation, ingest lockdown) by layering secure.env over .env. Ensures
+# the Vault KEK exists first. Run `just gen-certs` once beforehand for the certs.
+secure-up: provision-kek
+    docker compose --env-file .env --env-file secure.env up -d
+
+# Bring the stack up in plain DEV mode (.env only; security flags default off).
+dev-up:
+    docker compose up -d
+
+# Hot-reload the Aggregator Bridge with cargo-watch (no docker rebuild per Rust
+# change). First boot is a cold debug build; edits then recompile in seconds.
+# Logs: `docker compose logs -f aggregator-bridge`.
+bridge-dev:
+    docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d aggregator-bridge
+
+# Revert the bridge to the normal built image.
+bridge-prod:
+    docker compose up -d aggregator-bridge

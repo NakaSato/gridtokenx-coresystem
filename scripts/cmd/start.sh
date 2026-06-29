@@ -284,6 +284,19 @@ _start_frontend_uis_terminal() {
 # Command: START
 # ============================================================================
 
+# Best-effort: re-seed the dev API key so bridge ingest authenticates on this stack,
+# repairing the legacy-hash-vs-HMAC-migrated-DB skew that otherwise 401s every ingest.
+# Only needs the Postgres container (writes the api_keys row); non-fatal. Run in a
+# SUBSHELL so cmd_seed_apikey's `.env` re-source can't clobber startup's exported env.
+_seed_dev_apikey_besteffort() {
+    docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^gridtokenx-postgres$' || return 0
+    if ( cmd_seed_apikey ) >/dev/null 2>&1; then
+        log_success "Dev API key seeded for bridge ingest (verify: just check-apikey)"
+    else
+        log_warn "Dev api-key seed skipped/failed (run 'just seed-apikey' if ingest 401s)"
+    fi
+}
+
 cmd_start() {
     local skip_ui=false
     local skip_solana=false
@@ -329,6 +342,7 @@ cmd_start() {
     start_core_services "$docker_mode"
 
     if [ "$docker_only" = true ]; then
+        _seed_dev_apikey_besteffort
         return 0
     fi
 
@@ -379,6 +393,8 @@ cmd_start() {
     fi
 
     echo $$ > "$PID_FILE"
+
+    _seed_dev_apikey_besteffort
 
     echo ""
     log_success "Development environment launched!"

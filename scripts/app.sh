@@ -50,6 +50,7 @@ source "$SCRIPT_DIR/cmd/status.sh"
 source "$SCRIPT_DIR/cmd/init.sh"
 source "$SCRIPT_DIR/cmd/register.sh"
 source "$SCRIPT_DIR/cmd/seed.sh"
+source "$SCRIPT_DIR/cmd/seed_apikey.sh"
 source "$SCRIPT_DIR/cmd/provision_meter.sh"
 source "$SCRIPT_DIR/cmd/onboard_meter.sh"
 source "$SCRIPT_DIR/cmd/logs.sh"
@@ -117,6 +118,12 @@ main() {
             ;;
         seed)
             cmd_seed
+            ;;
+        seed-apikey)
+            cmd_seed_apikey
+            ;;
+        check-apikey)
+            cmd_check_apikey "$@"
             ;;
         provision-meter)
             cmd_provision_meter "$@"

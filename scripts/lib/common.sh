@@ -46,10 +46,17 @@ solana_validator_start() {
     
     # Assemble final command
     # Added --rpc-port 8899 explicitly
+    # --reset wipes the ledger on every start. Opt out with SOLANA_RESET=0 to keep
+    # an existing test-ledger/ (accounts, programs, state survive a restart — no reseed).
+    local reset_flag="--reset"
+    if [ "${SOLANA_RESET:-1}" = "0" ]; then
+        reset_flag=""
+        log_info "SOLANA_RESET=0 — preserving existing ledger at $ledger_dir"
+    fi
     if [ -z "$extra_args" ]; then
-        solana-test-validator --reset --limit-ledger-size 10000 --ledger "$ledger_dir" --rpc-port 8899 > "$log_file" 2>&1 &
+        solana-test-validator $reset_flag --limit-ledger-size 10000 --ledger "$ledger_dir" --rpc-port 8899 > "$log_file" 2>&1 &
     else
-        solana-test-validator --reset --limit-ledger-size 10000 --ledger "$ledger_dir" --rpc-port 8899 $extra_args > "$log_file" 2>&1 &
+        solana-test-validator $reset_flag --limit-ledger-size 10000 --ledger "$ledger_dir" --rpc-port 8899 $extra_args > "$log_file" 2>&1 &
     fi
 }
 
