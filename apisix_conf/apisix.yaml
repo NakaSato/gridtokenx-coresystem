@@ -161,18 +161,34 @@ routes:
         "trading-service:8093": 1
         "host.docker.internal:8093": 1
 
-  - id: 3 # Notification Service (Direct / WS)
+  - id: 3 # Notification Service (Direct REST)
     # noti-server nests REST under /api/v1/noti/* (bin/noti-server/src/startup.rs),
-    # NOT /api/v1/notifications — rewrite to the real upstream path. /ws is left
-    # untouched (regex_uri only rewrites paths that match the notifications prefix).
+    # NOT /api/v1/notifications — rewrite to the real upstream path. /ws lives on its
+    # own route (id 33) — see that route's comment for why it can't share this one.
     uris:
       - /api/v1/notifications
       - /api/v1/notifications/*
-      - /ws
     plugin_config_id: 1
     plugins:
       proxy-rewrite:
         regex_uri: ["^/api/v1/notifications(.*)", "/api/v1/noti$1"]
+    upstream:
+      type: roundrobin
+      nodes:
+        "noti-service:8080": 1
+        "host.docker.internal:5050": 1
+
+  - id: 33 # Notification Service - WebSocket
+    # Split out of route id 3: the shared plugin_config_id:1 (jwt-auth +
+    # serverless-post-function) breaks APISIX's websocket-upgrade handshake on this
+    # route — confirmed by isolated raw-socket test (with plugin_config_id: 400
+    # "Connection header did not include 'upgrade'"; without it: 101 Switching
+    # Protocols). No gateway-level auth needed here anyway — noti-service's own
+    # ws_handler (websocket.rs ws_handler/WsQuery) independently validates the JWT
+    # from ?token=, same pattern as the other ungated WS routes (ids 9, 51).
+    uris:
+      - /ws
+    enable_websocket: true
     upstream:
       type: roundrobin
       nodes:
