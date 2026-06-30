@@ -173,6 +173,80 @@ flowchart LR
 
 ---
 
+## Protocols & Standards
+
+GridTokenX speaks a deliberately layered protocol stack: standard meter/IoT protocols at the physical edge, a Rust RPC mesh in the middle, and Solana on-chain at the settlement boundary. Every protocol below is in use in the codebase.
+
+### Service Mesh — Transport & RPC
+
+| Protocol | Transport | Where used |
+| :--- | :--- | :--- |
+| **HTTP/1.1 + HTTPS (TLS 1.2/1.3)** | TCP | REST APIs (Axum), APISIX user-facing gateway (`:4001`), health/metrics endpoints |
+| **HTTP/2** | TCP/TLS | gRPC + ConnectRPC transport across the service mesh |
+| **gRPC** | HTTP/2 (Tonic) | Synchronous service-to-service reads (IAM/Trading → Chain Bridge), 40+ Trading RPCs |
+| **ConnectRPC** | HTTP/2 + HTTP+JSON | Browser-friendly gRPC variant — IAM `:5010`, Chain Bridge `:5040`, API orchestrator ingress |
+| **Protocol Buffers (protobuf)** | — | Wire schema for all gRPC/ConnectRPC services (`prost` + `tonic` codegen) |
+| **WebSocket / WSS** | HTTP/1.1 upgrade | Real-time market/data fan-out from API orchestrator (backed by Redis Pub/Sub) |
+| **JSON-RPC 2.0** | HTTPS | Solana RPC — **only** Chain Bridge speaks it directly |
+
+### Messaging & Streaming
+
+| Protocol | Broker | Role |
+| :--- | :--- | :--- |
+| **Kafka wire protocol** | Kafka (3 clusters) | Event sourcing — orders, trades, audit, `gridtokenx.aggregator.grid_status` |
+| **NATS + JetStream** | NATS | Async on-chain tx submission (`chain.tx.submit`, `chain.tx.cancel`, `chain.tx.mint`) |
+| **AMQP 0-9-1** | RabbitMQ (`:9030`) | Durable task queues + DLQ — email pipeline, settlement retries |
+| **RESP (Redis Serialization)** | Redis 7 | Pub/Sub fan-out, session cache, **zone-partitioned meter Streams** |
+
+### IoT / Edge / Telemetry
+
+| Protocol | Standard | Notes |
+| :--- | :--- | :--- |
+| **DLMS/COSEM** | IEC 62056 | **The** meter-side protocol — signed canonical OBIS readings into the Aggregator Bridge |
+| **`dlms-enc` envelope** | AES-256-GCM | Encrypted DLMS frame (counter + nonce + ciphertext); secure mode rejects plaintext downgrade |
+| **Ed25519 signed payloads** | RFC 8032 | Per-device cryptographic identity on every telemetry frame |
+| **Modbus / SunSpec** | — | Inverter/DER-side, translated to the canonical schema at the Edge Gateway |
+| **MQTT** | — | Edge Gateway local transport (RPi / `rppal` hardware aggregation) |
+
+### Demand Response (VPP flex dispatch)
+
+| Protocol | Implementation | Role |
+| :--- | :--- | :--- |
+| **OpenADR 3 / OpenLEADR** | `openleadr-rs` v0.2.3 | Preferred VTN↔VEN dispatch — flex events, VEN registration, execution reports |
+| **IEEE 2030.5 (SEP2)** | adapter | Alternate demand-response standard alongside OpenADR |
+| **OAuth 2.0 (client credentials)** | — | VTN client auth (`OPENLEADR_CLIENT_ID`/`SECRET`); frontend auth via Supabase |
+
+### Blockchain
+
+| Protocol | Standard | Notes |
+| :--- | :--- | :--- |
+| **Solana JSON-RPC** | — | All transactions routed through Chain Bridge — no service calls RPC directly |
+| **SPL Token-2022** | Solana Program Library | Token standard for GRID / GRX / REC assets |
+| **Anchor** | Anchor 1.0.0 | IDL + program framework for the 5 on-chain programs |
+
+### Security, Identity & Crypto
+
+| Protocol / Scheme | Purpose |
+| :--- | :--- |
+| **mTLS (X.509, SPIFFE SVID)** | Service-to-service trust boundary — Chain Bridge isolated by mTLS + RBAC |
+| **JWT** | Scoped bearer auth issued by IAM |
+| **API keys** | Service + device auth (Aggregator Bridge ingest, IAM-verified) |
+| **AES-256-GCM** | Wallet-key custody + `dlms-enc` telemetry envelope |
+| **argon2id / bcrypt** | Password hashing (IAM) |
+| **Ed25519** | Wallet keypairs + edge device signatures |
+| **Vault Transit** | Distributed transaction signing (Chain Bridge), no local keypair files in prod |
+
+### Time, Mail & Observability
+
+| Protocol | Purpose |
+| :--- | :--- |
+| **SNTP/NTP** | Trusted wall-clock — `gridtokenx_telemetry::time::now()` (Cloudflare/Google SNTP), replaces `Utc::now()` |
+| **SMTP** | Outbound email (Noti Service register → verify → welcome) |
+| **OpenTelemetry / OTLP** | Distributed traces → Tempo / SigNoz |
+| **Prometheus exposition** | Metrics scrape (HTTP `/metrics`; Aggregator Bridge scrape is mTLS) |
+
+---
+
 ## Core Services
 
 ### 1. API Services (`gridtokenx-api`) — Lead Orchestrator
