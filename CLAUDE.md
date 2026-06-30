@@ -196,7 +196,7 @@ let service = AuthService::new(Arc::new(repo));
 
 **All Solana transactions go through Chain Bridge.** No service calls Solana RPC directly.
 
-- **Writes**: Publish to NATS JetStream (`chain.tx.submit`, `chain.tx.simulate`)
+- **Writes**: Publish to NATS JetStream (`chain.tx.submit`, `chain.tx.cancel`, `chain.tx.mint`)
 - **Reads**: gRPC call to Chain Bridge (balance, account data, slot)
 - **Shared types**: `gridtokenx-blockchain-core` crate
 

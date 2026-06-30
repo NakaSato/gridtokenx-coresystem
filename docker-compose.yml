@@ -310,7 +310,7 @@ services:
         reservations:
           memory: 512M
 
-  # NATS JetStream - Blockchain TX Bus (chain.tx.submit / chain.tx.simulate)
+  # NATS JetStream - Blockchain TX Bus (chain.tx.submit / chain.tx.cancel / chain.tx.mint)
   nats:
     image: nats:2.10-alpine
     container_name: gridtokenx-nats
@@ -389,7 +389,7 @@ services:
       CHAIN_BRIDGE_TLS_KEY: /app/infra/certs/server.key
       CHAIN_BRIDGE_TLS_CA: /app/infra/certs/ca.crt
       # Reject NATS envelopes without a valid mTLS-key signature. Enforced by
-      # default now that every publisher signs — submit/simulate via
+      # default now that every publisher signs — submit/cancel via
       # blockchain-core's SignedEnvelope, and mint via the aggregator's
       # EnvelopeSigner (infra/mint.rs). Override to false only as a local-dev
       # escape hatch when running without client certs.
