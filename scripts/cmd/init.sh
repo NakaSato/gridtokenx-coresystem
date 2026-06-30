@@ -56,6 +56,18 @@ _init_onchain_accounts() {
     log_info "Initializing Registry Shards (16)..."
     npx tsx scripts/init-shards.ts || log_warn "Shard initialization failed, but continuing..."
 
+    # Provision + fund the platform settlement escrows (the platform's own GRX/GRID
+    # ATAs that execute_atomic_settlement sources funds from) and the fee/wheeling/loss
+    # collector ATAs. These are NOT created by bootstrap, so without this step every
+    # trade settlement fails on-chain with ConstraintOwner (Custom 2004) until they
+    # exist. Needs the mints from bootstrap (currency-mint.json) + DEV_WALLET authority.
+    if [ -f "$ANCHOR_DIR/scripts/fund-platform-sources.ts" ]; then
+        log_info "Provisioning + funding platform settlement escrows + collectors..."
+        npx tsx scripts/fund-platform-sources.ts || log_warn "Platform escrow funding failed, but continuing..."
+    else
+        log_warn "fund-platform-sources.ts absent — skipping escrow provisioning (settlements will fail Custom 2004 until escrows exist)."
+    fi
+
     log_info "Extracting PDAs and Mint addresses..."
     local pda_config energy_mint currency_mint registry_pda trading_market_pda collector_wallet
     pda_config=$(npx tsx scripts/get_pdas.ts 2>/dev/null || echo "")
@@ -110,6 +122,10 @@ cmd_init() {
 
         solana_validator_start "$PROJECT_ROOT/test-ledger" "$PROJECT_ROOT/solana.log" ""
         wait_for_solana
+        # Match `solana start`: auto-kill after TTL (default 30m) so an init-started
+        # validator can't linger and accumulate single-node PoH clock drift.
+        # Disable with SOLANA_VALIDATOR_TTL=0.
+        solana_validator_schedule_kill "${SOLANA_VALIDATOR_TTL:-1800}"
     fi
 
     # Fund the dev wallet so it can pay deploy + bootstrap rent/fees (localnet only).
