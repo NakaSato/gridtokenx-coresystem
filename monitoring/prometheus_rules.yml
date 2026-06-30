@@ -58,3 +58,13 @@ groups:
       annotations:
         summary: "Surplus mints are being skipped at a high rate"
         description: "More than 10% of completed surplus bins are skipped (no recipient wallet / owner-resolve error) over 15m. Likely unregistered meters generating surplus — check meter-service registration and the meters/users join."
+
+    - alert: AggregatorMintLost
+      expr: increase(aggregator_mint_total{outcome="lost"}[5m]) > 0
+      for: 0m
+      labels:
+        severity: critical
+        team: grid-ops
+      annotations:
+        summary: "Aggregator surplus mint LOST — manual recovery needed"
+        description: "{{ $value }} surplus mint(s) could not be durably handed off in the last 5m: the durable outbox enqueue failed twice and the last-resort immediate mint also failed (outcome=lost, reason=outbox_and_mint_failed). The bin's durable Redis entry was retained (not evicted) — check Chain Bridge / Redis health and recover from gridtokenx:billing:bins."
