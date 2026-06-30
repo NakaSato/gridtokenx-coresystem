@@ -15,9 +15,6 @@ This proves that path end-to-end with a hand-built, inert-but-valid tx:
     observation) that the signature is actually queryable on the validator — i.e. it
     LANDED, with a real slot. The bridge's own result `slot` is hardcoded 0
     (`service.rs:243`) so the landed-slot comes from the chain, not the envelope.
-  - SIMULATE (`chain.tx.simulate` → `chain.tx.simulate.result.{cid}`): the bridge
-    returns a simulation result and does NOT land — assert `success` and that the
-    result carries no `signature` (simulate schema has compute_units/logs, no sig).
 
 Tx construction (verified against `gridtokenx-chain-bridge/.../api/service.rs` +
 `gridtokenx-blockchain-core/src/policy.rs`):
@@ -154,28 +151,3 @@ def test_nats_submit_signs_and_lands():
     assert status is not None, f"signature {sig} never landed on validator"
     assert status.get("slot", 0) > 0, f"landed but no slot: {status}"
     assert status.get("err") is None, f"tx landed with error: {status}"
-
-
-def test_nats_simulate_returns_result_no_land():
-    blockhash = chain.get_latest_blockhash()
-    cid = str(uuid.uuid4())
-    reply = f"chain.tx.simulate.result.{cid}"
-    envelope = {
-        "correlation_id": cid,
-        "reply_subject": reply,
-        "serialized_tx": _serialized_inert_tx(blockhash),
-        "key_id": KEY_ID,
-        "service_identity": SERVICE_IDENTITY,
-        "created_at_ms": int(time.time() * 1000),
-    }
-    envelope["auth"] = envelope_auth.sign_for("simulate", envelope, SERVICE_CERT)
-
-    result = nats_util.request_reply_sync("chain.tx.simulate", reply, envelope, timeout=30.0)
-
-    assert result.get("success") is True, f"simulate failed: {result}"
-    # Simulate must NOT land: its result schema carries compute_units/logs, never a
-    # signature. Absence of a signature is the no-land assertion.
-    assert "signature" not in result, f"simulate unexpectedly returned a signature: {result}"
-    assert "logs" in result or "compute_units_consumed" in result, (
-        f"simulate result missing expected fields: {result}"
-    )

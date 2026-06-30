@@ -10,7 +10,7 @@ Two server modes, auto-detected:
   (CHAIN_BRIDGE_INSECURE=true grants Admin; CHAIN_BRIDGE_ALLOW_HEADER_AUTH=1 trusts
   the header). If neither mode is reachable, the suite skips.
 
-NATS write path (chain.tx.submit / simulate) is exercised indirectly via IAM onboard
+NATS write path (chain.tx.submit) is exercised indirectly via IAM onboard
 (suite 10) and settlement (suite 30); RBAC policy is covered by the Rust invariants
 test wrapped in run.sh. This suite focuses on read correctness + role enforcement.
 

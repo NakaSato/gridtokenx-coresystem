@@ -129,7 +129,7 @@ sequenceDiagram
     Note over SOL: slot +1 → tx lands in block
     SOL-->>CB: confirmed (blockhash, slot)
     CB-->>T: tx sig landed
-    Note over T,SOL: chain.tx.simulate = same path, dry-run, no block
+    Note over T,SOL: bridge runs a pre-sign simulate internally (SolanaProvider) before Vault sign — no external subject
 ```
 
 ### On-chain writes over the run (block timeline)
