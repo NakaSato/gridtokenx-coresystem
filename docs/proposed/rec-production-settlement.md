@@ -42,6 +42,19 @@ Parties hold their own `[b"escrow", user, rec_mint]` (and energy/currency) escro
   per-party escrows. Every party must have funded escrows before settle (a deposit/funding
   flow), and the one-bridge-signature simplicity is lost. Touches trading-service, the
   settlement orchestration, and the deposit UX.
+- **HARD BLOCKER (discovered 2026-07-02) — per-party signing was removed.** `settle_offchain_match`
+  requires each order payload to be **Ed25519-signed by the party** (it verifies them via the
+  instructions sysvar). But IAM's per-user `SignMessage` RPC no longer exists — custodial signing
+  now works by submitting an *unsigned tx* that the Chain Bridge signs with its `platform_admin`
+  Vault Transit key; there is **no per-user Ed25519 message signing** (`trading-service/.../identity/mod.rs`
+  makes `sign_message` fail loudly). So Option A cannot be emitted as-is. It additionally requires
+  **either** (a) restoring per-user Ed25519 signing (IAM `SignMessage` + per-user Vault Transit
+  Ed25519), **or** (b) a program-level change to `settle_offchain_match` accepting a **non-signing
+  owner** (bridge-signed tx, mirroring the registry `RegisterUser` 6-account custodial layout) —
+  which reintroduces the custodial model and, with it, the pooled-vs-per-party escrow question.
+  Building blocks already landed regardless (blockchain-core `build_settle_offchain_match_instruction`
+  + `build_fund_rec_escrow_custodial_instruction`, both unit-tested); the emission (slice 3) is what
+  this blocker gates.
 
 ### B1. Keep pooled custody; model REC as mint-to-buyer / burn-from-seller
 
