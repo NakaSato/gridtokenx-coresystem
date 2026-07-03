@@ -64,6 +64,13 @@ const NTP_UNIX_EPOCH_DELTA: u64 = 2_208_988_800;
 /// Default NTP servers: Cloudflare primary, Google fallback.
 const DEFAULT_SERVERS: &[&str] = &["time.cloudflare.com:123", "time.google.com:123"];
 
+/// Reject an NTP offset larger than this as corrupted rather than apply it.
+/// Real clock drift is milliseconds to low seconds; a magnitude this large
+/// can only come from a broken measurement (e.g. `unix_now_seconds` reading
+/// before the Unix epoch), not a genuinely unsynced OS clock. Deliberately
+/// generous — this guards against corruption, not tuning normal drift.
+const MAX_PLAUSIBLE_OFFSET_MS: i64 = 24 * 60 * 60 * 1000;
+
 /// Configuration for the background NTP poller.
 #[derive(Debug, Clone)]
 pub struct NtpConfig {
@@ -171,6 +178,15 @@ pub fn spawn_sync(config: NtpConfig) {
 fn poll_loop(config: NtpConfig) {
     loop {
         match query_first(&config) {
+            Some((server, offset_ms)) if offset_ms.abs() > MAX_PLAUSIBLE_OFFSET_MS => {
+                tracing::error!(
+                    server = %server,
+                    offset_ms,
+                    max_plausible_ms = MAX_PLAUSIBLE_OFFSET_MS,
+                    "ntp offset implausibly large; discarding as corrupted, retaining last offset"
+                );
+                std::thread::sleep(config.retry_interval);
+            }
             Some((server, offset_ms)) => {
                 OFFSET_MILLIS.store(offset_ms, Ordering::Relaxed);
                 let first = !SYNCED.swap(true, Ordering::Relaxed);
@@ -263,11 +279,19 @@ fn query_offset_ms(server: &str, timeout: Duration) -> std::io::Result<i64> {
 }
 
 /// Current Unix time as fractional seconds from the OS clock.
+///
+/// `duration_since` only fails if the OS clock reads before 1970-01-01,
+/// which would otherwise silently corrupt the NTP offset calculation in
+/// [`query_offset_ms`] — log loudly so a broken container clock is visible
+/// instead of manifesting as a mysterious platform-wide timestamp skew.
 fn unix_now_seconds() -> f64 {
-    let d = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default();
-    d.as_secs_f64()
+    match SystemTime::now().duration_since(UNIX_EPOCH) {
+        Ok(d) => d.as_secs_f64(),
+        Err(e) => {
+            tracing::error!(error = %e, "OS clock reads before the Unix epoch; NTP offset calculation will be corrupted");
+            0.0
+        }
+    }
 }
 
 /// Write a 64-bit NTP timestamp (seconds since 1900, 32.32 fixed point) for a

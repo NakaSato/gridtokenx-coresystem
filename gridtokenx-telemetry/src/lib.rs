@@ -32,8 +32,11 @@ impl TelemetryGuard {
 /// `json` (default) or `pretty`/`text` for non-JSON dev output.
 ///
 /// Must be called once per process; a second call is a no-op because the global
-/// subscriber is already set (the underlying `try_init` would error, which is
-/// swallowed here).
+/// subscriber is already set. That expected case, and any other `try_init`
+/// failure, is non-fatal (callers get a valid guard either way) but is always
+/// reported to stderr — never silent, since a failed init means every
+/// `tracing::*!` call below (including this function's own success log) is a
+/// no-op, so the failure can't be observed through tracing itself.
 pub fn init(service_name: &str) -> TelemetryGuard {
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
     let pretty = matches!(
@@ -42,11 +45,11 @@ pub fn init(service_name: &str) -> TelemetryGuard {
     );
 
     let registry = tracing_subscriber::registry().with(filter);
-    let initialized = if pretty {
+    let result = if pretty {
         registry
             .with(tracing_subscriber::fmt::layer().with_target(true))
             .try_init()
-            .is_ok()
+            .map_err(|e| e.to_string())
     } else {
         registry
             .with(
@@ -57,11 +60,14 @@ pub fn init(service_name: &str) -> TelemetryGuard {
                     .flatten_event(true),
             )
             .try_init()
-            .is_ok()
+            .map_err(|e| e.to_string())
     };
 
-    if initialized {
-        tracing::info!(service = service_name, "telemetry initialized");
+    match result {
+        Ok(()) => tracing::info!(service = service_name, "telemetry initialized"),
+        Err(e) => eprintln!(
+            "gridtokenx-telemetry: init({service_name}) failed, tracing is NOT active for this process: {e}"
+        ),
     }
     TelemetryGuard { _private: () }
 }
