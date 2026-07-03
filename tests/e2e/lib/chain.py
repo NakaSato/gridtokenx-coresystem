@@ -124,3 +124,23 @@ def token_balance_of(owner: str, mint: str, token_program: Pubkey = TOKEN_2022_P
         return get_token_account_balance(ata(owner, mint, token_program))["amount"]
     except ChainBridgeError:
         return 0
+
+
+def escrow_pda(owner: str, mint: str, trading_program_id: str) -> str:
+    """Derive a trading-program custodial escrow token account: PDA of
+    [b"escrow", owner, mint] under the trading program (settle_offchain.rs:423-456
+    — buyer/seller currency + energy escrows all share this seed scheme)."""
+    pda, _bump = Pubkey.find_program_address(
+        [b"escrow", bytes(Pubkey.from_string(owner)), bytes(Pubkey.from_string(mint))],
+        Pubkey.from_string(trading_program_id),
+    )
+    return str(pda)
+
+
+def escrow_balance_of(owner: str, mint: str, trading_program_id: str) -> int:
+    """Convenience: base-unit balance in `owner`'s custodial escrow for `mint`
+    (0 if the escrow account has not been funded/created yet)."""
+    try:
+        return get_token_account_balance(escrow_pda(owner, mint, trading_program_id))["amount"]
+    except ChainBridgeError:
+        return 0
