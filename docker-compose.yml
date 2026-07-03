@@ -378,8 +378,17 @@ services:
     container_name: gridtokenx-chain-bridge
     ports:
       - "${CHAIN_BRIDGE_GRPC_PORT:-5040}:5040"
+      - "${CHAIN_BRIDGE_METRICS_PORT:-9464}:9464"
     environment:
       CHAIN_BRIDGE_GRPC_PORT: 5040
+      # Settlement-TPS tuning (see chain-bridge 7a75261). Mint slots hold for the
+      # full sign→submit→confirm latency, so mint TPS ≈ concurrency ÷ latency.
+      # Skip-preflight/presign-disable drop the two redundant per-tx simulations —
+      # safe here because the mint path is idempotent behind the durable outbox.
+      CHAIN_BRIDGE_MINT_CONCURRENCY: "${CHAIN_BRIDGE_MINT_CONCURRENCY:-64}"
+      CHAIN_BRIDGE_SUBMIT_CONCURRENCY: "${CHAIN_BRIDGE_SUBMIT_CONCURRENCY:-32}"
+      CHAIN_BRIDGE_SKIP_PREFLIGHT: "${CHAIN_BRIDGE_SKIP_PREFLIGHT:-true}"
+      CHAIN_BRIDGE_PRESIGN_DISABLE: "${CHAIN_BRIDGE_PRESIGN_DISABLE:-true}"
       # External SNTP time source (gridtokenx_telemetry::time). Override per deploy
       # to an internal NTP, or set NTP_DISABLE=1 for OS-clock-only / air-gap.
       NTP_SERVERS: ${NTP_SERVERS:-time.cloudflare.com:123,time.google.com:123}
@@ -453,6 +462,9 @@ services:
       # register cap (5/hour) so a large simulator fleet can onboard in one boot.
       IAM_REGISTER_LIMIT: ${IAM_REGISTER_LIMIT:-10000,3600}
       IAM_LOGIN_LIMIT: ${IAM_LOGIN_LIMIT:-10000,60}
+      # General bucket covers /verify (among others) -- a bulk onboard hits this
+      # far before the register/login budgets above, so it needs the same raise.
+      IAM_GENERAL_LIMIT: ${IAM_GENERAL_LIMIT:-10000,60}
       NTP_SERVERS: ${NTP_SERVERS:-time.cloudflare.com:123,time.google.com:123}
       VAULT_ADDR: http://vault:8200
       VAULT_TOKEN: root
@@ -507,7 +519,12 @@ services:
     deploy:
       resources:
         limits:
-          memory: 768M
+          # 2G: 768M OOM-crash-looped under background simulator load +
+          # concurrent Argon2 register hashing (19 MiB per in-flight hash);
+          # 1536M still OOMed once during a 15k-user bulk onboard (resident
+          # memory grows with cumulative request count — suspected leak, see
+          # scale-mint benchmark notes).
+          memory: 2G
         reservations:
           memory: 256M
 
@@ -598,6 +615,14 @@ services:
       SOLANA_GOVERNANCE_PROGRAM_ID: ${SOLANA_GOVERNANCE_PROGRAM_ID}
       SOLANA_ENERGY_TOKEN_PROGRAM_ID: ${SOLANA_ENERGY_TOKEN_PROGRAM_ID}
       ENERGY_TOKEN_MINT: ${ENERGY_TOKEN_MINT}
+      # Custodial settlement (Option A): currency mint + collector wallets the
+      # settlement + custodial-funding paths read. Without these the settlement
+      # builder fails at parse (empty pubkey). Collectors default to the platform
+      # payer so their currency ATAs are platform-controlled.
+      CURRENCY_TOKEN_MINT: ${CURRENCY_TOKEN_MINT:-AzFyFd4GkmjqBnJ5EYv7mkaeufAKkZffumjtDRrX425k}
+      FEE_COLLECTOR_WALLET: ${FEE_COLLECTOR_WALLET:-EzudwoHvNPAc4dpPi5ndU8MEZVHVzq3Pj3Thm9ooKmiJ}
+      WHEELING_COLLECTOR_WALLET: ${WHEELING_COLLECTOR_WALLET:-EzudwoHvNPAc4dpPi5ndU8MEZVHVzq3Pj3Thm9ooKmiJ}
+      LOSS_COLLECTOR_WALLET: ${LOSS_COLLECTOR_WALLET:-EzudwoHvNPAc4dpPi5ndU8MEZVHVzq3Pj3Thm9ooKmiJ}
       AUTHORITY_WALLET_PATH: /app/dev-wallet.json
       SMTP_HOST: mailpit
       SMTP_PORT: 1025
@@ -614,9 +639,11 @@ services:
       # path so the same readings are not minted twice. See trading-service memory
       # note "trading-mint-two-paths-double-mint".
       ORACLE_MINT_ENABLED: "false"
-      # On-chain atomic-swap trade settlement — moves real funds; keep OFF until a
-      # funded simnet E2E validates the swap path + order-PDA lifecycle.
-      TRADE_SETTLEMENT_ENABLED: "false"
+      # On-chain atomic-swap trade settlement. Enabled for the Option A custodial
+      # leg: order submit now records the order PDA + funds the escrow on-chain
+      # (platform-signed), making settlement worker eligible. Swap path proven green
+      # (execute-settlement.ts) + custodial instructions verified on-chain.
+      TRADE_SETTLEMENT_ENABLED: "true"
     depends_on:
       pgdog:
         condition: service_healthy
@@ -707,8 +734,8 @@ services:
       # IoT gateway TLS: encrypts DLMS/COSEM meter telemetry in transit. Server cert
       # SAN covers `aggregator-bridge` (run `just gen-certs`). Unset both to fall back
       # to plaintext HTTP.
-      IOT_GATEWAY_TLS_CERT: /app/infra/certs/aggregator-bridge.crt
-      IOT_GATEWAY_TLS_KEY: /app/infra/certs/aggregator-bridge.key
+      IOT_GATEWAY_TLS_CERT: ${IOT_GATEWAY_TLS_CERT-/app/infra/certs/aggregator-bridge.crt}
+      IOT_GATEWAY_TLS_KEY: ${IOT_GATEWAY_TLS_KEY-/app/infra/certs/aggregator-bridge.key}
       # mTLS: require + verify a client cert (the simulator's) against this CA —
       # transport-layer auth on top of the API key. Empty = server-auth TLS only
       # (default); set to /app/infra/certs/ca.crt to require client certs.
