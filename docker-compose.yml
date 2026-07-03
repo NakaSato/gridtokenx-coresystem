@@ -462,9 +462,9 @@ services:
       # register cap (5/hour) so a large simulator fleet can onboard in one boot.
       IAM_REGISTER_LIMIT: ${IAM_REGISTER_LIMIT:-10000,3600}
       IAM_LOGIN_LIMIT: ${IAM_LOGIN_LIMIT:-10000,60}
-      # General bucket covers /verify (among others) -- a bulk onboard hits this
-      # far before the register/login budgets above, so it needs the same raise.
-      IAM_GENERAL_LIMIT: ${IAM_GENERAL_LIMIT:-10000,60}
+      # /verify has its own budget so a bulk onboard raise doesn't also loosen
+      # the shared general bucket that /forgot-password and /reset-password use.
+      IAM_VERIFY_LIMIT: ${IAM_VERIFY_LIMIT:-10000,60}
       NTP_SERVERS: ${NTP_SERVERS:-time.cloudflare.com:123,time.google.com:123}
       VAULT_ADDR: http://vault:8200
       VAULT_TOKEN: root
