@@ -458,6 +458,13 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRATION: ${JWT_EXPIRATION}
       RUST_LOG: debug,librdkafka=warn
+      # Caps concurrent Argon2 hashes (~19MiB working memory each at default
+      # cost params). Default 32 let bursty concurrency pile up ~600MiB+ of
+      # simultaneous hash memory on top of per-connection overhead, OOM-killing
+      # the container at the 2G limit under concurrency=50 register bursts
+      # (docker events: container oom -> die exitCode=137). Lower cap queues
+      # excess requests on the semaphore instead of allocating all at once.
+      AUTH_CPU_SEMAPHORE_LIMIT: "16"
       ENCRYPTION_SECRET: ${ENCRYPTION_SECRET}
       API_KEY_SECRET: ${API_KEY_SECRET}
       ENVIRONMENT: development
