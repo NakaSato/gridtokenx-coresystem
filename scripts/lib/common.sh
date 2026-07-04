@@ -33,17 +33,34 @@ solana_validator_start() {
     local log_file="${2:-$PROJECT_ROOT/scripts/logs/validator.log}"
     local extra_args="${3:-}"
 
+    # A second `solana-test-validator` can never bind :8899 while one is already
+    # running — it dies on the port conflict almost instantly, but this function
+    # backgrounds it (`&`) and the caller's `wait_for_solana` then happily finds
+    # the OLD instance healthy, masking the failure. That silently no-ops any
+    # requested --reset (or flag change) and leaves the untouched old ledger
+    # running, which is far more confusing than a clear log line here.
+    if pgrep -f "solana-test-validator" > /dev/null 2>&1; then
+        if [ "${SOLANA_RESET:-1}" = "0" ]; then
+            log_info "Solana validator already running — SOLANA_RESET=0, reusing it (no restart)."
+            return 0
+        fi
+        log_info "Solana validator already running and a reset was requested — stopping it first so --reset actually takes effect."
+        solana_validator_stop
+        # pkill returns before the port is released; give it a moment.
+        sleep 1
+    fi
+
     log_info "Starting Solana test validator..."
-    
+
     # Apple Silicon (Darwin/ARM64) optimizations
     if [ "$(uname)" == "Darwin" ] && [ "$(uname -m)" == "arm64" ]; then
         log_info "Applying Apple Silicon (M2) optimizations..."
         ulimit -n 65536
     fi
-    
+
     # Ensure log directory exists
     mkdir -p "$(dirname "$log_file")"
-    
+
     # Assemble final command
     # Added --rpc-port 8899 explicitly
     # --reset wipes the ledger on every start. Opt out with SOLANA_RESET=0 to keep
