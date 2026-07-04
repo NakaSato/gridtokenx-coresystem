@@ -5,8 +5,15 @@
 [general]
 host = "0.0.0.0"
 port = 6432
-pooler_mode = "transaction"
-default_pool_size = 20
+# session (not transaction): sqlx::migrate!'s pg_advisory_lock is session-scoped —
+# transaction pooling let the pooler hand the locked connection to another client,
+# leaking the lock forever and deadlocking every future migration attempt.
+pooler_mode = "session"
+# Session mode pins one backend connection per client for its whole session (no
+# more per-transaction multiplexing), so this must cover total concurrent app
+# connections, not just peak in-flight transactions. Postgres max_connections=200;
+# 80 here x 2 databases leaves headroom for admin/exporter connections.
+default_pool_size = 80
 min_pool_size = 5
 # HTTP healthcheck endpoint (used by the compose healthcheck).
 healthcheck_port = 9000
