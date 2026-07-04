@@ -35,26 +35,25 @@ NATS-only observation; documented here rather than silently dropped.)
 SKIP semantics (anti-false-green): if NO mint arrives within MINT_WAIT, SKIP
 loudly rather than pass — minting may be disabled or the bridge may predate the
 feature. Slow by construction (window must close past grace; flush loop polls).
+
+Ingest is an encrypted DLMS v4 frame over gRPC BulkRawIngest (lib/settlement_ingest)
+so the test runs on dev AND secure stacks — plaintext REST is 426 under secure mode.
+The frame build is deterministic (nonce derives from manuf++ts_sec++ver), so re-sending
+the same (meter, ts_sec, energy) is a byte-identical replay — the scenario under test.
 """
-import datetime
 import os
 import sys
 import time
 
 import pytest
-import requests
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
-import crypto
 import nats_util
 import redis_util
+import settlement_ingest
 
-ORACLE = os.getenv("AGGREGATOR_BRIDGE_REST", "http://localhost:4030")
-API_KEY = os.getenv("AGGREGATOR_API_KEY", "engineering-department-api-key-2025")
-INGEST = f"{ORACLE}/v1/private-network/ingest"
 SUBJECT = os.getenv("MINT_NATS_SUBJECT", "chain.tx.mint")
-HEADERS = {"X-API-KEY": API_KEY}
 
 WINDOW_MS = 15 * 60 * 1000
 
@@ -67,14 +66,6 @@ REPLAY_GAP = float(os.getenv("MINT_REPLAY_GAP_SECS", "40"))
 OWNER_USER = "00000000-0000-0000-0000-000000000001"
 
 
-def _oracle_up() -> bool:
-    try:
-        requests.get(f"{ORACLE}/health", timeout=3)
-        return True
-    except Exception:
-        return False
-
-
 def _redis_up() -> bool:
     try:
         redis_util.client().ping()
@@ -84,42 +75,13 @@ def _redis_up() -> bool:
 
 
 pytestmark = [
-    pytest.mark.skipif(not _oracle_up(), reason=f"aggregator REST not reachable at {ORACLE}"),
+    pytest.mark.skipif(
+        not settlement_ingest.grpc_up(),
+        reason=f"aggregator gRPC not reachable at {settlement_ingest.ORACLE_GRPC}",
+    ),
     pytest.mark.skipif(not _redis_up(), reason="Redis not reachable (lib/redis_util)"),
     pytest.mark.skipif(not nats_util.reachable(), reason=f"NATS not reachable at {nats_util.NATS_URL}"),
 ]
-
-
-def _new_meter(prefix: str):
-    pk, pub_hex = crypto.new_identity()
-    meter = f"{prefix}-{int(time.time() * 1000) % 1_000_000}"
-    wallet = f"Wa11et{meter.replace('-', '')}".ljust(43, "1")[:43]
-    redis_util.register_device_key(meter, pub_hex)
-    redis_util.register_meter(meter, OWNER_USER, wallet=wallet)
-    return {"meter": meter, "priv": pk, "wallet": wallet}
-
-
-def _payload(meter, priv, *, kwh, ts_ms):
-    dt = datetime.datetime.fromtimestamp(ts_ms / 1000, tz=datetime.timezone.utc)
-    iso = dt.isoformat(timespec="milliseconds").replace("+00:00", "Z")
-    sig = crypto.sign_telemetry(priv, meter, kwh, ts_ms)
-    return {
-        "protocol": "dlms",
-        "device_id": meter,
-        "payload": {
-            "device_id": meter,
-            "timestamp": iso,
-            "kwh": float(kwh),
-            "energy_generated": float(kwh),
-            "energy_consumed": 0.0,
-            "signature": sig,
-        },
-    }
-
-
-def _ingest(payload):
-    r = requests.post(INGEST, json=payload, headers=HEADERS, timeout=20)
-    assert r.status_code in (200, 202), f"reading rejected: {r.status_code} {r.text}"
 
 
 def test_same_window_replay_uses_stable_idempotency_key():
@@ -127,18 +89,18 @@ def test_same_window_replay_uses_stable_idempotency_key():
     mint envelope must carry the SAME dedup token (idempotency_key +
     window_start_ms + energy_kwh). That stable key is what the bridge / on-chain
     PDA collapse to exactly one mint — the durable exactly-once backstop."""
-    m = _new_meter("E2E-IDEMP")
-    ts_ms = int(time.time() * 1000) - BACKDATE_MS  # closed past grace
+    m = settlement_ingest.new_meter("I", OWNER_USER)
+    stub = settlement_ingest.stub()
+    ts_sec = (int(time.time() * 1000) - BACKDATE_MS) // 1000  # closed past grace
     kwh = 25.0  # pure surplus → net 25
 
-    payload = _payload(m["meter"], m["priv"], kwh=kwh, ts_ms=ts_ms)
-
     def _trigger():
-        _ingest(payload)
+        settlement_ingest.ingest(stub, m, generated=kwh, consumed=0, ts_sec=ts_sec)
         # Let a flush tick fire + evict so the replay re-creates the bin (the real
-        # replay scenario the bridge dedup must absorb), then re-send identically.
+        # replay scenario the bridge dedup must absorb), then re-send the identical
+        # frame (same meter/ts_sec/energy → byte-identical, see module docstring).
         time.sleep(REPLAY_GAP)
-        _ingest(payload)
+        settlement_ingest.ingest(stub, m, generated=kwh, consumed=0, ts_sec=ts_sec)
 
     def _matches(msg):
         return str(msg.get("idempotency_key", "")).startswith(f"mint:{m['meter']}:")
@@ -149,7 +111,7 @@ def test_same_window_replay_uses_stable_idempotency_key():
         timeout = MINT_WAIT + REPLAY_GAP
         msgs = nats_util.collect_sync(SUBJECT, _trigger, match=_matches, timeout=timeout, want=2)
     finally:
-        redis_util.unregister_device(m["meter"])
+        settlement_ingest.cleanup(m)
 
     if not msgs:
         pytest.skip(

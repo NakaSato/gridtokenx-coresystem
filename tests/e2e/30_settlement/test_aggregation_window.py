@@ -39,26 +39,23 @@ bridge may predate the feature. We never assert a window invariant on silence.
 Slow by construction: a window must close past BILLING_FLUSH_GRACE_SECS (default
 120) and the flush loop polls on BILLING_FLUSH_INTERVAL_SECS (default 30).
 Backdating makes the bins eligible at once; MINT_WAIT is the wait for envelopes.
+
+Ingest is an encrypted DLMS v4 frame over gRPC BulkRawIngest (lib/settlement_ingest)
+so the test runs on dev AND secure stacks — plaintext REST is 426 under secure mode.
 """
-import datetime
 import os
 import sys
 import time
 
 import pytest
-import requests
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
-import crypto
 import nats_util
 import redis_util
+import settlement_ingest
 
-ORACLE = os.getenv("AGGREGATOR_BRIDGE_REST", "http://localhost:4030")
-API_KEY = os.getenv("AGGREGATOR_API_KEY", "engineering-department-api-key-2025")
-INGEST = f"{ORACLE}/v1/private-network/ingest"
 SUBJECT = os.getenv("MINT_NATS_SUBJECT", "chain.tx.mint")
-HEADERS = {"X-API-KEY": API_KEY}
 
 WINDOW_MS = 15 * 60 * 1000  # WINDOW_MINUTES=15 (aggregator.rs:9)
 
@@ -67,14 +64,6 @@ WINDOW_MS = 15 * 60 * 1000  # WINDOW_MINUTES=15 (aggregator.rs:9)
 MINT_WAIT = float(os.getenv("MINT_WAIT_SECS", "150"))
 BACKDATE_MS = int(os.getenv("MINT_BACKDATE_SECS", str(20 * 60))) * 1000
 OWNER_USER = "00000000-0000-0000-0000-000000000001"
-
-
-def _oracle_up() -> bool:
-    try:
-        requests.get(f"{ORACLE}/health", timeout=3)
-        return True
-    except Exception:
-        return False
 
 
 def _redis_up() -> bool:
@@ -86,46 +75,17 @@ def _redis_up() -> bool:
 
 
 pytestmark = [
-    pytest.mark.skipif(not _oracle_up(), reason=f"aggregator REST not reachable at {ORACLE}"),
+    pytest.mark.skipif(
+        not settlement_ingest.grpc_up(),
+        reason=f"aggregator gRPC not reachable at {settlement_ingest.ORACLE_GRPC}",
+    ),
     pytest.mark.skipif(not _redis_up(), reason="Redis not reachable (lib/redis_util)"),
     pytest.mark.skipif(not nats_util.reachable(), reason=f"NATS not reachable at {nats_util.NATS_URL}"),
 ]
 
 
-def _new_meter(prefix: str):
-    pk, pub_hex = crypto.new_identity()
-    meter = f"{prefix}-{int(time.time() * 1000) % 1_000_000}"
-    wallet = f"Wa11et{meter.replace('-', '')}".ljust(43, "1")[:43]
-    redis_util.register_device_key(meter, pub_hex)
-    redis_util.register_meter(meter, OWNER_USER, wallet=wallet)
-    return {"meter": meter, "priv": pk, "wallet": wallet}
-
-
 def _floor_ms(ts_ms: int) -> int:
     return (ts_ms // WINDOW_MS) * WINDOW_MS
-
-
-def _payload(meter, priv, *, kwh, generated, consumed, ts_ms):
-    dt = datetime.datetime.fromtimestamp(ts_ms / 1000, tz=datetime.timezone.utc)
-    iso = dt.isoformat(timespec="milliseconds").replace("+00:00", "Z")
-    sig = crypto.sign_telemetry(priv, meter, kwh, ts_ms)
-    return {
-        "protocol": "dlms",
-        "device_id": meter,
-        "payload": {
-            "device_id": meter,
-            "timestamp": iso,
-            "kwh": float(kwh),
-            "energy_generated": float(generated),
-            "energy_consumed": float(consumed),
-            "signature": sig,
-        },
-    }
-
-
-def _ingest(payload):
-    r = requests.post(INGEST, json=payload, headers=HEADERS, timeout=20)
-    assert r.status_code in (200, 202), f"reading rejected: {r.status_code} {r.text}"
 
 
 def _window_part(meter: str, key: str) -> int:
@@ -141,11 +101,13 @@ def test_same_window_accumulates_floored_and_cross_window_separates():
     """One meter, two readings in window W (must merge → one mint of their SUM),
     one reading in window W+1 (must be a SEPARATE mint). All windows backdated
     closed-past-grace so the flush loop settles them promptly."""
-    m = _new_meter("E2E-WINDOW")
+    m = settlement_ingest.new_meter("W", OWNER_USER)
+    stub = settlement_ingest.stub()
 
     # Anchor inside an already-closed window, then place two readings in the SAME
     # 15-min window and one in the PREVIOUS window. Offsets are seconds, so both
-    # window-W readings floor to the identical window_start.
+    # window-W readings floor to the identical window_start (and each reading gets
+    # a distinct ts_sec — required, the GCM nonce derives from it).
     anchor = int(time.time() * 1000) - BACKDATE_MS
     w_start = _floor_ms(anchor)
     # Two readings in window W (w_start): +120s and +300s — both floor to w_start.
@@ -159,9 +121,9 @@ def test_same_window_accumulates_floored_and_cross_window_separates():
     gen_p = 5.0                # window W-1 net surplus = 5
 
     def _trigger():
-        _ingest(_payload(m["meter"], m["priv"], kwh=gen_a, generated=gen_a, consumed=0, ts_ms=w_a))
-        _ingest(_payload(m["meter"], m["priv"], kwh=gen_b, generated=gen_b, consumed=0, ts_ms=w_b))
-        _ingest(_payload(m["meter"], m["priv"], kwh=gen_p, generated=gen_p, consumed=0, ts_ms=p_a))
+        settlement_ingest.ingest(stub, m, generated=gen_a, consumed=0, ts_sec=w_a // 1000)
+        settlement_ingest.ingest(stub, m, generated=gen_b, consumed=0, ts_sec=w_b // 1000)
+        settlement_ingest.ingest(stub, m, generated=gen_p, consumed=0, ts_sec=p_a // 1000)
 
     def _matches(msg):
         return str(msg.get("idempotency_key", "")).startswith(f"mint:{m['meter']}:")
@@ -170,7 +132,7 @@ def test_same_window_accumulates_floored_and_cross_window_separates():
         # Two distinct windows → expect up to 2 mints.
         msgs = nats_util.collect_sync(SUBJECT, _trigger, match=_matches, timeout=MINT_WAIT, want=2)
     finally:
-        redis_util.unregister_device(m["meter"])
+        settlement_ingest.cleanup(m)
 
     if not msgs:
         pytest.skip(
