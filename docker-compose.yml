@@ -444,6 +444,9 @@ services:
       - "${IAM_GRPC_PORT:-5010}:8090"
     environment:
       DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgdog:6432/gridtokenx
+      # sqlx::migrate! at startup uses a dedicated session-mode pooler alias so
+      # its advisory lock can't leak into the transaction-mode pool above.
+      MIGRATION_DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgdog:6432/gridtokenx_migrate
       REDIS_URL: redis://redis:6379
       KAFKA_CMD_BROKERS: kafka-cmd:9001
       KAFKA_MARKET_BROKERS: kafka-market:9002
@@ -852,6 +855,9 @@ services:
       # Routed through PgDog (Rust pooler) instead of PgBouncer — pgdog:6432
       # fronts the same Postgres primary for the gridtokenx_noti schema.
       DATABASE_URL: postgres://gridtokenx_user:gridtokenx_password@pgdog:6432/gridtokenx_noti
+      # sqlx::migrate! at startup uses a dedicated session-mode pooler alias so
+      # its advisory lock can't leak into the transaction-mode pool above.
+      MIGRATION_DATABASE_URL: postgres://gridtokenx_user:gridtokenx_password@pgdog:6432/gridtokenx_noti_migrate
       REDIS_URL: redis://redis:6379
       KAFKA_BROKERS: kafka-cmd:9001
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-gridtokenx}:${RABBITMQ_DEFAULT_PASS:-rabbitmq_secret_2025}@rabbitmq:5672
@@ -949,8 +955,19 @@ services:
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       TZ: ${TZ}
-      NEXT_PUBLIC_SOLANA_RPC_HTTP: ${NEXT_PUBLIC_SOLANA_RPC_URL:-https://api.devnet.solana.com}
-      NEXT_PUBLIC_DEFAULT_CLUSTER: ${SOLANA_CLUSTER:-devnet}
+      # Runtime config — injected per request as window.__RUNTIME_CONFIG__ by
+      # the explorer's root layout, so RPC/program-ID changes only need
+      # `docker compose up -d explorer` (restart), NOT an image rebuild. The
+      # NEXT_PUBLIC_* build args above remain only as fallback for old images.
+      SOLANA_RPC_HTTP: ${NEXT_PUBLIC_SOLANA_RPC_URL:-http://localhost:8899}
+      DEFAULT_CLUSTER: ${SOLANA_CLUSTER:-localnet}
+      TRADING_PROGRAM_ID: ${SOLANA_TRADING_PROGRAM_ID:-}
+      TOKEN_PROGRAM_ID: ${SOLANA_ENERGY_TOKEN_PROGRAM_ID:-}
+      GOVERNANCE_PROGRAM_ID: ${SOLANA_GOVERNANCE_PROGRAM_ID:-}
+      ORACLE_PROGRAM_ID: ${SOLANA_ORACLE_PROGRAM_ID:-}
+      REGISTRY_PROGRAM_ID: ${SOLANA_REGISTRY_PROGRAM_ID:-}
+      TREASURY_PROGRAM_ID: ${SOLANA_TREASURY_PROGRAM_ID:-}
+      BLOCKBENCH_PROGRAM_ID: ${SOLANA_BLOCKBENCH_PROGRAM_ID:-}
     networks:
       - gridtokenx-network
     restart: unless-stopped

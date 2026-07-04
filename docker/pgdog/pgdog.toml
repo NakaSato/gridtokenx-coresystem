@@ -5,15 +5,14 @@
 [general]
 host = "0.0.0.0"
 port = 6432
-# session (not transaction): sqlx::migrate!'s pg_advisory_lock is session-scoped —
-# transaction pooling let the pooler hand the locked connection to another client,
-# leaking the lock forever and deadlocking every future migration attempt.
-pooler_mode = "session"
-# Session mode pins one backend connection per client for its whole session (no
-# more per-transaction multiplexing), so this must cover total concurrent app
-# connections, not just peak in-flight transactions. Postgres max_connections=200;
-# 80 here x 2 databases leaves headroom for admin/exporter connections.
-default_pool_size = 80
+# Default is transaction mode (best multiplexing/throughput). The two
+# *_migrate aliases below override to session mode — sqlx::migrate!'s
+# pg_advisory_lock is session-scoped, and transaction pooling let the pooler
+# hand the locked connection to another client, leaking the lock forever and
+# deadlocking every future migration attempt. Only the migration step needs
+# session semantics; regular app traffic does not, so it stays transaction.
+pooler_mode = "transaction"
+default_pool_size = 20
 min_pool_size = 5
 # HTTP healthcheck endpoint (used by the compose healthcheck).
 healthcheck_port = 9000
@@ -29,9 +28,37 @@ name = "gridtokenx"
 host = "postgres"
 port = 5432
 role = "primary"
+pooler_mode = "transaction"
+
+# Alias for iam-service's sqlx::migrate! step only — same physical DB as
+# "gridtokenx" (database_name), routed to its own session-mode pool so the
+# migration's advisory lock can't leak into the shared transaction pool.
+# Small pool: only ever one migration connection at a time.
+[[databases]]
+name = "gridtokenx_migrate"
+database_name = "gridtokenx"
+host = "postgres"
+port = 5432
+role = "primary"
+pooler_mode = "session"
+pool_size = 3
+min_pool_size = 1
 
 [[databases]]
 name = "gridtokenx_noti"
 host = "postgres"
 port = 5432
 role = "primary"
+pooler_mode = "transaction"
+
+# Alias for noti-service's `just noti-migrate*` (sqlx-cli) step only — same
+# physical DB as "gridtokenx_noti".
+[[databases]]
+name = "gridtokenx_noti_migrate"
+database_name = "gridtokenx_noti"
+host = "postgres"
+port = 5432
+role = "primary"
+pooler_mode = "session"
+pool_size = 3
+min_pool_size = 1
