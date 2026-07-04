@@ -25,11 +25,10 @@ export PG_DB="${PG_DB:-gridtokenx}"
 export DATABASE_URL="${DATABASE_URL:-postgresql://gridtokenx_user:gridtokenx_password@localhost:7001/gridtokenx}"
 export REDIS_URL="${REDIS_URL:-redis://localhost:7010}"
 export KAFKA_BROKER="${KAFKA_BROKER:-localhost:29001}"
-# NATS work/forward bus. Host 9020 -> container 4222 (docker-compose). The aggregator
-# forwards mintable surplus readings to meter-service on METER_SERVICE_NATS_SUBJECT
-# (Router::disseminate, router.rs); 30_settlement subscribes here to assert the forward.
+# NATS work bus. Host 9020 -> container 4222 (docker-compose). The aggregator mints
+# surplus directly on `chain.tx.mint` (the former meter.reading forward to
+# meter-service was removed); 30_settlement subscribes here to assert the mint.
 export NATS_URL_HOST="${NATS_URL_HOST:-nats://localhost:9020}"
-export METER_SERVICE_NATS_SUBJECT="${METER_SERVICE_NATS_SUBJECT:-meter.reading}"
 
 # --- Auth / gateway ---
 # Chain Bridge dev mode: when true the bridge grants Admin to every caller, so the

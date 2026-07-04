@@ -65,11 +65,10 @@ async def collect(subject: str, trigger, *, match=None, timeout: float = 12.0,
     `timeout`s. Returns the list of decoded payloads (may be empty).
 
     Subscribes BEFORE `trigger()` runs so an immediately-published message is never
-    missed — the aggregator forwards on `meter.reading` from inside the ingest
-    handler (`Router::disseminate` publishes + flushes before the HTTP response), so
-    by the time `trigger()` (the ingest POST) returns the message is already in
-    flight. `trigger` is a plain callable run inline on the loop; a fast `requests`
-    POST is fine for a test body.
+    missed — a publish can fire from inside the ingest/flush path (e.g. the
+    aggregator's settlement loop publishing `chain.tx.mint`), so a message may
+    already be in flight by the time `trigger()` returns. `trigger` is a plain
+    callable run inline on the loop; a fast ingest call is fine for a test body.
     """
     nc = await nats.connect(NATS_URL, connect_timeout=5.0)
     out: list = []

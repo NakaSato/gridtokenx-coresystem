@@ -1,7 +1,7 @@
 # E2E Cross-Service Communication Map
 
 > Source: `tests/e2e/` suites + `justfile` recipes, verified against code `path:line`.
-> Last verified: 2026-06-16.
+> Last verified: 2026-07-05 (Flow 3 rewritten: surplus mint via `chain.tx.mint`; `meter.reading` forward removed).
 > Ports per `tests/e2e/env.sh` (authoritative for the running dev topology).
 
 ## Port topology (`tests/e2e/env.sh`)
@@ -25,7 +25,7 @@
 | --- | --- |
 | HTTP via APISIX | register, login, orders, telemetry ingest, OpenADR |
 | gRPC / mTLS | Chain Bridge reads + writes, IAM identity, Noti, Aggregator→API-Services batch |
-| NATS JetStream | `meter.reading` (mint forward), `chain.tx.submit` |
+| NATS JetStream | `chain.tx.mint` (surplus mint), `chain.tx.submit` |
 | Kafka | `meter.readings`, `gridtokenx.aggregator.grid_status` |
 | Redis Streams | zone-partitioned dissemination (XADD) |
 
@@ -44,16 +44,16 @@
 - Aggregator → Kafka `meter.readings`: `MeterReadingEvent` (when `KAFKA_BOOTSTRAP_SERVERS` set).
 - Aggregator → InfluxDB (own instance): async fire-and-forget realtime history (`energy`/`ev_session`/`battery`).
 
-## Flow 3 — Mint Provenance & Telemetry Forward (`tests/e2e/30_settlement`)
+## Flow 3 — Mint Provenance & Telemetry Batch (`tests/e2e/30_settlement`)
 
-> **This bridge does NOT settle/mint on-chain.** Former "Path B" removed (`gridtokenx-aggregator-bridge/ARCHITECTURE.md:128`). No `settlement_engine.rs`, no `POST /api/v1/settlement/generation-mint` — that sub-agent claim was stale.
+> The former "Path B" SettlementEngine AND the `meter.reading` NATS forward to meter-service were both removed. The aggregator now mints surplus **itself**, directly over `chain.tx.mint`; meter-service is a read-only dashboard API (no NATS, no mint decision).
 
 Two real aggregator outbound hops:
 
-1. **Mint forward (NATS)**: `Router::disseminate` → NATS subject `meter.reading` (env `METER_SERVICE_NATS_SUBJECT`, default `meter.reading`) as `MintForwardReading` when `net_kwh > 0` (`crates/aggregator-logic/src/router.rs:176-185`). Carries stable `reading_id` (idempotency PK), `meter_serial`, `energy_kwh`, `timestamp_ms`. Wallet NOT on wire — meter-service derives from registered owner. **meter-service owns the mint decision** → publishes `chain.tx.submit` (NATS JetStream) → Chain Bridge: RBAC → dedup → Vault Transit sign → Solana RPC submit; reply `chain.tx.result.{id}`.
+1. **Surplus mint (NATS JetStream)**: the settlement flush loop snapshots closed 15-min billing bins and, when `net_kwh > 0`, publishes a signed `MintEnergyMessage` on `chain.tx.mint` (`crates/aggregator-persistence/src/infra/mint.rs:29`) with idempotency_key `mint:{serial}:{window_start_ms}` (`crates/aggregator-persistence/src/infra/mint.rs:143`). Recipient wallet is resolved by the aggregator's MeterRegistry (local cache → Redis `gridtokenx:meters:{serial}:wallet` → Postgres `meters ⋈ users` backfill) — never taken from the payload. Envelope is signed `ecdsa-p256-sha256-v1` with the aggregator's mTLS client key; a durable outbox retries until Chain Bridge replies CONFIRMED (`crates/aggregator-logic/src/mint_settlement.rs`, `crates/aggregator-logic/src/mint_outbox.rs`). Chain Bridge: RBAC → replay dedup on idempotency_key → Vault Transit sign → Solana RPC submit; the on-chain `(meter_id, window_start_ms)` gen_mint PDA is the exactly-once backstop.
 2. **Telemetry batch (gRPC, optional)**: `ZoneEventIngester` → `PlatformClient::submit_meter_reading_batch` → API Services (`API_SERVICES_GRPC_URL`, default `:4000`; `src/main.rs:67-72,144`; `crates/aggregator-persistence/src/infra/platform/client.rs:30`). Degrades to None if platform down (`crates/aggregator-api/src/ingester/zone_ingester.rs:75-79`).
 
-Unset `NATS_URL` ⇒ mint forward disabled.
+Unset `NATS_URL` (or `MINT_VIA_CHAIN_BRIDGE`) on the aggregator ⇒ surplus mint disabled.
 
 ## Flow 4 — Energy Trading CDA (`tests/e2e/40_trading`)
 
@@ -141,7 +141,7 @@ gantt
     axisFormat %Ss
     section Chain writes (each → 1 block)
     10_iam onboard PDA (idempotent)   :crit, 0, 1
-    30_settlement mint-forward         :crit, 7, 1
+    30_settlement surplus mint         :crit, 7, 1
     50_chain_bridge NATS tx lands      :crit, 14, 1
     70_anchor register_user PDA        :crit, 20, 1
     70_anchor register_meter PDA       :crit, 21, 1
