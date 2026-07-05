@@ -66,7 +66,11 @@
   set enum(indent: 1em, body-indent: 0.5em)
 
   // ── CODE BLOCKS ───────────────────────────────────────────────────────────
-  show raw: set text(font: ("Courier New", "Courier"), size: 9pt)
+  // Inline code: serif italic, scales with surrounding text (vendored Courier
+  // renders poorly/oversized at small figure & caption sizes).
+  show raw.where(block: false): set text(font: ("Times New Roman", "TH Sarabun New"), style: "italic", size: 0.95em)
+  // Block code: monospace.
+  show raw.where(block: true): set text(font: ("Courier New", "Courier"), size: 9pt)
   show raw.where(block: true): it => block(
     fill: luma(245),
     inset: (x: 8pt, y: 6pt),
@@ -146,7 +150,7 @@
     #align(center)[
       #set par(justify: false, first-line-indent: 0pt)
       #set table(
-        inset: (x: 4pt, y: 3pt),
+        inset: (x: 6pt, y: 4pt),
         stroke: (x, y) => if y == 0 {
           (top: 0.7pt + black, bottom: 0.5pt + black)
         } else {

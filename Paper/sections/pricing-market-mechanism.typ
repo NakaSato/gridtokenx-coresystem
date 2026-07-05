@@ -1,6 +1,6 @@
-#heading(level: 1)[PRICING AND MARKET MECHANISM] <sec:pricing-market-mechanism>
+= PRICING AND MARKET MECHANISM <sec:pricing-market-mechanism>
 
-#heading(level: 2)[Pricing and Settlement Model] <sec:pricing-model>
+== Pricing and Settlement Model <sec:pricing-model>
 แบบจำลองราคาของระบบแบ่งเป็นสามส่วน คือ การกำหนดราคาเคลียร์ในกลไก CDA การคำนวณค่าธรรมเนียมและยอดสุทธิในการ settlement และกลไกราคาของโทเคนในชั้น treasury สัญลักษณ์ที่ใช้ในสมการสรุปไว้ใน@tbl:nomenclature
 
 #figure(
@@ -10,6 +10,7 @@
     #show math.equation: set text(size: 8pt)
     #table(
     columns: (auto, 1fr),
+    inset: (x: 4pt, y: 3pt),
     align: (center + horizon, left + horizon),
     table.header([สัญลักษณ์], [ความหมาย]),
     [$p_s$], [ราคาเสนอขายต่อหน่วย (sell ask)],
@@ -57,11 +58,72 @@ $ "thbg" &= (g dot r) / 10^9 dot (1 - psi slash 10000) #<eq:swap> \
 $ "reward" = s dot A slash 10^12 - "debt" $ <eq:reward>
 เมื่อมีการเติมรางวัล $R$ ตัวสะสม $A$ จะถูกปรับเป็น $A <- A + (R dot 10^12) slash s_("total")$ แบบ pro-rata ตามสัดส่วนการ stake และการ slash จะหักจำนวนที่ร้องขอแต่ไม่เกินเงินต้นที่ stake ไว้ (capped ที่ principal) แล้วกระจายคืนสู่ผู้ stake ที่เหลือผ่านตัวสะสมเดียวกัน
 
-ในเส้นทาง CDA ที่ใช้งานจริง ตัวคูณจูงใจถูกตั้งเป็น $m = 1$ กล่าวคือ incentive multiplier มีผลเฉพาะเส้นทาง settlement แบบ feed-in หรือ grid-export มิใช่การจับคู่ CDA นอกจากนี้ค่าตั้งต้นของค่าธรรมเนียมตลาดบนเชน (25 bps) แตกต่างจากค่าตั้งต้นในไฟล์ตั้งค่านอกเชน (50 bps) และพารามิเตอร์โซนในโปรแกรม governance จัดเก็บแบบสเกล ×1000 ขณะที่ผู้บริโภคค่าจริงในชั้น trading ตีความแบบ bps ($slash 10000$) ซึ่งเป็นค่าที่ระบบใช้งานจริง ทั้งนี้การคำนวณในโค้ดใช้เลขทศนิยมตายตัว (fixed-point integer) แบบปัดลง (floor division) และยอดสุทธิถูกจำกัดไม่ให้ติดลบด้วย saturating subtraction ดังนั้นสมการข้างต้นจึงเป็นแบบจำลองเชิงค่าจริงที่อาจต่างจากผลคำนวณจริงในระดับเศษปัด
+ในเส้นทาง CDA ที่ใช้งานจริง ตัวคูณจูงใจถูกตั้งเป็น $m = 1$ กล่าวคือ incentive multiplier มีผลเฉพาะเส้นทาง settlement แบบ feed-in หรือ grid-export มิใช่การจับคู่ CDA นอกจากนี้ค่าตั้งต้นของค่าธรรมเนียมตลาดบนเชน (25 bps) แตกต่างจากค่าตั้งต้นในไฟล์ตั้งค่านอกเชน (50 bps) และพารามิเตอร์โซนในโปรแกรม governance จัดเก็บแบบสเกล ×1000 ขณะที่ผู้บริโภคค่าจริงในชั้น trading ตีความแบบ bps ($slash 10000$) ซึ่งเป็นค่าที่ระบบใช้งานจริง ทั้งนี้การคำนวณในโค้ดใช้เลขทศนิยมตายตัว (fixed-point integer) แบบปัดลง (floor division) และยอดสุทธิของผู้ขายใช้ checked arithmetic ที่ปฏิเสธธุรกรรมเมื่อค่าธรรมเนียมรวมเกินมูลค่าจับคู่ (พร้อมเพดานค่าธรรมเนียมเครือข่าย 20%) แทนการปัดยอดลงเป็นศูนย์ ดังนั้นสมการข้างต้นจึงเป็นแบบจำลองเชิงค่าจริงที่อาจต่างจากผลคำนวณจริงในระดับเศษปัด
 
-#heading(level: 2)[Continuous Double Auction Matching] <sec:cda-matching>
-กลไกตลาดใช้การจับคู่แบบ Continuous Double Auction (CDA) ที่จัดลำดับตามหลัก price-time priority และคำนึงถึงข้อจำกัดเชิงโทโพโลยีของโครงข่ายไฟฟ้า คำสั่งขายถูกแบ่งสมุดคำสั่ง (order book) ตามโซนแบบ zone-segmented โดยแต่ละโซนเก็บคำสั่งขายในโครงสร้างเรียงลำดับ (BTreeMap) ด้วยกุญแจ $("price", "created\_at", "id")$ ทำให้ลำดับของกุญแจให้ความสำคัญกับราคาต่ำสุดก่อน แล้วจึงเป็นเวลาสร้างคำสั่งที่เก่ากว่า และใช้ order id เป็นตัวตัดสินขั้นสุดท้าย จึงได้ price-time priority โดยปริยายโดยไม่ต้องเรียงลำดับซ้ำ คำสั่งที่เหลือปริมาณต่ำกว่าเกณฑ์ขั้นต่ำ (MIN_TRADE_AMOUNT) หรือหมดอายุแล้วจะไม่ถูกใส่ในสมุด
+== การวิเคราะห์ความไวของยอดสุทธิและส่วนเพิ่มจากการซื้อขายแบบ P2P <sec:revenue-sensitivity>
+เพื่อแสดงนัยเชิงเศรษฐศาสตร์ของแบบจำลองราคาข้างต้น ส่วนนี้วิเคราะห์ความไว (sensitivity) ของยอดสุทธิที่ผู้ขายได้รับต่อพารามิเตอร์ของโซนและค่าธรรมเนียม โดยเป็นการคำนวณเชิงแบบจำลองล้วน (model-derived) จากสมการ settlement ตาม@eq:clearing และ@eq:net มิใช่การวัดรายได้จากการรันระบบจริง กำหนดราคาเสนอขายฐาน $p_s = 4.00$ บาทต่อ kWh ปริมาณจับคู่ $q = 10$ kWh และตัวคูณจูงใจ $m = 1$ (ตามเส้นทาง CDA จริง) คงที่ แล้วแปรค่าสถานะภายในโซน/ข้ามโซน อัตราค่าธรรมเนียม $phi$ และ loss factor $lambda$ ตาม@tbl:revenue-sensitivity
 
-สำหรับคำสั่งซื้อแต่ละรายการ เครื่องจับคู่รวบรวมผู้ขายที่เป็นผู้สมัคร (candidate) จากเฉพาะโซนที่โครงข่ายสามารถส่งพลังงานถึงโซนของผู้ซื้อได้ ผ่านการตรวจ topology pre-filtering สองชั้น คือชั้นแรกตรวจที่ปริมาณขั้นต่ำเพื่อตัดโซนที่ส่งถึงกันไม่ได้ออกทันที และชั้นที่สองตรวจซ้ำที่ปริมาณจับคู่จริง ($"can\_accommodate\_flow"("sell\_zone", "buy\_zone", "amount")$) เพื่อบังคับเพดานความจุสายส่ง ภายในแต่ละโซนที่เข้าถึงได้ ใช้การสืบค้นช่วง (range query) ดึงเฉพาะคำสั่งขายที่ราคาเสนอไม่เกินราคาเสนอซื้อ แล้วคำนวณ landed cost ตาม@eq:clearing (รวม wheeling, ต้นทุน loss, ตัวคูณ และส่วนลดภายในโซน $delta = 0.95$) คำสั่งขายที่มี landed cost ไม่เกินราคาเสนอซื้อ ($p^* <= p_b$) เท่านั้นที่ผ่านเข้าเป็น candidate ระบบป้องกันการจับคู่กับตนเอง (self-trade) โดยข้ามคู่ที่ผู้ซื้อและผู้ขายเป็นผู้ใช้รายเดียวกัน
+#figure(
+  caption: [Model-derived seller-net sensitivity computed from @eq:clearing and @eq:net at $p_s = 4.00$ ฿/kWh, $q = 10$ kWh, $m = 1$. "net" is the seller's settled amount; wheeling ($w$) and loss ($lambda$) are pass-through to the buyer via the landed price $p^*$.],
+  text(size: 8pt)[
+    #show math.equation: set text(size: 8pt)
+    // Each scenario is computed from the settlement equations — never hand-typed —
+    // so the table cannot drift from the model. m = 1 on the CDA path.
+    #import "../metrics.typ": pricing
+    #let scen(name, lambda, w, delta, phi) = {
+      let ps = pricing.ps
+      let q = pricing.q
+      let closs = ps * (lambda - 1)            // eq:loss-cost
+      let pstar = (ps + w + closs) * delta     // eq:clearing (m = 1)
+      let value = q * pstar                    // eq:value
+      let fee = value * phi / 10000            // eq:fee
+      let wheel = q * w
+      let loss = q * closs
+      let net = value - fee - wheel - loss     // eq:net
+      (name, delta, w, lambda, phi, pstar, net, net / q)
+    }
+    #let rows = (
+      scen([S1 ภายในโซน], 1.01, 0.0, 0.95, 25),
+      scen([S2 ข้ามโซน], 1.03, 0.02, 1.0, 25),
+      scen([S3 ภายในโซน, ค่าธรรมเนียมสูง], 1.01, 0.0, 0.95, 100),
+      scen([S4 ข้ามโซน, loss สูง], 1.05, 0.02, 1.0, 25),
+    )
+    // Guard: S1 must reproduce the worked example in @sec:pricing-model (37.88 ฿).
+    #assert(
+      calc.round(rows.at(0).at(6), digits: 2) == 37.88,
+      message: "revenue table S1 drifted from the worked example (37.88 ฿)",
+    )
+    #table(
+      columns: 8,
+      inset: (x: 4pt, y: 3pt),
+      align: (left + horizon,) + (center + horizon,) * 7,
+      table.header(
+        [สถานการณ์], [$delta$], [$w$], [$lambda$], [$phi$ (bps)],
+        [$p^*$], [net (฿)], [net/kWh],
+      ),
+      ..rows.map(r => (
+        r.at(0),
+        [#calc.round(r.at(1), digits: 2)],
+        [#calc.round(r.at(2), digits: 2)],
+        [#calc.round(r.at(3), digits: 2)],
+        [#calc.round(r.at(4))],
+        [#calc.round(r.at(5), digits: 3)],
+        [#calc.round(r.at(6), digits: 2)],
+        [#calc.round(r.at(7), digits: 2)],
+      )).flatten(),
+    )
+  ],
+) <tbl:revenue-sensitivity>
 
-เมื่อได้ candidate จากทุกโซนที่เข้าถึงได้ ระบบรวมรายการแล้วเรียงตาม landed cost จากต่ำไปสูง เพื่อให้ผู้ซื้อได้ราคารวมส่งถึง (landed) ที่ถูกที่สุดก่อน ไม่ว่าคำสั่งขายนั้นจะอยู่โซนใด จากนั้นทยอยจับคู่โดยปริมาณต่อคู่เท่ากับส่วนเหลือที่น้อยกว่าของสองฝั่ง ($q = min(q_b, q_s)$) แบบ partial-fill และตัดคำสั่งขายที่ปริมาณเหลือต่ำกว่าเกณฑ์ออกจากสมุดทันที กรณีคำสั่งซื้อแบบ Fill-or-Kill (FOK) ระบบจะตรวจก่อนว่าปริมาณรวมของ candidate เพียงพอต่อทั้งคำสั่ง หากไม่พอจะไม่จับคู่เลย นอกจากนี้มีการรวมผลลัพธ์ (match consolidation) เมื่อคู่ผู้ซื้อ-ผู้ขายและราคาเดียวกันต่อเนื่องกัน เพื่อลดจำนวนรายการ settlement ที่ต้องส่งขึ้นเชน ผลการจับคู่แต่ละรายการบันทึก match price (landed cost), wheeling charge, loss cost และโซนต้นทาง/ปลายทาง ก่อนส่งคู่ที่จับแล้วไปชำระแบบ atomic ตาม@sec:settlement-model-invariants ต้นทุนการประมวลผลบนเชนของเส้นทาง settlement ที่เครื่องจับคู่ป้อนเข้ารายงานใน@sec:settlement-cost ส่วนอัตราการจับคู่ (matching throughput) ของเครื่องจับคู่ในชั้นหน่วยความจำรายงานใน@sec:matching-throughput
+จาก@tbl:revenue-sensitivity เห็นรูปแบบสำคัญสองประการ ประการแรก ยอดสุทธิของผู้ขายแทบไม่เปลี่ยนเมื่อเพิ่มค่าผ่านสาย $w$ หรือ loss factor $lambda$ (เทียบ S2 กับ S4 ที่ต่างกันในระดับเศษสตางค์) เพราะต้นทุนทั้งสองถูกบวกเข้าไปในราคา landed $p^*$ ที่ผู้ซื้อจ่าย แล้วถูกแยกออกไปยังบัญชีผู้เก็บค่าผ่านสายและการสูญเสีย จึงเป็นต้นทุนแบบส่งผ่าน (pass-through) ที่ไม่ลดทอนยอดผู้ขายโดยตรง ผู้ขายจึงได้รับยอดใกล้เคียง $q dot p_s$ เสมอ ประการที่สอง ตัวแปรที่กระทบยอดผู้ขายอย่างมีนัยคือส่วนลดภายในโซน $delta$ และอัตราค่าธรรมเนียม $phi$ โดยการจับคู่ภายในโซน ($delta = 0.95$) ลดยอดผู้ขายลงประมาณ 5% เพื่อจูงใจการบริโภคในพื้นที่ ขณะที่การขึ้นค่าธรรมเนียมจาก 25 เป็น 100 bps (S1 → S3) ลดยอดสุทธิเพียงเล็กน้อย
+
+เมื่อเทียบกับการรับซื้อไฟส่วนเกินแบบอัตราคงที่ (flat feed-in tariff) ของโครงการโซลาร์ภาคประชาชนที่สมมติไว้ราว 2.20 บาทต่อ kWh ยอดสุทธิต่อหน่วยของผู้ขายในตลาด P2P (ประมาณ 3.76–3.99 บาทต่อ kWh) คิดเป็นส่วนเพิ่ม (uplift) ประมาณ 72–81% ขณะเดียวกันผู้ซื้อยังจ่ายราคา landed $p^*$ (ประมาณ 3.84–4.22 บาทต่อ kWh) ต่ำกว่าค่าไฟขายปลีกตามปกติ จึงเกิดส่วนเกินจากการซื้อขาย (gains from trade) ทั้งสองฝั่ง ทั้งนี้อัตรารับซื้อ 2.20 บาทเป็นเพียงค่าอ้างอิงเชิงสมมติเพื่อการเปรียบเทียบ มิใช่ค่าที่วัดจากตลาดจริง
+
+ข้อจำกัดของการวิเคราะห์นี้คือ ตัวเลขใน@tbl:revenue-sensitivity เป็นผลเชิงแบบจำลองภายใต้พารามิเตอร์คงที่และปริมาณจับคู่เดียว (10 kWh) อีกทั้งการคำนวณจริงในโค้ดใช้เลขทศนิยมตายตัวแบบปัดลง ค่าที่ได้จึงอาจต่างในระดับเศษปัด และยังไม่ใช่การวัดการกระจายของรายได้ (revenue distribution) บนภาระงานจำลองเต็มรูปแบบ ซึ่งเปิดไว้เป็นงานในอนาคต (ดู@sec:discussion_limitations)
+
+== Continuous Double Auction Matching <sec:cda-matching>
+กลไกตลาดใช้การจับคู่แบบ Continuous Double Auction (CDA) ที่จัดลำดับตามหลัก price-time priority และคำนึงถึงข้อจำกัดเชิงโทโพโลยีของโครงข่ายไฟฟ้า คำสั่งขายถูกแบ่งสมุดคำสั่ง (order book) ตามโซนแบบ zone-segmented โดยแต่ละโซนเก็บคำสั่งขายในโครงสร้างเรียงลำดับ (BTreeMap) ด้วยกุญแจ `(price, created_at, id)` ทำให้ลำดับของกุญแจให้ความสำคัญกับราคาต่ำสุดก่อน แล้วจึงเป็นเวลาสร้างคำสั่งที่เก่ากว่า และใช้ order id เป็นตัวตัดสินขั้นสุดท้าย จึงได้ price-time priority โดยปริยายโดยไม่ต้องเรียงลำดับซ้ำ คำสั่งที่เหลือปริมาณต่ำกว่าเกณฑ์ขั้นต่ำ (MIN_TRADE_AMOUNT) หรือหมดอายุแล้วจะไม่ถูกใส่ในสมุด
+
+สำหรับคำสั่งซื้อแต่ละรายการ เครื่องจับคู่รวบรวมผู้ขายที่เป็นผู้สมัคร (candidate) จากเฉพาะโซนที่โครงข่ายสามารถส่งพลังงานถึงโซนของผู้ซื้อได้ ผ่านการตรวจ topology pre-filtering สองชั้น คือชั้นแรกตรวจที่ปริมาณขั้นต่ำเพื่อตัดโซนที่ส่งถึงกันไม่ได้ออกทันที และชั้นที่สองตรวจซ้ำที่ปริมาณจับคู่จริง (`can_accommodate_flow(sell_zone, buy_zone, amount)`) เพื่อบังคับเพดานความจุสายส่ง ภายในแต่ละโซนที่เข้าถึงได้ ใช้การสืบค้นช่วง (range query) ดึงเฉพาะคำสั่งขายที่ราคาเสนอไม่เกินราคาเสนอซื้อ แล้วคำนวณ landed cost ตาม@eq:clearing (รวม wheeling, ต้นทุน loss, ตัวคูณ และส่วนลดภายในโซน $delta = 0.95$) คำสั่งขายที่มี landed cost ไม่เกินราคาเสนอซื้อ ($p^* <= p_b$) เท่านั้นที่ผ่านเข้าเป็น candidate ระบบป้องกันการจับคู่กับตนเอง (self-trade) โดยข้ามคู่ที่ผู้ซื้อและผู้ขายเป็นผู้ใช้รายเดียวกัน
+
+เมื่อได้ candidate จากทุกโซนที่เข้าถึงได้ ระบบรวมรายการแล้วเรียงตาม landed cost จากต่ำไปสูง เพื่อให้ผู้ซื้อได้ราคารวมส่งถึง (landed) ที่ถูกที่สุดก่อน ไม่ว่าคำสั่งขายนั้นจะอยู่โซนใด จากนั้นทยอยจับคู่โดยปริมาณต่อคู่เท่ากับส่วนเหลือที่น้อยกว่าของสองฝั่ง ($q = min(q_b, q_s)$) แบบ partial-fill และตัดคำสั่งขายที่ปริมาณเหลือต่ำกว่าเกณฑ์ออกจากสมุดทันที กรณีคำสั่งซื้อแบบ Fill-or-Kill (FOK) ระบบจะตรวจก่อนว่าปริมาณรวมของ candidate เพียงพอต่อทั้งคำสั่ง หากไม่พอจะไม่จับคู่เลย นอกจากนี้มีการรวมผลลัพธ์ (match consolidation) เมื่อคู่ผู้ซื้อ-ผู้ขายและราคาเดียวกันต่อเนื่องกัน เพื่อลดจำนวนรายการ settlement ที่ต้องส่งขึ้นเชน ผลการจับคู่แต่ละรายการบันทึก match price (landed cost), wheeling charge, loss cost และโซนต้นทาง/ปลายทาง ก่อนส่งคู่ที่จับแล้วไปชำระแบบ atomic ตาม@sec:settlement-model ต้นทุนการประมวลผลบนเชนของเส้นทาง settlement ที่เครื่องจับคู่ป้อนเข้ารายงานใน@sec:settlement-cost ส่วนอัตราการจับคู่ (matching throughput) ของเครื่องจับคู่ในชั้นหน่วยความจำรายงานใน@sec:matching-throughput

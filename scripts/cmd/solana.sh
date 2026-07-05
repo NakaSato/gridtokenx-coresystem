@@ -19,9 +19,10 @@ cmd_solana() {
                 "$extra_args"
             # Block until RPC answers so callers get a ready validator (start/init do this too).
             wait_for_solana
-            # Auto-kill after TTL (default 1h) so a forgotten dev validator can't linger.
+            # Auto-kill after TTL (default 30m) so a forgotten dev validator can't linger,
+            # and so single-node PoH clock drift can't accumulate over a long uptime.
             # Disable with SOLANA_VALIDATOR_TTL=0.
-            solana_validator_schedule_kill "${SOLANA_VALIDATOR_TTL:-3600}"
+            solana_validator_schedule_kill "${SOLANA_VALIDATOR_TTL:-1800}"
             ;;
         stop|down)
             solana_validator_stop

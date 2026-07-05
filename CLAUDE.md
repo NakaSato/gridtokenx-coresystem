@@ -42,12 +42,26 @@ This rule overrides any tendency to report completion before tests run.
 ## Quick Orientation
 
 - This repo is a **superproject**: every `gridtokenx-*` service is a **git submodule** (see `.gitmodules`). After clone or branch switch run `git submodule update --init --recursive`. A `git status` showing modified submodule pointers is normal — commit the pointer in the superproject, the code inside the submodule.
+- **Submodules are not all on `main`.** Some track feature branches (e.g. `gridtokenx-aggregator-bridge` / `gridtokenx-chain-bridge` on `harden/nats-mint-signing`, `gridtokenx-blockchain-core` on `fix/mint-envelope-f64-roundtrip`). Check `git submodule status` before assuming `main`; commit work on the submodule's current branch, then bump the pointer here.
 - Read [README.md](README.md) for the full architecture diagram, service list, and port table. The root [`ARCHITECTURE.md`](ARCHITECTURE.md) is the top-level system map; its §8 indexes every per-component `<component>/ARCHITECTURE.md`. Per-component detail lives in those files (most `gridtokenx-*` services, plus `apisix_conf/`).
 - Read [docs/glossary.md](docs/glossary.md) for domain terms (GRID, GRX, REC, VPP, CDA, PDA, etc.).
 - Each service = **independent Cargo workspace** — no root `Cargo.toml`. Don't `cargo` from repo root; `cd` into the service first.
 - IAM Service = **modular monolith** with 6 sub-crates. Others: layered modules, single crate.
 - Two interconnected platforms: **Exchange** (IAM + Trading, direct blockchain) and **Infrastructure** (Aggregator Bridge + edge, produces validated telemetry). Gateway: **APISIX** (`:4001`, user-facing); **API orchestrator** at `:4000`. IoT/edge telemetry ingresses directly to the Aggregator Bridge IoT gateway (Ed25519-signed payloads; no separate edge proxy).
 - **Not every submodule is a Rust backend.** `gridtokenx-trading-service` (Rust, `crates/`) = the matching/settlement backend; `gridtokenx-trading` (Next.js, `app/`) = its **Trading UI frontend** — different repos, easy to confuse. `gridtokenx-explorer` (Next.js) = block/chain explorer frontend. The Rust→WASM client crate lives at `gridtokenx-trading/wasm/` (inside the Trading frontend submodule) — there is no top-level `gridtokenx-wasm` submodule. `gridtokenx-telemetry` is a **plain dir, not a submodule** (Rust crate, no `.gitmodules` entry). `infra/` (untracked) holds local-dev assets: `aggregator-bridge/`, `certs/`, `solana/`.
+- **`papers/` is research-only — never implementation.** See [Research Reference](#research-reference-papers) below.
+- **`Paper/` (capital P) ≠ `papers/` (lowercase).** `Paper/` is the project's **Typst academic paper** (Thai-language IEEE-style, documents this system) — its own build, own `Paper/CLAUDE.md`. Build: `cd Paper && typst compile main.typ --font-path font/ main.pdf` (the `--font-path` is mandatory — Thai/Times glyphs are vendored in `Paper/font/`). Sections in `Paper/sections/*.typ`, included by `Paper/main.typ` in reading order; bib in `Paper/references.bib`. The `doc-paper` skill drives writing/verifying/reviewing it against the real code.
+
+---
+
+## Research Reference (`papers/`)
+
+`papers/` holds fetched academic papers, extracted equations/tables, and **prototype/sketch code written to understand a paper** — reference material, nothing more.
+
+- **Do NOT implement from `papers/` into any service.** Code under `papers/` (e.g. `*.rs` prototypes) is illustrative, not production. Never wire it into `gridtokenx-*` workspaces, never `cargo add` it as a dep, never copy it into a service without an explicit, separate request to do so.
+- **Not part of any Cargo workspace.** Compile/test prototypes standalone (`rustc --test`) only — they are not covered by `just test` / the docker test path, and that's intentional.
+- **No production guarantees.** Prototypes may use `.unwrap()`, skip error handling, ignore the architecture rules — they exist to explain a method, not to ship.
+- Treat `papers/` as read-mostly: fetch, summarize, cite. Implementation of any idea found here is a **new, explicit task** that goes through normal design + the service's own code.
 
 ---
 
@@ -316,8 +330,14 @@ just test-all
 # Anchor program tests (require Solana validator)
 cd gridtokenx-anchor && anchor test
 
-# Trading engine benchmarks
-just benchmark
+# Benchmarks
+just benchmark          # trading-engine matching (Criterion, no infra)
+just bench-ingest       # telemetry-ingest saturation: ramp meter load, measure bridge
+                        #   throughput + loss (needs orb-up: bridge + Redis, no validator).
+                        #   Tune via env RAMP/DURATION/REPEATS; summarize with
+                        #   scripts/bench-ingest-summary.py bench-ingest-results.csv
+just bench-settlement   # settle_offchain_match compute-unit cost (needs anchor + validator;
+                        #   greps BENCH_SETTLE_CU from the escrow_settlement test)
 
 # Cross-service E2E and protocol suites (scripts/, tests/e2e/)
 just e2e                # tests/e2e/run.sh — full cross-service flow

@@ -2,15 +2,42 @@
 
 > Top-level architecture map for the GridTokenX superproject.
 > Per-service internals live in `<service>/ARCHITECTURE.md`. Deep dives in [`docs/`](docs/).
-> Last reviewed: 2026-06-07
+> Last reviewed: 2026-06-22
+
+---
+
+> **Scope (v3):** GridTokenX is a **software co-simulation study** of a consortium energy
+> settlement protocol, not a deployed production system. No claim here implies live operation,
+> regulatory approval, or production readiness.
+> See [`docs/master-architecture-v3.md`](docs/master-architecture-v3.md) — the authoritative
+> spec that governs this codebase.
+>
+> **Status tags used throughout this repo:**
+> **(impl)** implemented in the current codebase ·
+> **(sim)** runs on localnet / LiteSVM only ·
+> **(designed)** specified, not yet built ·
+> **(extension)** beyond the official ERC framework
 
 ---
 
 ## 1. What This System Is
 
-GridTokenX is a blockchain-backed Peer-to-Peer (P2P) energy trading platform. It bridges
-**physical energy infrastructure** (smart meters, solar inverters, EV chargers) with a
-**trustless financial market** settled on the Solana blockchain.
+GridTokenX is a **co-simulation study** of a blockchain-backed consortium energy settlement
+protocol for the Thai P2P energy market. It is built on Solana/Anchor (permissioned SVM,
+localnet / Surfpool in-memory), not a deployed cluster.
+
+**Why a blockchain — stated up front:** the ledger is justified for exactly one function:
+**settlement of trades and related value transfers among parties that do not fully trust one
+another.** It is not justified as a database, a control system, or a general data-integrity
+layer. See [docs/master-architecture-v3.md §I](docs/master-architecture-v3.md) for the full
+justification and concessions.
+
+**Two services, one dividing line — who settles the money:**
+
+| Service | Chain role | Payer → payee | Blockchain required? |
+| :--- | :--- | :--- | :--- |
+| **Trade service** — P2P energy + REC | **Settlement layer** (atomic swap) | peer → peer (distrusting) | ✅ Yes |
+| **DR service** — demand response record | **Record layer** (audit trail only) | state fund → participant | ❌ Not required (reuses platform) |
 
 The codebase is a **git superproject**: every `gridtokenx-*` service is a git submodule with
 its own independent Cargo workspace. There is no root `Cargo.toml`.
@@ -25,7 +52,19 @@ its own independent Cargo workspace. There is no root `Cargo.toml`.
 | Scaling factor | Trading volume / user count | Device count / telemetry volume |
 | Key services | API Services, IAM, Trading | Edge Gateway, Aggregator Bridge |
 
-## 3. Four-Layer Cyber-Physical Model
+## 3. Five-Layer Architecture (v3)
+
+From [`docs/master-architecture-v3.md §III`](docs/master-architecture-v3.md):
+
+| Layer | Purpose | Status |
+| :--- | :--- | :--- |
+| **L5 Governance & audit** | Consortium thresholds, ERC observation, tamper-evident log | (designed) — hash-chained audit log: gap |
+| **L4 Conservation** | Dual-Tracker: trade + REC + DR within physical capacity | (designed) (extension) |
+| **L3 Settlement rails** | Rail A: energy + REC **(impl core)**; Rail B: demand response **(designed)** | mixed |
+| **L2 Oracle integrity** | TEE attestation + Merkle batch; makes data verifiable without trusting one custodian | (designed); AMI/oracle path **(impl)** |
+| **L1 Foundation** | Vault signing, mTLS, single signing path, Sealevel PDAs, NATS write-ahead | **(impl)**; 3 gaps open (see §III.1) |
+
+### Four-Layer Cyber-Physical Model (unchanged)
 
 ```
 I.   Smart Meter        → Ed25519-sign telemetry at source
@@ -33,6 +72,14 @@ II.  Ingestion          → Aggregator Bridge verifies sig → Kafka event log
 III. Exchange           → CDA matching engine → atomic settlement gateway
 IV.  Distributed Ledger → Solana programs: Registry, Settlement, Energy Asset Ledger
 ```
+
+### Build Sequence (v3 §VII)
+
+1. Close L1 foundation gaps: hash-chained audit log · instruction-level parameter policy · pre-sign LiteSVM simulation default-on
+2. Harden L2 oracle integrity (TEE + Merkle); name meter-level boundary as future work
+3. Refactor Rail A (energy + REC) onto the closed foundation; idempotency explicit
+4. Multi-signer fee-payer pool (removes the ≈ 5.33 mint/s single-signer write-lock bottleneck)
+5. Then Rail B (DR, record-only), Dual-Tracker, and the designed 7-node consortium cluster
 
 ## 4. Service Mesh
 
@@ -70,6 +117,28 @@ See [`CLAUDE.md`](CLAUDE.md) for the enforced conventions behind these rules.
 Port scheme: 4000s gateways · 5000s gRPC mesh · 7000s persistence · 9000s messaging.
 
 ## 7. Documentation Map
+
+### Master Specification
+
+| Doc | Covers |
+| :--- | :--- |
+| [`docs/master-architecture-v3.md`](docs/master-architecture-v3.md) | **Authoritative v3 spec.** Simulation scope, justification, settlement model, layered architecture, consensus topology, validation, build sequence, paper-integrity checklist. Supersedes all prior versions. |
+
+### Blockchain Layer
+
+| Doc | Covers |
+| :--- | :--- |
+| [`docs/blockchain-system.md`](docs/blockchain-system.md) | Full blockchain system overview — dual-layer model, smart contracts, token system, DR + P2P flows, governance |
+| [`docs/blockchain-architecture.md`](docs/blockchain-architecture.md) | Service connection map, Thailand LA hierarchy, standards compliance, port reference |
+| [`docs/blockchain-node-network.md`](docs/blockchain-node-network.md) | Consortium node network design — PoA cluster, node taxonomy, two-tier consensus, Chain Bridge gateway |
+
+### Testing
+
+| Doc | Covers |
+| :--- | :--- |
+| [`docs/testing/blockchain-integration-tests.md`](docs/testing/blockchain-integration-tests.md) | Chain Bridge, NATS pipeline, settlement, consortium node connectivity tests |
+
+### General
 
 | Doc | Covers |
 | :--- | :--- |

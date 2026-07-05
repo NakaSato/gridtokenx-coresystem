@@ -44,14 +44,23 @@ mint:     net_surplus_kwh → resolve_wallet → NATS chain.tx.mint → chain-br
 
 ## Run mode A — full IAM-backed e2e (owner attribution, no surplus)
 
+`:4030` (→ container `:4010`) **always** terminates TLS (`docker-compose.yml:809`,
+independent of `AGGREGATOR_REQUIRE_SECURE`) — use `https://`, never `http://`. Plaintext
+against this port doesn't 4xx cleanly, it garbles the response and httpx throws
+`illegal request line`.
+
 ```bash
 cd gridtokenx-smartmeter-simulator/backend
-AGGREGATOR_DLMS_ENABLED=true AGGREGATOR_BRIDGE_URL=http://localhost:4030 \
+AGGREGATOR_DLMS_ENABLED=true AGGREGATOR_BRIDGE_URL=https://localhost:4030 \
 REDIS_URL=redis://localhost:7010 \
   uv run python scripts/e2e_iam_flow.py --meters 1 --once --iam-url http://localhost:4010
 ```
 
-Expect: register/verify/login 200 · claim 200 (`claimed=True`) · ingest **202** · sent=1 failed=0.
+Expect: register/verify/login 200 · claim 200 (`claimed=True`) · script auto-loads the dev
+mTLS client cert (`https bridge: using dev mTLS client cert ...`) · ingest **202** ·
+sent=1 failed=0 — **unless** this stack has `AGGREGATOR_REQUIRE_SECURE=true`, in which
+case plain REST ingest gets a clean **426 Upgrade Required** (expected, not a bug) — switch
+to `--encrypt` per the secure-stack block in Run mode B.
 
 > If claim 404 → it's POSTing to IAM not meter-service (stale script); if ingest 401 →
 > `AggregatorBridgeClient` built without `api_key=config.aggregator_api_key`. Both are

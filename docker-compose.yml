@@ -576,6 +576,10 @@ services:
       context: ./
       dockerfile: gridtokenx-trading-service/Dockerfile
     container_name: gridtokenx-trading-service
+    labels:
+      # OrbStack's https://trading-service.gridtokenx-coresystem.orb.local domain
+      # must hit the REST API (8093), not the ConnectRPC/gRPC port it auto-picks.
+      dev.orbstack.http-port: "8093"
     ports:
       - "${TRADING_GRPC_PORT:-5020}:8092"
       - "${TRADING_HTTP_PORT:-4020}:8093"
