@@ -8,7 +8,11 @@
 http_json() {
     local method="$1" url="$2" body="${3:-}"; shift 3 2>/dev/null || shift $#
     local tmp; tmp=$(mktemp)
-    local args=(-s -o "$tmp" -w '%{http_code}' -X "$method" -H "Content-Type: application/json")
+    # --max-time bounds the whole call: server-side hangs (e.g. a wedged Redis op with
+    # no client-side timeout, cache.rs/event_bus.rs have none) must fail one case loudly
+    # instead of stalling the entire suite for minutes with no diagnostic.
+    local args=(-s --connect-timeout 5 --max-time "${E2E_HTTP_MAX_TIME:-60}" \
+        -o "$tmp" -w '%{http_code}' -X "$method" -H "Content-Type: application/json")
     [ -n "$body" ] && args+=(-d "$body")
     args+=("$@")
     HTTP_STATUS=$(curl "${args[@]}" "$url")

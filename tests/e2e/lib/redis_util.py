@@ -50,6 +50,24 @@ def unregister_device(meter_id: str):
     c.delete(f"gridtokenx:meters:{meter_id}:wallet")
 
 
+def purge_settlement_residue(meter_id: str):
+    """Remove a test meter's settlement residue: its billing bins and any
+    pending/parked surplus mints. Without this, a test meter's unmintable
+    fake wallet (see settlement_ingest.new_meter) leaves an outbox entry the
+    bridge retries every MINT_RETRY_INTERVAL_SECS forever (until the age
+    bound parks it) — polluting shared stacks and the mint metrics.
+    Hash fields are `{serial}:{window_start_ms}`."""
+    c = client()
+    for key in (
+        "gridtokenx:billing:mint_outbox",
+        "gridtokenx:billing:mint_outbox:parked",
+        "gridtokenx:billing:bins",
+    ):
+        fields = [f for f in c.hscan_iter(key, match=f"{meter_id}:*", no_values=True)]
+        if fields:
+            c.hdel(key, *fields)
+
+
 def stream_total_len(pattern: str = "gridtokenx:events:zone_*") -> int:
     """Sum XLEN across all zone streams — used to assert dissemination fan-out.
 

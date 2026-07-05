@@ -60,6 +60,7 @@ import crypto
 import dlms_frame
 import nats_util
 import redis_util
+import settlement_ingest
 
 # Ingest over the ENCRYPTED DLMS gRPC path (OracleService/BulkRawIngest), not plaintext
 # REST: a hardened stack runs the IoT REST gateway in mTLS + secure-DLMS mode (plaintext
@@ -124,7 +125,9 @@ def _new_meter(prefix: str):
     """Register an Ed25519 smart meter (+ AES enckey for secure-frame ingest) with an
     owner wallet. LDN is an 8-byte frame field, so keep the id short. Returns handle."""
     pk, pub_hex = crypto.new_identity()
-    meter = f"{prefix[:1]}{int(time.time() * 1000) % 1_000_000}"  # <=8 chars, fits LDN
+    meter = settlement_ingest.track(
+        f"{prefix[:1]}{int(time.time() * 1000) % 1_000_000}"
+    )  # <=8 chars, fits LDN
     enc_key = bytes(range(32))  # 32-byte AES-256 key
     wallet = f"Wa11et{meter}".ljust(43, "1")[:43]
     redis_util.register_device_key(meter, pub_hex)
@@ -174,6 +177,7 @@ def test_surplus_window_mints_to_owner_and_consumer_does_not():
         for h in (surplus, deficit):
             redis_util.unregister_device(h["meter"])
             redis_util.unregister_enckey(h["meter"])
+            redis_util.purge_settlement_residue(h["meter"])
 
     surplus_mints = [m for m in msgs if str(m.get("idempotency_key", "")).startswith(f"mint:{surplus['meter']}:")]
     deficit_mints = [m for m in msgs if str(m.get("idempotency_key", "")).startswith(f"mint:{deficit['meter']}:")]

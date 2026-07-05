@@ -28,6 +28,22 @@ import redis_util
 
 ORACLE_GRPC = os.getenv("AGGREGATOR_BRIDGE_GRPC", "localhost:50051")
 
+# Serials of every meter created this session (via new_meter or track()).
+# The 30_settlement suite-end fixture re-purges these: the bridge settles
+# bins from memory, so a mint-outbox entry can appear AFTER a test's own
+# cleanup() ran — per-test purge alone races the settlement sweep.
+_created_serials = []
+
+
+def track(serial: str) -> str:
+    """Register a test meter serial for suite-end residue purging."""
+    _created_serials.append(serial)
+    return serial
+
+
+def created_serials():
+    return list(_created_serials)
+
 
 def _grpc():
     import grpc  # imported lazily so a missing grpc skips at the test, not import time
@@ -53,8 +69,12 @@ def new_meter(prefix: str, owner_user: str, *, wallet=None, register_pubkey=True
     """Register a secure meter. `prefix` is squashed to keep the id ≤8 chars (LDN).
     Skip `register_pubkey` to model an unregistered device (sig verify fails)."""
     pk, pub_hex = crypto.new_identity()
-    meter = f"{prefix[:1]}{int(time.time() * 1000) % 10_000_000}"  # ≤8 chars
+    meter = track(f"{prefix[:1]}{int(time.time() * 1000) % 10_000_000}")  # ≤8 chars
     enc_key = bytes(range(32))
+    # Deliberately NOT a valid Base58 pubkey (meter ids inject 'I'/'0'): a
+    # valid-looking wallet would actually mint GRX to a garbage address on a
+    # stack with a live validator. Unmintable + purged in cleanup() is the
+    # correct combination — do not "fix" this to valid Base58.
     w = wallet if wallet is not None else f"Wa11et{meter}".ljust(43, "1")[:43]
     if register_pubkey:
         redis_util.register_device_key(meter, pub_hex)
@@ -87,3 +107,6 @@ def cleanup(*handles):
     for h in handles:
         redis_util.unregister_device(h["meter"])
         redis_util.unregister_enckey(h["meter"])
+        # Also drop billing bins + pending/parked mints, or the fake wallet
+        # leaves a poison outbox entry retried forever on shared stacks.
+        redis_util.purge_settlement_residue(h["meter"])

@@ -236,10 +236,137 @@ assert_eq "$(echo "$HR" | jq -r '.checks.postgres.status // empty')" "ok" "readi
 assert_eq "$(echo "$HR" | jq -r '.checks.redis.status // empty')" "ok" "readiness: redis ok"
 
 # --- Case 25: Prometheus metrics ----------------------------------------
+# One retry: the first scrape can race a lazily-initialized registry and return an
+# empty/partial body before any counter is recorded. Re-scrape once before asserting.
 log_info "Case 25: GET /metrics exposes Prometheus text"
-M=$(http_json GET "$IAM_URL/metrics")
-assert_status "$(hs)" "200" "/metrics returns 200"
+M=$(http_json GET "$IAM_URL/metrics"); MS=$(hs)
+if [ "$MS" != "200" ] || [[ "$M" != *"# "* ]]; then
+    sleep 1
+    M=$(http_json GET "$IAM_URL/metrics"); MS=$(hs)
+fi
+assert_status "$MS" "200" "/metrics returns 200"
 assert_contains "$M" "# " "metrics body is Prometheus exposition format"
+
+# --- Case 26: Verify with garbage token rejected (not 5xx) --------------
+log_info "Case 26: GET /auth/verify with bogus token rejected as client error"
+http_json GET "$IAM_URL/api/v1/auth/verify" "" --get --data-urlencode "token=garbage-${E2E_RUN_ID}" >/dev/null
+V26=$(hs)
+if [ "$V26" == "400" ] || [ "$V26" == "404" ]; then
+    log_success "garbage verify token rejected [$V26]"
+else
+    log_fail "garbage verify token not a 4xx (got $V26)"
+fi
+
+# --- Case 27: Tampered/forged JWT on /me rejected -----------------------
+log_info "Case 27: forged bearer token on /me rejected (401/403)"
+auth_json GET "$IAM_URL/api/v1/me" "ey.tampered.${E2E_RUN_ID}" >/dev/null
+V27=$(hs)
+if [ "$V27" == "401" ] || [ "$V27" == "403" ]; then
+    log_success "forged JWT blocked [$V27]"
+else
+    log_fail "forged JWT not blocked (got $V27)"
+fi
+
+# --- Case 28: Register input validation -> 400, never 5xx ---------------
+# Regression guard: a bad email used to map VAL_3006 to HTTP 500 (validation code
+# fell through the WithCode(_) catch-all). Both weak pw and bad email must be 4xx.
+log_info "Case 28: register rejects weak password and malformed email as 4xx"
+command -v reset_register_rate_limit >/dev/null 2>&1 && reset_register_rate_limit
+http_json POST "$IAM_URL/api/v1/auth/register" \
+    "{\"username\":\"g28weak_${E2E_RUN_ID}\",\"email\":\"g28weak_${E2E_RUN_ID}@grx.test\",\"password\":\"123\",\"first_name\":\"E\",\"last_name\":\"T\"}" >/dev/null
+assert_eq "$(hs)" "400" "weak password rejected with 400"
+command -v reset_register_rate_limit >/dev/null 2>&1 && reset_register_rate_limit
+http_json POST "$IAM_URL/api/v1/auth/register" \
+    "{\"username\":\"g28mail_${E2E_RUN_ID}\",\"email\":\"not-an-email\",\"password\":\"$E2E_PASSWORD\",\"first_name\":\"E\",\"last_name\":\"T\"}" >/dev/null
+V28=$(hs)
+if [ "$V28" == "400" ] || [ "$V28" == "422" ]; then
+    log_success "malformed email rejected as client error [$V28]"
+else
+    log_fail "malformed email not 4xx (got $V28 — VAL_3006 status mapping regressed to 5xx?)"
+fi
+
+# --- Case 29: Onboard with unknown user_type rejected -------------------
+log_info "Case 29: onboard with invalid user_type rejected"
+onboard_user "$JWT" "wizard" >/dev/null
+V29=$(hs)
+if [ "$V29" == "400" ] || [ "$V29" == "422" ]; then
+    log_success "invalid user_type rejected [$V29]"
+else
+    log_fail "invalid user_type not rejected (got $V29)"
+fi
+
+# --- Case 30: Link malformed (non-base58) wallet rejected ---------------
+log_info "Case 30: link wallet with invalid base58 address rejected"
+link_wallet "$JWT" "not-base58-!!!0OIl-${E2E_RUN_ID}" >/dev/null
+V30=$(hs)
+if [ "$V30" == "400" ] || [ "$V30" == "422" ]; then
+    log_success "invalid base58 wallet rejected [$V30]"
+else
+    log_fail "invalid base58 wallet not rejected (got $V30)"
+fi
+
+# --- Case 31: Reset-password happy path actually rotates the password ----
+# Fresh user so we don't disturb the main test user. forgot-password mints a Redis
+# token (iam:password_reset:<token> -> email, TTL 900s); pull it back to drive the
+# real reset, then prove old pw fails and new pw logs in.
+log_info "Case 31: forgot -> reset rotates password (old pw fails, new pw logs in)"
+R31_USER="e2e_reset_${E2E_RUN_ID}_$RANDOM"; R31_EMAIL="${R31_USER}@grx.test"
+command -v reset_register_rate_limit >/dev/null 2>&1 && reset_register_rate_limit
+R31_ID=$(register_user "$R31_USER" "$R31_EMAIL")
+if [ -n "$R31_ID" ]; then
+    verify_user "$R31_ID" >/dev/null
+    forgot_password "$R31_EMAIL" >/dev/null
+    assert_status "$(hs)" "200" "forgot-password (fresh user) 200"
+    # Recover the reset token from Redis by matching its stored email value.
+    RTOK=""
+    for k in $(docker exec "${REDIS_CONTAINER:-gridtokenx-redis}" redis-cli --scan --pattern 'iam:password_reset:*' 2>/dev/null); do
+        v=$(docker exec "${REDIS_CONTAINER:-gridtokenx-redis}" redis-cli GET "$k" 2>/dev/null | tr -d '\r')
+        if [ "$v" == "$R31_EMAIL" ]; then RTOK="${k#iam:password_reset:}"; RTOK="${RTOK%$'\r'}"; break; fi
+    done
+    if [ -n "$RTOK" ]; then
+        R31_NEWPW="GRX-Rotated-P@ss-2026"
+        reset_password "$RTOK" "$R31_NEWPW" >/dev/null
+        assert_status "$(hs)" "200" "reset-password with valid token 200"
+        login "$R31_USER" "$E2E_PASSWORD" >/dev/null
+        V31OLD=$(hs)
+        if [ "$V31OLD" == "401" ] || [ "$V31OLD" == "403" ]; then
+            log_success "old password no longer valid [$V31OLD]"
+        else
+            log_fail "old password still accepted after reset (got $V31OLD)"
+        fi
+        N31=$(login "$R31_USER" "$R31_NEWPW")
+        assert_status "$(hs)" "200" "login with new password 200"
+        assert_nonempty "$N31" "new password issues access_token"
+    else
+        log_warn "reset token not found in Redis — skipping reset happy-path asserts"
+    fi
+else
+    log_warn "fresh reset user registration failed — skipping Case 31"
+fi
+
+# --- Case 32: Brute-force lockout after repeated bad passwords -----------
+# 5 failed attempts lock the account 900s (AccountLocked -> HTTP 423). Fresh user.
+log_info "Case 32: account locks (423) after 5 failed logins"
+L32_USER="e2e_lock_${E2E_RUN_ID}_$RANDOM"; L32_EMAIL="${L32_USER}@grx.test"
+command -v reset_register_rate_limit >/dev/null 2>&1 && reset_register_rate_limit
+L32_ID=$(register_user "$L32_USER" "$L32_EMAIL")
+if [ -n "$L32_ID" ]; then
+    verify_user "$L32_ID" >/dev/null
+    for i in 1 2 3 4 5; do login "$L32_USER" "wrong-pw-$i" >/dev/null; done
+    # Next attempt — even with the CORRECT password — must be locked out.
+    login "$L32_USER" "$E2E_PASSWORD" >/dev/null
+    V32=$(hs)
+    if [ "$V32" == "423" ]; then
+        log_success "account locked after 5 failed attempts [423]"
+    elif [ "$V32" == "401" ] || [ "$V32" == "403" ] || [ "$V32" == "429" ]; then
+        log_warn "auth throttled but not 423 LOCKED (got $V32) — lockout mapping may differ"
+        log_success "brute-force attempts are throttled"
+    else
+        log_fail "no lockout/throttle after 5 failed logins (got $V32)"
+    fi
+else
+    log_warn "fresh lockout user registration failed — skipping Case 32"
+fi
 
 # --- Pytest cases (gRPC) — same folder, dispatched here so the suite is self-contained.
 pytest_suite "$HERE" || log_fail "IAM pytest cases failed"

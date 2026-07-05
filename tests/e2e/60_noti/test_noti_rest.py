@@ -12,7 +12,8 @@ What we test, and where it lives in noti-service source (cited):
       - PATCH "/{id}"     -> mark_notification_as_read    (handlers.rs:119)
       - POST "/read-all"  -> mark_all_notifications_as_read (handlers.rs:140)
     All three gate on role.require_any([ApiGateway, Admin]) and map a denial to
-    401 UNAUTHORIZED (handlers.rs:89-90, 125-126, 145-146). They also require a
+    403 FORBIDDEN (handlers.rs:91, 127, 147 — since noti 14feeeb, matching the
+    IAM/Trading RBAC fix: role denial is 403, not 401). They also require a
     UserContext extracted from the `x-gridtokenx-user-id` header
     (noti-api/src/auth.rs:7,20-33 — missing/invalid -> 401).
 
@@ -31,7 +32,7 @@ AUTH NOTE — why we use the `admin` role, not `api-gateway`:
   CHAIN_BRIDGE_INSECURE=true). The running noti-service container has NEITHER
   (verified: `docker exec gridtokenx-noti-service printenv` shows no GATEWAY_SECRET
   and no CHAIN_BRIDGE_INSECURE), so an api-gateway header resolves to Unknown ->
-  401. The `Admin` role is NOT secret-gated (auth.rs only special-cases ApiGateway),
+  403. The `Admin` role is NOT secret-gated (auth.rs only special-cases ApiGateway),
   and require_any accepts Admin, so we authenticate as `admin`. This exercises the
   exact same require_any([ApiGateway, Admin]) gate.
 
@@ -198,22 +199,22 @@ def test_list_notifications_authed():
 
 @rest_required
 def test_read_all_without_role_denied():
-    """POST /api/v1/noti/read-all with NO role header -> 401 (Unknown role denied)."""
+    """POST /api/v1/noti/read-all with NO role header -> 403 (Unknown role denied)."""
     r = requests.post(f"{REST_BASE}/api/v1/noti/read-all",
                       headers={USER_ID_HEADER: ACTING_USER}, timeout=8)
-    assert r.status_code == 401, f"expected 401, got {r.status_code} {r.text}"
+    assert r.status_code == 403, f"expected 403, got {r.status_code} {r.text}"
 
 
 @rest_required
 def test_read_all_apigateway_without_secret_denied():
-    """`api-gateway` role WITHOUT the gateway secret -> 401.
+    """`api-gateway` role WITHOUT the gateway secret -> 403.
 
     from_headers fails closed for ApiGateway when GATEWAY_SECRET is unset / no secret
     header is provided (auth.rs:188-221), so the role resolves to Unknown -> denied."""
     r = requests.post(f"{REST_BASE}/api/v1/noti/read-all",
                       headers={ROLE_HEADER: "api-gateway", USER_ID_HEADER: ACTING_USER},
                       timeout=8)
-    assert r.status_code == 401, f"expected 401, got {r.status_code} {r.text}"
+    assert r.status_code == 403, f"expected 403, got {r.status_code} {r.text}"
 
 
 @rest_required
@@ -227,11 +228,11 @@ def test_read_all_without_user_id_denied():
 
 @rest_required
 def test_mark_one_read_without_role_denied():
-    """PATCH /api/v1/noti/{id} with NO role header -> 401."""
+    """PATCH /api/v1/noti/{id} with NO role header -> 403."""
     nid = "11111111-1111-1111-1111-111111111111"
     r = requests.patch(f"{REST_BASE}/api/v1/noti/{nid}",
                        headers={USER_ID_HEADER: ACTING_USER}, timeout=8)
-    assert r.status_code == 401, f"expected 401, got {r.status_code} {r.text}"
+    assert r.status_code == 403, f"expected 403, got {r.status_code} {r.text}"
 
 
 # ---------------------------------------------------------------------------
