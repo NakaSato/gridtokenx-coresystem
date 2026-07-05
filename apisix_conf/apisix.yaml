@@ -17,7 +17,11 @@ plugin_configs:
                  ngx.req.set_header('x-gridtokenx-gateway-secret', os.getenv('GRIDTOKENX_GATEWAY_SECRET') or 'gridtokenx-gateway-secret-2025')
                end
              end"
-      cors: {}
+      # expose_headers: browsers only surface CORS-safelisted response headers
+      # cross-origin; the meter-service pagination metadata must be listed or
+      # lib/api/meters.ts#getMyReadingsPage never sees it.
+      cors:
+        expose_headers: "X-Total-Count,X-Has-More"
 
 routes:
   - id: 10 # IAM Public REST (Auth & Config)
@@ -103,6 +107,7 @@ routes:
       - /api/v1/markets/matching-status
       - /api/v1/markets/settlement-stats
       - /api/v1/markets/orderbook
+      - /api/v1/markets/clearing-epochs
       - /api/v1/markets/p2p/*
     plugin_config_id: 1
     upstream:
