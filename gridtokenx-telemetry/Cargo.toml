@@ -9,3 +9,16 @@ description = "Shared telemetry initialization (structured tracing) for GridToke
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"] }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
+
+# OpenTelemetry OTLP span export (Phase 3 tracing). Activated only when
+# OTEL_EXPORTER_OTLP_ENDPOINT is set; otherwise these are inert and init() stays
+# logging-only. Pinned trio: opentelemetry 0.30 ↔ tracing-opentelemetry 0.31.
+# http-proto (not grpc-tonic) avoids pulling tonic into services on connectrpc.
+opentelemetry = "0.30"
+opentelemetry_sdk = "0.30"
+opentelemetry-otlp = { version = "0.30", default-features = false, features = [
+    "http-proto",
+    "reqwest-blocking-client",
+    "trace",
+] }
+tracing-opentelemetry = "0.31"

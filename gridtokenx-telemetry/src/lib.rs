@@ -8,22 +8,77 @@
 //! Returns a [`TelemetryGuard`]; services needing teardown call `.shutdown()`,
 //! others may drop it.
 
+use opentelemetry_otlp::WithExportConfig;
+use opentelemetry_sdk::trace::SdkTracerProvider;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 pub mod time;
 
 /// Guard for telemetry lifecycle.
 ///
-/// Logging-only setup needs no teardown today; the type exists so callers keep
-/// a handle for future flush-on-shutdown logic (e.g. an OTLP span exporter).
+/// Holds the OTLP tracer provider (when tracing is enabled) so spans are flushed
+/// on shutdown. Logging-only setups carry `None` and need no teardown.
 #[derive(Debug)]
 pub struct TelemetryGuard {
-    _private: (),
+    provider: Option<SdkTracerProvider>,
 }
 
 impl TelemetryGuard {
-    /// Flush and shut down telemetry. No-op for the current logging-only setup.
-    pub fn shutdown(&self) {}
+    /// Flush and shut down telemetry. Flushes any buffered OTLP spans; a no-op
+    /// when tracing was not enabled.
+    pub fn shutdown(&self) {
+        if let Some(provider) = &self.provider {
+            if let Err(e) = provider.force_flush() {
+                eprintln!("gridtokenx-telemetry: span flush on shutdown failed: {e:?}");
+            }
+            if let Err(e) = provider.shutdown() {
+                eprintln!("gridtokenx-telemetry: tracer shutdown failed: {e:?}");
+            }
+        }
+    }
+}
+
+impl Drop for TelemetryGuard {
+    fn drop(&mut self) {
+        // Best-effort flush if the caller dropped the guard without calling
+        // shutdown() — graceful process exit still delivers the tail of spans.
+        if let Some(provider) = &self.provider {
+            let _ = provider.force_flush();
+            let _ = provider.shutdown();
+        }
+    }
+}
+
+/// Builds an OTLP-over-HTTP tracer provider exporting to `endpoint` (batch,
+/// background thread). Returns `None` on any exporter build failure — tracing is
+/// best-effort and must never take down the service.
+fn build_tracer_provider(service_name: &str, endpoint: &str) -> Option<SdkTracerProvider> {
+    // Per-signal traces endpoint. The base OTEL_EXPORTER_OTLP_ENDPOINT gets the
+    // standard `/v1/traces` suffix appended for the HTTP transport.
+    let traces_endpoint = format!("{}/v1/traces", endpoint.trim_end_matches('/'));
+
+    let exporter = match opentelemetry_otlp::SpanExporter::builder()
+        .with_http()
+        .with_endpoint(traces_endpoint)
+        .build()
+    {
+        Ok(e) => e,
+        Err(e) => {
+            eprintln!("gridtokenx-telemetry: OTLP exporter build failed ({e}); tracing disabled");
+            return None;
+        }
+    };
+
+    let resource = opentelemetry_sdk::Resource::builder()
+        .with_service_name(service_name.to_string())
+        .build();
+
+    Some(
+        SdkTracerProvider::builder()
+            .with_batch_exporter(exporter)
+            .with_resource(resource)
+            .build(),
+    )
 }
 
 /// Initialize the global tracing subscriber for `service_name`.
@@ -44,7 +99,29 @@ pub fn init(service_name: &str) -> TelemetryGuard {
         Ok("pretty") | Ok("text")
     );
 
-    let registry = tracing_subscriber::registry().with(filter);
+    // Optional OTLP tracing layer — enabled only when an endpoint is configured.
+    // Absent/empty endpoint keeps the historical logging-only behaviour so
+    // services run unchanged outside the compose/observability stack.
+    let provider = match std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT") {
+        Ok(endpoint) if !endpoint.trim().is_empty() => {
+            build_tracer_provider(service_name, endpoint.trim())
+        }
+        _ => None,
+    };
+    let otel_layer = provider.as_ref().map(|provider| {
+        use opentelemetry::trace::TracerProvider as _;
+        // W3C `traceparent` propagation so trace context crosses service hops
+        // (HTTP headers, NATS/Kafka message headers).
+        opentelemetry::global::set_text_map_propagator(
+            opentelemetry_sdk::propagation::TraceContextPropagator::new(),
+        );
+        opentelemetry::global::set_tracer_provider(provider.clone());
+        tracing_opentelemetry::layer().with_tracer(provider.tracer("gridtokenx"))
+    });
+
+    // `Option<Layer>` implements `Layer`, so this adds the OTel layer when present
+    // and is inert otherwise.
+    let registry = tracing_subscriber::registry().with(filter).with(otel_layer);
     let result = if pretty {
         registry
             .with(tracing_subscriber::fmt::layer().with_target(true))
@@ -64,12 +141,16 @@ pub fn init(service_name: &str) -> TelemetryGuard {
     };
 
     match result {
-        Ok(()) => tracing::info!(service = service_name, "telemetry initialized"),
+        Ok(()) => tracing::info!(
+            service = service_name,
+            tracing_enabled = provider.is_some(),
+            "telemetry initialized"
+        ),
         Err(e) => eprintln!(
             "gridtokenx-telemetry: init({service_name}) failed, tracing is NOT active for this process: {e}"
         ),
     }
-    TelemetryGuard { _private: () }
+    TelemetryGuard { provider }
 }
 
 /// Backward-compatible alias for [`init`], matching the old per-service name.

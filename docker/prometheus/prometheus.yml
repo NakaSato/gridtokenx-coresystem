@@ -5,21 +5,12 @@ global:
     monitor: 'gridtokenx-monitor'
     origin: 'prometheus-primary'
 
-# Remote write to long-term storage (e.g., Thanos/Mimir)
-remote_write:
-  - url: "http://mimir:8080/api/v1/push" # Placeholder for future scalable backend
-    queue_config:
-      capacity: 10000
-      max_shards: 100
-      min_shards: 1
-      max_samples_per_send: 500
-      batch_send_deadline: 5s
-
-# Alerting + recording rules (aggregator-bridge surplus-mint observability lives here).
-# Scoped to prometheus_rules.yml — the sibling gridtokenx-alerts.yml has pre-existing
-# parse errors (VPPAssetOffline, PostgreSQLSlowQueries) and would fail the whole load.
+# Alerting + recording rules. Both files are promtool-clean (the historical
+# VPPAssetOffline / PostgreSQLSlowQueries parse errors in gridtokenx-alerts.yml
+# were fixed). A broken rule file fails Prometheus startup, so keep them validated
+# (`promtool check rules`) before changing this glob.
 rule_files:
-  - "/etc/prometheus/rules/prometheus_rules.yml"
+  - "/etc/prometheus/rules/*.yml"
 
 scrape_configs:
   - job_name: 'prometheus'
@@ -39,6 +30,29 @@ scrape_configs:
       server_name: aggregator-bridge
     static_configs:
       - targets: ['aggregator-bridge:4010']
+
+  # IAM Service — real metrics_exporter_prometheus endpoint (container port 8080)
+  - job_name: 'iam-service'
+    static_configs:
+      - targets: ['iam-service:8080']
+
+  # Chain Bridge — dedicated plaintext metrics server (CHAIN_BRIDGE_METRICS_PORT),
+  # separate from the mTLS gRPC port 5040.
+  - job_name: 'chain-bridge'
+    static_configs:
+      - targets: ['chain-bridge:9464']
+
+  - job_name: 'trading-service'
+    static_configs:
+      - targets: ['trading-service:8093']
+
+  - job_name: 'meter-service'
+    static_configs:
+      - targets: ['meter-service:8080']
+
+  - job_name: 'noti-service'
+    static_configs:
+      - targets: ['noti-service:8080']
 
   - job_name: 'infrastructure'
     static_configs:

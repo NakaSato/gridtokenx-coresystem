@@ -380,6 +380,7 @@ services:
       - "${CHAIN_BRIDGE_GRPC_PORT:-5040}:5040"
       - "${CHAIN_BRIDGE_METRICS_PORT:-9464}:9464"
     environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://tempo:4318}
       CHAIN_BRIDGE_GRPC_PORT: 5040
       # Settlement-TPS tuning (see chain-bridge 7a75261). Mint slots hold for the
       # full sign→submit→confirm latency, so mint TPS ≈ concurrency ÷ latency.
@@ -447,6 +448,7 @@ services:
       # sqlx::migrate! at startup uses a dedicated session-mode pooler alias so
       # its advisory lock can't leak into the transaction-mode pool above.
       MIGRATION_DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgdog:6432/gridtokenx_migrate
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://tempo:4318}
       REDIS_URL: redis://redis:6379
       KAFKA_CMD_BROKERS: kafka-cmd:9001
       KAFKA_MARKET_BROKERS: kafka-market:9002
@@ -600,6 +602,7 @@ services:
       KAFKA_EVENTS_ENABLED: "true"
       KAFKA_BOOTSTRAP_SERVERS: kafka-cmd:9001
       KAFKA_TOPIC_PREFIX: trading
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://tempo:4318}
       NTP_SERVERS: ${NTP_SERVERS:-time.cloudflare.com:123,time.google.com:123}
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-gridtokenx}:${RABBITMQ_DEFAULT_PASS:-rabbitmq_secret_2025}@rabbitmq:5672
       RUST_LOG: debug,librdkafka=warn
@@ -690,6 +693,7 @@ services:
       - "${IOT_GATEWAY_PORT:-4030}:4010" # REST API
       - "${GRPC_PORT:-50051}:50051" # gRPC ingestion (smart meter simulator)
     environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://tempo:4318}
       RUST_LOG: debug,librdkafka=warn
       # Container defaults GRPC_PORT=5030; pin to 50051 so the host port mapping
       # above actually reaches the gRPC ingestion listener.
@@ -858,6 +862,7 @@ services:
       - "${NOTI_HTTP_PORT:-4060}:8080"
       - "${NOTI_GRPC_PORT:-5060}:8090"
     environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://tempo:4318}
       # Routed through PgDog (Rust pooler) instead of PgBouncer — pgdog:6432
       # fronts the same Postgres primary for the gridtokenx_noti schema.
       DATABASE_URL: postgres://gridtokenx_user:gridtokenx_password@pgdog:6432/gridtokenx_noti
@@ -1346,6 +1351,99 @@ services:
         reservations:
           memory: 128M
 
+  # Loki — log aggregation (single-binary, filesystem storage, 14d retention).
+  loki:
+    image: grafana/loki:3.4.2
+    container_name: gridtokenx-loki
+    command: ["-config.file=/etc/loki/loki.yml"]
+    ports:
+      - "${LOKI_PORT:-6003}:3100"
+    volumes:
+      - ./docker/loki/loki.yml:/etc/loki/loki.yml:ro
+      - loki_data:/loki
+    networks:
+      - gridtokenx-network
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--spider",
+          "http://localhost:3100/ready",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+
+  # Alloy — ships Docker container logs to Loki via the Docker socket API.
+  alloy:
+    image: grafana/alloy:v1.9.1
+    container_name: gridtokenx-alloy
+    command:
+      - "run"
+      - "--server.http.listen-addr=0.0.0.0:12345"
+      - "/etc/alloy/config.alloy"
+    volumes:
+      - ./docker/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - gridtokenx-network
+    depends_on:
+      loki:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 64M
+
+  # Tempo — distributed tracing backend. Receives OTLP (gRPC 4317 / HTTP 4318),
+  # generates service-graph + span metrics and remote-writes them to Prometheus.
+  tempo:
+    image: grafana/tempo:2.7.2
+    container_name: gridtokenx-tempo
+    command: ["-config.file=/etc/tempo/tempo.yml"]
+    ports:
+      - "${TEMPO_HTTP_PORT:-6004}:3200" # Tempo query API
+    volumes:
+      - ./docker/tempo/tempo.yml:/etc/tempo/tempo.yml:ro
+      - tempo_data:/var/tempo
+    networks:
+      - gridtokenx-network
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--spider",
+          "http://localhost:3200/ready",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+
   # HashiCorp Vault (Security Plane)
   vault:
     image: hashicorp/vault:1.15
@@ -1472,6 +1570,8 @@ volumes:
   nats_data:
   prometheus_data:
   grafana_data:
+  loki_data:
+  tempo_data:
   openleadr_vtn_db_data:
   aggregator-influxdb-data:
   aggregator-influxdb-config:

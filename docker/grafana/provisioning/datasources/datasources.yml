@@ -20,8 +20,10 @@ datasources:
     editable: true
     jsonData:
       derivedFields:
+        # Services log JSON via gridtokenx-telemetry; the trace id surfaces as a
+        # "trace_id":"<hex>" field. Link it to the Tempo trace.
         - datasourceUid: tempo
-          matcherRegex: "traceID=(\\w+)"
+          matcherRegex: "\"trace_id\":\"(\\w+)\""
           name: TraceID
           url: "$${__value.raw}"
 
@@ -45,6 +47,7 @@ datasources:
         datasourceUid: 'prometheus'
       tracesToLogsV2:
         datasourceUid: 'loki'
-        groupResurceAttributes: true
+        # Map trace resource attributes → Loki labels when jumping trace→logs.
+        tags: [{ key: 'service.name', value: 'service' }]
         filterByTraceId: true
         filterBySpanId: false

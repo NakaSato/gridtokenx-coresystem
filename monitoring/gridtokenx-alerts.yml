@@ -380,16 +380,10 @@ groups:
         summary: "VPP capacity utilization is critically high"
         description: "VPP is operating at {{ $value | humanizePercentage }} capacity. May not be able to respond to additional grid requests."
 
-    - alert: VPPAssetOffline
-      expr: count(attribute_asset_status="offline") / count(attribute_asset_status) > 0.2
-      for: 5m
-      labels:
-        severity: warning
-        team: grid-ops
-        component: vpp
-      annotations:
-        summary: "Significant VPP assets are offline"
-        description: "{{ $value | humanizePercentage }} of VPP assets are offline. Aggregation capacity is reduced."
+    # VPPAssetOffline removed: no `vpp_asset_status` metric is exported by any
+    # service today, so the rule could never fire (and its original expr was
+    # invalid PromQL). Re-add against a real gauge when VPP asset health is
+    # instrumented.
 
     - alert: DemandResponseEventFailure
       expr: sum(rate(signoz_calls_total{name=~".*demand.*response.*", status_code="ERROR"}[5m])) > 0
@@ -468,7 +462,10 @@ groups:
         description: "Connection pool usage is {{ $value | humanizePercentage }}. Consider increasing max_connections or optimizing queries."
 
     - alert: PostgreSQLSlowQueries
-      expr: rate(pg_stat_statements_seconds_total{total_time > 1000}[5m]) > 10
+      # Comparison predicates aren't valid inside label matchers; the per-query
+      # threshold lives in the alert condition, not the selector. Inert unless the
+      # postgres-exporter has pg_stat_statements enabled.
+      expr: rate(pg_stat_statements_seconds_total[5m]) > 10
       for: 10m
       labels:
         severity: warning
@@ -641,3 +638,51 @@ groups:
       annotations:
         summary: "Disk space is critically low on {{ $labels.mountpoint }}"
         description: "Only {{ $value | humanizePercentage }} disk space remaining. Immediate cleanup required."
+
+  # Observability-stack alerts backed by metrics that actually exist post-Phase-1
+  # (service /metrics scrapes + kafka-exporter + Tempo/Prometheus themselves).
+  - name: gridtokenx.observability.alerts
+    rules:
+    - alert: ServiceScrapeDown
+      expr: up{job=~"iam-service|chain-bridge|trading-service|meter-service|noti-service|aggregator-bridge"} == 0
+      for: 2m
+      labels:
+        severity: critical
+        team: platform
+        component: observability
+      annotations:
+        summary: "{{ $labels.job }} /metrics scrape is down"
+        description: "Prometheus cannot scrape {{ $labels.job }} ({{ $labels.instance }}) for 2m. The service is down or its metrics endpoint is unreachable."
+
+    - alert: KafkaConsumerGroupLagHigh
+      expr: max by (consumergroup, topic) (kafka_consumergroup_lag) > 1000
+      for: 10m
+      labels:
+        severity: warning
+        team: platform
+        component: kafka
+      annotations:
+        summary: "Kafka consumer group {{ $labels.consumergroup }} is lagging"
+        description: "Group {{ $labels.consumergroup }} on topic {{ $labels.topic }} is {{ $value }} messages behind for 10m."
+
+    - alert: NotiKafkaConsumeErrors
+      expr: rate(noti_kafka_consume_errors_total[5m]) > 0
+      for: 5m
+      labels:
+        severity: warning
+        team: platform
+        component: noti-service
+      annotations:
+        summary: "noti-service is failing to handle Kafka messages"
+        description: "noti-service reported Kafka consume errors on topic {{ $labels.topic }} over the last 5m."
+
+    - alert: TradingNoMatchingActivity
+      expr: rate(trading_matching_cycle_duration_ms_count[10m]) == 0
+      for: 10m
+      labels:
+        severity: warning
+        team: trading
+        component: trading-service
+      annotations:
+        summary: "Trading matcher is not cycling"
+        description: "No matching cycles recorded in 10m — the MatcherWorker loop may be stalled."

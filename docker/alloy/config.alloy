@@ -1,0 +1,69 @@
+// Grafana Alloy — ships Docker container logs to Loki.
+//
+// Reads logs over the Docker socket API (not host log-file paths): OrbStack keeps
+// /var/lib/docker/containers inside its Linux VM, so bind-mounting the path from
+// macOS is unreliable — the socket API works regardless of host.
+//
+// Label strategy keeps cardinality low: `service`, `container`, `project` only.
+// High-cardinality fields (user_id, request_id, trace_id) stay in the log line and
+// are parsed at query time (`| json`), never promoted to stream labels.
+
+logging {
+  level  = "warn"
+  format = "logfmt"
+}
+
+// Discover running containers via the Docker socket.
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+// Map Docker metadata → Loki labels. Keep only low-cardinality labels.
+discovery.relabel "containers" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    target_label  = "project"
+  }
+  // Drop containers not part of a compose project (keeps noise out).
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    regex         = ""
+    action        = "drop"
+  }
+}
+
+loki.source.docker "containers" {
+  host          = "unix:///var/run/docker.sock"
+  targets       = discovery.relabel.containers.output
+  relabel_rules = discovery.relabel.containers.rules
+  forward_to    = [loki.process.enrich.receiver]
+}
+
+// Extract `level` from JSON logs into structured metadata (cheap severity filter)
+// without making it a stream label. Non-JSON lines pass through untouched.
+loki.process "enrich" {
+  stage.json {
+    expressions = { level = "level" }
+  }
+  stage.structured_metadata {
+    values = { level = "" }
+  }
+  forward_to = [loki.write.default.receiver]
+}
+
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
