@@ -1,7 +1,11 @@
 # Single-binary Grafana Tempo for the GridTokenX observability stack.
-# OTLP ingest (gRPC 4317 / HTTP 4318), local filesystem storage, and a
-# metrics-generator that remote-writes service-graph + span metrics to Prometheus
-# (the Grafana Tempo datasource's serviceMap panel reads those back).
+# OTLP ingest (gRPC 4317 / HTTP 4318), local filesystem storage.
+#
+# The metrics_generator (service-graphs + span-metrics) is intentionally DISABLED:
+# under the platform's sustained span volume (the continuous mint path) it held
+# too many active series and drove Tempo into an OOM/deadline restart loop even at
+# 1GiB. Raw traces + TraceQL search are unaffected; only the auto service-graph
+# panel is lost. Re-enable with client-side sampling and a higher memory budget.
 server:
   http_listen_port: 3200
   grpc_listen_port: 9095
@@ -17,23 +21,15 @@ distributor:
           endpoint: 0.0.0.0:4318
 
 ingester:
-  max_block_duration: 5m
+  # Flush cut blocks to disk quickly so the ingester holds far fewer traces in
+  # memory — the platform's sustained span volume otherwise pins Tempo at its
+  # memory limit.
+  max_block_duration: 1m
+  complete_block_timeout: 1m
 
 compactor:
   compaction:
-    block_retention: 336h # 14 days
-
-metrics_generator:
-  registry:
-    external_labels:
-      source: tempo
-  storage:
-    path: /var/tempo/generator/wal
-    remote_write:
-      - url: http://prometheus:9090/api/v1/write
-        send_exemplars: true
-  traces_storage:
-    path: /var/tempo/generator/traces
+    block_retention: 48h # dev tracing window; long enough to debug, small footprint
 
 storage:
   trace:
@@ -42,13 +38,6 @@ storage:
       path: /var/tempo/wal
     local:
       path: /var/tempo/blocks
-
-overrides:
-  defaults:
-    metrics_generator:
-      processors:
-        - service-graphs
-        - span-metrics
 
 usage_report:
   reporting_enabled: false

@@ -1440,9 +1440,11 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
+          # 512M starved the metrics_generator under sustained span volume (the
+          # continuous mint path), causing a generator deadline -> restart loop.
+          memory: 1024M
         reservations:
-          memory: 128M
+          memory: 256M
 
   # HashiCorp Vault (Security Plane)
   vault:
