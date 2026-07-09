@@ -155,6 +155,57 @@ pub fn init(service_name: &str) -> TelemetryGuard {
     TelemetryGuard { provider }
 }
 
+/// Inject the current span's W3C trace context (`traceparent`/`tracestate`) into a
+/// carrier via `set(key, value)`.
+///
+/// Lets callers propagate trace context across a message bus without depending on
+/// `opentelemetry` themselves — e.g. writing into an `async_nats::HeaderMap`:
+/// `inject_trace_context(|k, v| headers.insert(k, v.as_str()))`. A no-op when
+/// tracing is disabled (the global propagator is then the noop propagator).
+pub fn inject_trace_context<F: FnMut(&str, String)>(set: F) {
+    use opentelemetry::propagation::Injector;
+    use tracing_opentelemetry::OpenTelemetrySpanExt;
+
+    struct ClosureInjector<F>(F);
+    impl<F: FnMut(&str, String)> Injector for ClosureInjector<F> {
+        fn set(&mut self, key: &str, value: String) {
+            (self.0)(key, value);
+        }
+    }
+
+    let cx = tracing::Span::current().context();
+    let mut injector = ClosureInjector(set);
+    opentelemetry::global::get_text_map_propagator(|prop| prop.inject_context(&cx, &mut injector));
+}
+
+/// Set `span`'s parent from W3C trace headers collected off a message bus.
+///
+/// The caller pulls the `traceparent`/`tracestate` headers into a map (out of an
+/// `async_nats` message, Kafka record, etc.) and passes them here; the extracted
+/// remote context becomes `span`'s parent, stitching the consumer span onto the
+/// producer's trace. A no-op when the headers carry no context.
+pub fn set_parent_from_headers(
+    span: &tracing::Span,
+    headers: &std::collections::HashMap<String, String>,
+) {
+    use opentelemetry::propagation::Extractor;
+    use tracing_opentelemetry::OpenTelemetrySpanExt;
+
+    struct MapExtractor<'a>(&'a std::collections::HashMap<String, String>);
+    impl Extractor for MapExtractor<'_> {
+        fn get(&self, key: &str) -> Option<&str> {
+            self.0.get(key).map(String::as_str)
+        }
+        fn keys(&self) -> Vec<&str> {
+            self.0.keys().map(String::as_str).collect()
+        }
+    }
+
+    let parent =
+        opentelemetry::global::get_text_map_propagator(|prop| prop.extract(&MapExtractor(headers)));
+    span.set_parent(parent);
+}
+
 /// Backward-compatible alias for [`init`], matching the old per-service name.
 pub fn init_telemetry(service_name: &str) -> TelemetryGuard {
     init(service_name)
