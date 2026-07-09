@@ -40,11 +40,13 @@ impl TelemetryGuard {
 
 impl Drop for TelemetryGuard {
     fn drop(&mut self) {
-        // Best-effort flush if the caller dropped the guard without calling
-        // shutdown() — graceful process exit still delivers the tail of spans.
+        // Best-effort flush only — never shut the provider down here. Many call
+        // sites discard the guard (`init_telemetry(...)` as a bare statement);
+        // the tracer provider is kept alive by the global registry regardless, so
+        // a discarded guard must NOT tear tracing down. Shutdown is explicit, via
+        // `shutdown()`, for callers that hold the guard to process end.
         if let Some(provider) = &self.provider {
             let _ = provider.force_flush();
-            let _ = provider.shutdown();
         }
     }
 }
