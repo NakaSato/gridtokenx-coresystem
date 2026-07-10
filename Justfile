@@ -80,6 +80,18 @@ gen-certs:
     chmod +x scripts/gen-certs.sh
     bash scripts/gen-certs.sh
 
+# Pin keypairs -> build -> deploy (auto-resolve upgrade authority) -> sync all .env
+deploy-programs *args:
+    bash scripts/deploy-programs.sh {{args}}
+
+# Propagate canonical localnet program IDs (Anchor.toml) + mints/PDA into every .env
+sync-env:
+    bash scripts/sync-env-program-ids.sh
+
+# Preview env program-ID drift without writing (dry-run)
+sync-env-check:
+    bash scripts/sync-env-program-ids.sh --dry-run
+
 # Lint docs harness: broken relative links + stale path:line citations
 lint-docs:
     python3 scripts/lint-docs.py
