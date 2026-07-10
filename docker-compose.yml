@@ -395,6 +395,10 @@ services:
       NTP_SERVERS: ${NTP_SERVERS:-time.cloudflare.com:123,time.google.com:123}
       # mTLS by default; run `just gen-certs` first. Set CHAIN_BRIDGE_INSECURE=true in .env to bypass.
       CHAIN_BRIDGE_INSECURE: "${CHAIN_BRIDGE_INSECURE:-false}"
+      # Distinct Vault/keypair name for the mandatory REC-validator co-signature on
+      # generation mints (energy-token two-party control: rec_key != authority, Custom
+      # 6012). Its derived pubkey must be registered on-chain via add_rec_validator.
+      CHAIN_BRIDGE_REC_VALIDATOR_KEY_NAME: "${CHAIN_BRIDGE_REC_VALIDATOR_KEY_NAME:-gridtokenx-rec-validator}"
       CHAIN_BRIDGE_TLS_CERT: /app/infra/certs/server.crt
       CHAIN_BRIDGE_TLS_KEY: /app/infra/certs/server.key
       CHAIN_BRIDGE_TLS_CA: /app/infra/certs/ca.crt
@@ -1195,6 +1199,9 @@ services:
     deploy:
       resources:
         limits:
+          # cpus cap: prometheus scrape/eval grabbed unbounded CPU under load,
+          # starving app services (chain-bridge NATS consumer aged mints -> DLQ).
+          cpus: "1.0"
           memory: 768M
         reservations:
           memory: 256M
@@ -1306,6 +1313,9 @@ services:
     deploy:
       resources:
         limits:
+          # cpus cap: cadvisor at 80% just to monitor (privileged) is pure
+          # overhead; bound it so it never competes with app services.
+          cpus: "0.5"
           memory: 256M
 
   # Grafana - Visualization
@@ -1347,6 +1357,8 @@ services:
     deploy:
       resources:
         limits:
+          # cpus cap: grafana dashboard eval spiked to 120%; bound it in dev.
+          cpus: "0.75"
           memory: 512M
         reservations:
           memory: 128M
@@ -1381,6 +1393,8 @@ services:
     deploy:
       resources:
         limits:
+          # cpus cap: loki ingestion at 115%; bound so it never starves app services.
+          cpus: "0.75"
           memory: 512M
         reservations:
           memory: 128M
@@ -1405,6 +1419,8 @@ services:
     deploy:
       resources:
         limits:
+          # cpus cap: alloy log shipping; bound in dev.
+          cpus: "0.5"
           memory: 256M
         reservations:
           memory: 64M
@@ -1440,6 +1456,9 @@ services:
     deploy:
       resources:
         limits:
+          # cpus cap: tempo (incl. metrics_generator) spiked to 136% under span
+          # volume; bound so trace ingest never starves the mint path it traces.
+          cpus: "1.0"
           # 512M starved the metrics_generator under sustained span volume (the
           # continuous mint path), causing a generator deadline -> restart loop.
           memory: 1024M
