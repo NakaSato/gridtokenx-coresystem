@@ -94,6 +94,19 @@
       "targets": [
         { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "sum(rate(aggregator_mint_total[5m]))", "legendFormat": "aggregator mints/s" }
       ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Aggregator mint outcomes (by outcome/reason, 5m rate)",
+      "description": "Breaks down every aggregator mint decision. queued=surplus sent to chain.tx.mint; no_surplus=window under threshold; failed(mint_err)=submit rejected; skipped(no_wallet|resolve_err)=owner/wallet unresolved; skipped(in_flight)=dedup guard. A rising skipped/failed line pinpoints a stall (e.g. REC-validator drift, missing owner wallet) that the bare mint total hides.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 23 },
+      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "drawStyle": "bars", "fillOpacity": 60, "stacking": { "mode": "normal" } }, "color": { "mode": "palette-classic" } }, "overrides": [ { "matcher": { "id": "byRegexp", "options": ".*failed.*" }, "properties": [ { "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } } ] }, { "matcher": { "id": "byRegexp", "options": "no_surplus.*" }, "properties": [ { "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } } ] } ] },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull", "max"] }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "sum by (outcome, reason) (rate(aggregator_mint_total[5m]))", "legendFormat": "{{outcome}}/{{reason}}" }
+      ]
     }
   ]
 }
