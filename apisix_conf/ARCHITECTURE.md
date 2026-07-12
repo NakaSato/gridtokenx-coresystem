@@ -83,7 +83,7 @@ natively on the host during dev (see §6).
 | 2, 20, 21, 22 | Trading REST | `/api/v1/{orders,quotes,zones,stats,futures,analytics,trades,settlement,carbon,...}`; `/api/v1/me/{orders,trades,...}` carve-out (priority 20) | `trading-service:8093` / host `8093` |
 | 3, 30, 31 | Notifications | `/api/v1/notifications/*`, `/ws`, `me/notifications→notifications` (priority 20/21) | `noti-service:8080` / host `5050` |
 | 4, 5, 9, 40, 41, 42 | Smartmeter Simulator | `/api/v1/public/grid-*`, `/public/meters`, `/api/market/ws` (WS→`/ws`), `/simulation`, microgrid | `smartmeter-simulator:8082` / host `12010` |
-| 8 | Health & metrics (**PRIVATE**) | `/health`, `/metrics` — `ip-restriction` to internal CIDRs only | `iam-service:8080` / host `4010` |
+| 8 | Health, metrics & API-docs (**PRIVATE**) | `/health`, `/metrics`, `/api-docs/openapi.json`, `/scalar` — `ip-restriction` to internal CIDRs only | `iam-service:8080` / host `4010` |
 | 100 | IAM gRPC (ConnectRPC) | `/identity.IdentityService/*` | `iam-service:8090` / host `5010` |
 | 101 | Trading gRPC (ConnectRPC) | `/trading.TradingService/*` | `trading-service:8092` / host `8092` |
 

@@ -114,7 +114,6 @@ routes:
       type: roundrobin
       nodes:
         "trading-service:8093": 1
-        "host.docker.internal:8093": 1
 
   - id: 20 # Trading REST - User Private Routes Rewrite
     # Carve-out of the /api/v1/me/* namespace owned by Trading. priority 20 so
@@ -138,7 +137,6 @@ routes:
       type: roundrobin
       nodes:
         "trading-service:8093": 1
-        "host.docker.internal:8093": 1
 
   - id: 21 # Trading REST - Market Stats Route Rewrite
     uris:
@@ -151,7 +149,6 @@ routes:
       type: roundrobin
       nodes:
         "trading-service:8093": 1
-        "host.docker.internal:8093": 1
 
   - id: 22 # Trading REST - Market Zones Book Rewrite
     uris:
@@ -164,7 +161,6 @@ routes:
       type: roundrobin
       nodes:
         "trading-service:8093": 1
-        "host.docker.internal:8093": 1
 
   - id: 3 # Notification Service (Direct REST)
     # noti-server nests REST under /api/v1/noti/* (bin/noti-server/src/startup.rs),
@@ -181,7 +177,6 @@ routes:
       type: roundrobin
       nodes:
         "noti-service:8080": 1
-        "host.docker.internal:5050": 1
 
   - id: 33 # Notification Service - WebSocket
     # Split out of route id 3: the shared plugin_config_id:1 (jwt-auth +
@@ -198,7 +193,6 @@ routes:
       type: roundrobin
       nodes:
         "noti-service:8080": 1
-        "host.docker.internal:5050": 1
 
   - id: 30 # Notification Service - Mark All Read Rewrite
     # priority 21 > route 31 (20) so the exact mark-all-read path wins over the
@@ -214,7 +208,6 @@ routes:
       type: roundrobin
       nodes:
         "noti-service:8080": 1
-        "host.docker.internal:5050": 1
 
   - id: 31 # Notification Service - User Notification Route Rewrite
     # priority 20 carve-out of /api/v1/me/* (IAM route 11 does not list
@@ -231,7 +224,6 @@ routes:
       type: roundrobin
       nodes:
         "noti-service:8080": 1
-        "host.docker.internal:5050": 1
 
   - id: 32 # Notification Service - Frontend /noti Alias (pass-through)
     # Upstream REST already lives at /api/v1/noti/* — pass through unchanged.
@@ -244,7 +236,6 @@ routes:
       type: roundrobin
       nodes:
         "noti-service:8080": 1
-        "host.docker.internal:5050": 1
 
   - id: 4 # Smart Meter Simulator - Grid (Public)
     uris:
@@ -287,13 +278,16 @@ routes:
         "smartmeter-simulator:8082": 1
         "host.docker.internal:12010": 1
 
-  - id: 8 # Health & Metrics — PRIVATE (ops only, no public internet)
+  - id: 8 # Health, Metrics & API-docs — PRIVATE (ops only, no public internet)
     # Ops/observability surface. Reachable only from private/cluster networks
     # (Docker bridge, RFC1918, loopback). Prometheus scrapes the container
     # directly on the private net; never exposed via the public :4001 gateway.
+    # OpenAPI spec + Scalar UI are static (no role header needed) — same gate.
     uris:
       - /health
       - /metrics
+      - /api-docs/openapi.json
+      - /scalar
     plugins:
       ip-restriction:
         whitelist:
@@ -325,6 +319,10 @@ routes:
           set:
             x-gridtokenx-role: "api-gateway"
             x-gridtokenx-gateway-secret: "gridtokenx-gateway-secret-2025"
+      # Browser fetches this from the trading/explorer frontends (cross-origin);
+      # ip-restriction still gates network access, cors only lets the browser
+      # JS read the response. Without it the fetch fails with "Failed to fetch".
+      cors: {}
     upstream:
       type: roundrobin
       nodes:
