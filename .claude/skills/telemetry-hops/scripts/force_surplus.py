@@ -29,6 +29,8 @@ import os
 import sys
 from datetime import datetime, timedelta, timezone
 
+import httpx
+
 sys.path.append(os.path.join(os.getcwd(), "src"))
 
 from smart_meter_simulator.config import get_config  # noqa: E402
@@ -42,6 +44,23 @@ from smart_meter_simulator.transport.aggregator_bridge import (  # noqa: E402
 
 WINDOW_MIN = 15  # must match the bridge's WINDOW_MINUTES
 GRACE_S = 120  # must match BILLING_FLUSH_GRACE_SECS default
+# Bound past the bridge's PUBKEY_CACHE_TTL_SECS (default 60): if a prior harness
+# seeded a *different* key for this meter, the bridge serves the stale positively
+# cached pubkey until it expires and re-reads Redis. Retry the signature-rejected
+# send across that window so the warmed reading lands instead of being dropped.
+WARMUP_S = 75
+
+
+def _is_sig_reject(exc: httpx.HTTPStatusError) -> bool:
+    """True when a 4xx is the bridge's Ed25519 signature rejection (retryable warmup).
+
+    Other 4xx (426 upgrade-required, malformed contract) are permanent — a retry
+    cannot fix them, so they must propagate fast rather than spin for WARMUP_S.
+    """
+    resp = exc.response
+    if resp.status_code not in (400, 401, 403):
+        return False
+    return "signature" in resp.text.lower()
 
 
 def _auto_mtls(bridge_url: str) -> dict:
@@ -137,13 +156,39 @@ async def main() -> int:
         **_auto_mtls(cfg.aggregator_bridge_url),
     )
     try:
-        send_kwargs = {"zone_code": args.zone}
-        if args.encrypt:
-            # Monotonic invocation counter (anti-replay): wall-clock ms strictly
-            # increases across runs, so re-forcing the same meter never replays.
-            send_kwargs["encrypt"] = True
-            send_kwargs["counter"] = int(datetime.now(timezone.utc).timestamp() * 1000)
-        resp = await client.send_reading(reading, key, **send_kwargs)
+        deadline = asyncio.get_event_loop().time() + WARMUP_S
+        attempt = 0
+        while True:
+            attempt += 1
+            send_kwargs = {"zone_code": args.zone}
+            if args.encrypt:
+                # Monotonic invocation counter (anti-replay): wall-clock ms strictly
+                # increases across runs (and each retry), so re-forcing the same
+                # meter never replays. Re-derived per attempt so retries stay valid.
+                send_kwargs["encrypt"] = True
+                send_kwargs["counter"] = int(
+                    datetime.now(timezone.utc).timestamp() * 1000
+                )
+            try:
+                resp = await client.send_reading(reading, key, **send_kwargs)
+                break
+            except httpx.HTTPStatusError as exc:
+                # Signature rejection during cache warmup: a prior harness may have
+                # left a stale pubkey positively cached in the bridge (<=60s TTL).
+                # Re-seed our key (idempotent) and retry until the cache expires and
+                # re-reads Redis. Same timestamp/window ⇒ same mint idempotency key,
+                # so retries never double-mint. Permanent 4xx propagates immediately.
+                if not _is_sig_reject(exc) or asyncio.get_event_loop().time() >= deadline:
+                    raise
+                register_pubkeys_redis(cfg.redis_url, [key])
+                if args.encrypt:
+                    register_enckeys_redis(cfg.redis_url, [key])
+                print(
+                    f"warmup: signature rejected (attempt {attempt}), re-seeded key; "
+                    f"retrying past bridge pubkey-cache TTL…",
+                    file=sys.stderr,
+                )
+                await asyncio.sleep(5)
     finally:
         await client.close()
 

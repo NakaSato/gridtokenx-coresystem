@@ -218,3 +218,9 @@ bench-ingest-results.csv
 *.docx
 # Added by code-review-graph
 .code-review-graph/
+
+# Session/runtime state (transient, not source)
+.claude/scheduled_tasks.lock
+.claude/skills/telemetry-hops/scripts/.scale-state/
+# Onboarding output — contains plaintext credentials, never commit
+scripts/registered_users_meters.txt
