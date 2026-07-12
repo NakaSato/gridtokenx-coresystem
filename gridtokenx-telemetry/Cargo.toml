@@ -10,6 +10,14 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"] }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 
+# JSON log formatting with top-level trace_id/span_id (Loki→Tempo correlation).
+# The stock Format<Json> FormatEvent uses private types and can't be subclassed,
+# so JsonTraceFormat reproduces it via these public crates. Versions pinned to
+# what tracing-subscriber 0.3.23 already resolves (serde_json 1, tracing-serde 0.2).
+serde = "1"
+serde_json = "1"
+tracing-serde = "0.2"
+
 # OpenTelemetry OTLP span export (Phase 3 tracing). Activated only when
 # OTEL_EXPORTER_OTLP_ENDPOINT is set; otherwise these are inert and init() stays
 # logging-only. Pinned trio: opentelemetry 0.30 ↔ tracing-opentelemetry 0.31.

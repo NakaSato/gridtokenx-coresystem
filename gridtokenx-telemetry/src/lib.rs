@@ -12,7 +12,10 @@ use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::trace::SdkTracerProvider;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
+mod json_format;
 pub mod time;
+
+use json_format::JsonTraceFormat;
 
 /// Guard for telemetry lifecycle.
 ///
@@ -130,13 +133,17 @@ pub fn init(service_name: &str) -> TelemetryGuard {
             .try_init()
             .map_err(|e| e.to_string())
     } else {
+        // Custom JSON formatter: stock `fmt().json().with_target(true)
+        // .with_thread_ids(true).flatten_event(true)` output, plus top-level
+        // `trace_id`/`span_id` for Loki→Tempo correlation. `JsonFields` stores
+        // per-span fields as JSON fragments the formatter re-parses to rebuild
+        // the `span`/`spans` objects. When OTel is disabled the trace fields are
+        // simply omitted, leaving the line identical to the stock formatter.
         registry
             .with(
                 tracing_subscriber::fmt::layer()
-                    .json()
-                    .with_target(true)
-                    .with_thread_ids(true)
-                    .flatten_event(true),
+                    .event_format(JsonTraceFormat)
+                    .fmt_fields(tracing_subscriber::fmt::format::JsonFields::new()),
             )
             .try_init()
             .map_err(|e| e.to_string())
