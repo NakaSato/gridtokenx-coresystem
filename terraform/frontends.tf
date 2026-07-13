@@ -7,6 +7,12 @@ resource "docker_container" "trading_ui" {
   restart = "unless-stopped"
   security_opts = ["no-new-privileges:true"]
 
+  labels {
+    # Extra OrbStack domain alias (service `trading-ui`, intuitive URL `trading.*`).
+    label = "dev.orbstack.domains"
+    value = "trading.gridtokenx-coresystem.orb.local"
+  }
+
   env = [
     "NODE_ENV=${local.env["NODE_ENV"]}",
     "TZ=${local.tz}",

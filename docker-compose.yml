@@ -972,6 +972,10 @@ services:
     container_name: gridtokenx-trading
     security_opt:
       - no-new-privileges:true
+    labels:
+      # Extra OrbStack domain: service is `trading-ui` but the intuitive URL is
+      # trading.<project>.orb.local — serve both (502/NXDOMAIN reports otherwise).
+      dev.orbstack.domains: trading.gridtokenx-coresystem.orb.local
     ports:
       - "${TRADING_UI_PORT:-11001}:3000"
     environment:
