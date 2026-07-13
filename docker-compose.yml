@@ -3,6 +3,8 @@ services:
   postgres:
     image: postgres:17-alpine
     container_name: gridtokenx-postgres
+    security_opt:
+      - no-new-privileges:true
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -69,6 +71,8 @@ services:
   pgdog:
     image: ghcr.io/pgdogdev/pgdog:main
     container_name: gridtokenx-pgdog
+    security_opt:
+      - no-new-privileges:true
     command: ["pgdog", "--config", "/etc/pgdog/pgdog.toml", "--users", "/etc/pgdog/users.toml"]
     volumes:
       - ./docker/pgdog/pgdog.toml:/etc/pgdog/pgdog.toml:ro
@@ -97,6 +101,8 @@ services:
   redis:
     image: redis:7-alpine
     container_name: gridtokenx-redis
+    security_opt:
+      - no-new-privileges:true
     # AOF (appendonly) makes every write durable, not just periodic RDB
     # snapshots — device pubkeys (gridtokenx:devices:*:pubkey) survive a hard
     # restart instead of vanishing and 403-ing all signed telemetry until
@@ -132,6 +138,8 @@ services:
   kafka-cmd:
     image: apache/kafka:3.7.0
     container_name: gridtokenx-kafka-cmd
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "${KAFKA_CMD_PORT:-9001}:9001"
       - "29001:29001"
@@ -178,6 +186,8 @@ services:
   kafka-market:
     image: apache/kafka:3.7.0
     container_name: gridtokenx-kafka-market
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "${KAFKA_MARKET_PORT:-9002}:9002"
       - "29002:29002"
@@ -224,6 +234,8 @@ services:
   kafka-audit:
     image: apache/kafka:3.7.0
     container_name: gridtokenx-kafka-audit
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "${KAFKA_AUDIT_PORT:-9003}:9003"
       - "29003:29003"
@@ -269,6 +281,8 @@ services:
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
     container_name: gridtokenx-rabbitmq
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "${RABBITMQ_PORT:-9030}:5672" # AMQP Protocol
       - "${RABBITMQ_MGMT_PORT:-9031}:15672" # Management UI
@@ -314,6 +328,8 @@ services:
   nats:
     image: nats:2.10-alpine
     container_name: gridtokenx-nats
+    security_opt:
+      - no-new-privileges:true
     command:
       - "--jetstream"
       - "--store_dir=/data"
@@ -343,6 +359,8 @@ services:
   apisix:
     image: apache/apisix:3.15.0-debian
     container_name: gridtokenx-apisix
+    security_opt:
+      - no-new-privileges:true
     environment:
       APISIX_STAND_ALONE: "true"
     ports:
@@ -356,9 +374,11 @@ services:
       - gridtokenx-network
       - user-tier
     depends_on:
-      - postgres
-      - redis
-    restart: always
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
     deploy:
       resources:
         limits:
@@ -376,6 +396,8 @@ services:
       context: ./
       dockerfile: gridtokenx-chain-bridge/Dockerfile
     container_name: gridtokenx-chain-bridge
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "${CHAIN_BRIDGE_GRPC_PORT:-5040}:5040"
       - "${CHAIN_BRIDGE_METRICS_PORT:-9464}:9464"
@@ -444,6 +466,8 @@ services:
       context: ./
       dockerfile: gridtokenx-iam-service/Dockerfile
     container_name: gridtokenx-iam-service
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "${IAM_HTTP_PORT:-4010}:8080"
       - "${IAM_GRPC_PORT:-5010}:8090"
@@ -555,6 +579,8 @@ services:
       context: ./gridtokenx-meter-service
       dockerfile: Dockerfile
     container_name: gridtokenx-meter-service
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "${METER_SERVICE_PORT:-4062}:8080"
     environment:
@@ -587,6 +613,8 @@ services:
       context: ./
       dockerfile: gridtokenx-trading-service/Dockerfile
     container_name: gridtokenx-trading-service
+    security_opt:
+      - no-new-privileges:true
     labels:
       # OrbStack's https://trading-service.gridtokenx-coresystem.orb.local domain
       # must hit the REST API (8093), not the ConnectRPC/gRPC port it auto-picks.
@@ -698,6 +726,8 @@ services:
       context: ./
       dockerfile: gridtokenx-aggregator-bridge/Dockerfile
     container_name: gridtokenx-aggregator-bridge
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "${IOT_GATEWAY_PORT:-4030}:4010" # REST API
       - "${GRPC_PORT:-50051}:50051" # gRPC ingestion (smart meter simulator)
@@ -840,6 +870,8 @@ services:
   aggregator-influxdb:
     image: influxdb:2.7
     container_name: gridtokenx-aggregator-influxdb
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "${AGGREGATOR_INFLUXDB_PORT:-8087}:8086"
     environment:
@@ -873,6 +905,8 @@ services:
       context: ./
       dockerfile: gridtokenx-noti-service/Dockerfile
     container_name: gridtokenx-noti-service
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "${NOTI_HTTP_PORT:-4060}:8080"
       - "${NOTI_GRPC_PORT:-5060}:8090"
@@ -936,6 +970,8 @@ services:
       args:
         - NEXT_PUBLIC_MAPBOX_TOKEN=${NEXT_PUBLIC_MAPBOX_TOKEN:-pk.eyJ1IjoiMjQxMDcxNzMwMjAwMyIsImEiOiJjbW54ZXJrNTMwMXJ0MnFzYmNhdTdsMHpwIn0.UI7eEeQCjjUDpv0ZWfUk4w}
     container_name: gridtokenx-trading
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "${TRADING_UI_PORT:-11001}:3000"
     environment:
@@ -952,7 +988,7 @@ services:
       iam-service:
         condition: service_healthy
       trading-service:
-        condition: service_started
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "bun", "-e", "fetch('http://localhost:3000').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"]
       interval: 30s
@@ -976,6 +1012,8 @@ services:
         NEXT_PUBLIC_SOLANA_RPC_HTTP: ${NEXT_PUBLIC_SOLANA_RPC_URL:-https://api.devnet.solana.com}
         NEXT_PUBLIC_DEFAULT_CLUSTER: ${SOLANA_CLUSTER:-devnet}
     container_name: gridtokenx-explorer
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "${EXPLORER_PORT:-11002}:4000"
     environment:
@@ -1012,8 +1050,10 @@ services:
 
   # Mailpit SMTP Server (Development Email Testing)
   mailpit:
-    image: axllent/mailpit:latest
+    image: axllent/mailpit:v1.30.2
     container_name: gridtokenx-mailpit
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "${MAILPIT_SMTP_PORT:-1025}:1025" # SMTP server
       - "${MAILPIT_WEB_PORT:-13060}:8025" # Web UI
@@ -1051,6 +1091,8 @@ services:
       context: ./gridtokenx-smartmeter-simulator
       dockerfile: Dockerfile
     container_name: gridtokenx-smartmeter-simulator
+    security_opt:
+      - no-new-privileges:true
     environment:
       TZ: ${TZ}
       PORT: 8082
@@ -1109,7 +1151,7 @@ services:
       postgres:
         condition: service_healthy
       aggregator-bridge:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - ./gridtokenx-smartmeter-simulator/data:/app/data
       - ./gridtokenx-smartmeter-simulator/backend/src/smart_meter_simulator:/app/src/smart_meter_simulator:rw
@@ -1144,6 +1186,8 @@ services:
       args:
         SIMULATOR_URL: http://smartmeter-simulator:8082
     container_name: gridtokenx-smartmeter-ui
+    security_opt:
+      - no-new-privileges:true
     environment:
       - NEXT_PUBLIC_SIMULATOR_URL=http://apisix.gridtokenx-coresystem.orb.local
       # Server-side rewrite target (next.config rewrites /api -> backend).
@@ -1151,7 +1195,8 @@ services:
     ports:
       - "${SMARTMETER_UI_PORT:-12011}:3000" # Next.js dashboard
     depends_on:
-      - smartmeter-simulator
+      smartmeter-simulator:
+        condition: service_healthy
     networks:
       - gridtokenx-network
     restart: unless-stopped
@@ -1175,6 +1220,8 @@ services:
   prometheus:
     image: prom/prometheus:v2.50.1
     container_name: gridtokenx-prometheus
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "${PROMETHEUS_PORT:-6001}:9090"
     volumes:
@@ -1223,8 +1270,10 @@ services:
 
   # PostgreSQL Exporter
   postgres-exporter:
-    image: prometheuscommunity/postgres-exporter:latest
+    image: prometheuscommunity/postgres-exporter:v0.19.1
     container_name: gridtokenx-postgres-exporter
+    security_opt:
+      - no-new-privileges:true
     environment:
       DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pgdog:6432/${POSTGRES_DB}?sslmode=disable"
     ports:
@@ -1242,8 +1291,10 @@ services:
 
   # Redis Exporter
   redis-exporter:
-    image: oliver006/redis_exporter:latest
+    image: oliver006/redis_exporter:v1.86.0
     container_name: gridtokenx-redis-exporter
+    security_opt:
+      - no-new-privileges:true
     environment:
       REDIS_ADDR: "redis://redis:6379"
     ports:
@@ -1261,8 +1312,10 @@ services:
 
   # Kafka Exporter
   kafka-exporter:
-    image: danielqsj/kafka-exporter:latest
+    image: danielqsj/kafka-exporter:v1.9.0
     container_name: gridtokenx-kafka-exporter
+    security_opt:
+      - no-new-privileges:true
     command:
       [
         "--kafka.server=kafka-cmd:9001",
@@ -1288,8 +1341,10 @@ services:
 
   # Node Exporter (Host Metrics)
   node-exporter:
-    image: prom/node-exporter:latest
+    image: prom/node-exporter:v1.11.1
     container_name: gridtokenx-node-exporter
+    security_opt:
+      - no-new-privileges:true
     command:
       - "--path.rootfs=/host"
       - "--path.procfs=/host/proc"
@@ -1311,8 +1366,10 @@ services:
 
   # cAdvisor (Container Metrics)
   cadvisor:
-    image: gcr.io/cadvisor/cadvisor:latest
+    image: gcr.io/cadvisor/cadvisor:v0.55.1
     container_name: gridtokenx-cadvisor
+    # no-new-privileges intentionally omitted: cadvisor runs privileged (below)
+    # to read host cgroups/devices; the two options are contradictory.
     ports:
       - "${CADVISOR_PORT:-6010}:8080"
     volumes:
@@ -1337,6 +1394,8 @@ services:
   grafana:
     image: grafana/grafana:11.5.0
     container_name: gridtokenx-grafana
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "${GRAFANA_PORT:-6002}:3000" # Grafana HTTP
     environment:
@@ -1382,6 +1441,8 @@ services:
   loki:
     image: grafana/loki:3.4.2
     container_name: gridtokenx-loki
+    security_opt:
+      - no-new-privileges:true
     command: ["-config.file=/etc/loki/loki.yml"]
     ports:
       - "${LOKI_PORT:-6003}:3100"
@@ -1418,6 +1479,8 @@ services:
   alloy:
     image: grafana/alloy:v1.9.1
     container_name: gridtokenx-alloy
+    security_opt:
+      - no-new-privileges:true
     command:
       - "run"
       - "--server.http.listen-addr=0.0.0.0:12345"
@@ -1445,6 +1508,8 @@ services:
   tempo:
     image: grafana/tempo:2.7.2
     container_name: gridtokenx-tempo
+    security_opt:
+      - no-new-privileges:true
     command: ["-config.file=/etc/tempo/tempo.yml"]
     ports:
       - "${TEMPO_HTTP_PORT:-6004}:3200" # Tempo query API
@@ -1484,6 +1549,9 @@ services:
   vault:
     image: hashicorp/vault:1.15
     container_name: gridtokenx-vault
+    # no-new-privileges intentionally omitted: the vault binary carries the
+    # cap_ipc_lock file capability (mlock); no_new_privs blocks file-cap grants
+    # on exec and would break startup.
     ports:
       - "${VAULT_PORT:-13001}:8200"
     environment:
@@ -1514,6 +1582,8 @@ services:
       context: https://github.com/OpenLEADR/openleadr-rs.git#v0.2.3
       dockerfile: vtn.Dockerfile
     container_name: gridtokenx-openleadr-vtn
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "${OPENLEADR_VTN_PORT:-4031}:3000"
     environment:
@@ -1537,6 +1607,8 @@ services:
   openleadr-vtn-db:
     image: postgres:17-alpine
     container_name: gridtokenx-openleadr-vtn-db
+    security_opt:
+      - no-new-privileges:true
     environment:
       POSTGRES_USER: openadr
       POSTGRES_DB: openadr
@@ -1566,6 +1638,8 @@ services:
   openleadr-vtn-seed:
     image: postgres:17-alpine
     container_name: gridtokenx-openleadr-vtn-seed
+    security_opt:
+      - no-new-privileges:true
     environment:
       PGPASSWORD: ${OPENLEADR_PG_PASSWORD:-openadr}
     volumes:
