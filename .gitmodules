@@ -31,3 +31,6 @@
 [submodule "gridtokenx-meter-service"]
 	path = gridtokenx-meter-service
 	url = https://github.com/NakaSato/gridtokenx-meter-service.git
+[submodule "gridtokenx-telemetry"]
+	path = gridtokenx-telemetry
+	url = https://github.com/NakaSato/gridtokenx-telemetry.git
