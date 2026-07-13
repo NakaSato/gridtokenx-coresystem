@@ -1580,10 +1580,10 @@ services:
   # OpenADR 3 VTN (openleadr-rs) — local demand-response test target for the
   # Aggregator Bridge's "openleadr" dispatch adapter (OPENLEADR_VTN_URL).
   # Built from the upstream tag matching the openleadr-client/-wire crate
-  # versions pinned in gridtokenx-aggregator-bridge (0.2.3).
+  # versions pinned in gridtokenx-aggregator-bridge (0.2.4).
   openleadr-vtn:
     build:
-      context: https://github.com/OpenLEADR/openleadr-rs.git#v0.2.3
+      context: https://github.com/OpenLEADR/openleadr-rs.git#v0.2.4
       dockerfile: vtn.Dockerfile
     container_name: gridtokenx-openleadr-vtn
     security_opt:

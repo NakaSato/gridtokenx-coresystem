@@ -22,7 +22,7 @@ This is a phased program, not a single change. Phases 1–6 below are independen
 ## 2. Where we are today (baseline, cited)
 
 The bridge already runs a **working but minimal OpenADR 3.1 slice**, both roles, client-side
-against an *external* VTN (upstream `openleadr-rs` v0.2.3):
+against an *external* VTN (upstream `openleadr-rs` v0.2.4):
 
 **VTN-facing dispatcher** (`gridtokenx-aggregator-bridge/crates/aggregator-logic/src/standards/openleadr.rs`):
 - Single program (by id or name-resolve-or-create), `resolve_program` cached

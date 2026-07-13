@@ -212,7 +212,7 @@ GridTokenX speaks a deliberately layered protocol stack: standard meter/IoT prot
 
 | Protocol | Implementation | Role |
 | :--- | :--- | :--- |
-| **OpenADR 3 / OpenLEADR** | `openleadr-rs` v0.2.3 | Preferred VTN↔VEN dispatch — flex events, VEN registration, execution reports |
+| **OpenADR 3 / OpenLEADR** | `openleadr-rs` v0.2.4 | Preferred VTN↔VEN dispatch — flex events, VEN registration, execution reports |
 | **IEEE 2030.5 (SEP2)** | adapter | Alternate demand-response standard alongside OpenADR |
 | **OAuth 2.0 (client credentials)** | — | VTN client auth (`OPENLEADR_CLIENT_ID`/`SECRET`); frontend auth via Supabase |
 
@@ -326,7 +326,7 @@ Autonomous, fleet-driven demand response with no external SCADA feed — the met
 
 -   **Fleet-as-sensor frequency monitoring** — each meter reading carries instantaneous grid frequency; a rolling-window `FrequencyMonitor` folds samples into a mean (implausible <40Hz / >70Hz dropped)
 -   **Grid-status publishing** — periodic task turns the mean into `GridStatusEvent`s on Kafka (`gridtokenx.aggregator.grid_status`), the dispatch engine's trigger
--   **VTN dispatch (OpenADR 3 / OpenLEADR)** — dispatch engine emits flex events on a VTN; `openleadr` adapter (openleadr-rs v0.2.3) preferred over the IEEE 2030.5 adapter; requires ≥1 completed aggregation bin
+-   **VTN dispatch (OpenADR 3 / OpenLEADR)** — dispatch engine emits flex events on a VTN; `openleadr` adapter (openleadr-rs v0.2.4) preferred over the IEEE 2030.5 adapter; requires ≥1 completed aggregation bin
 -   **VEN listener + execution** — polling listener consumes `DISPATCH_SETPOINT` events from a utility VTN and executes them (positive setpoint → FLEX_UP, negative → FLEX_DOWN); multi-interval events executed per-window, deduped by id + modificationDateTime, retried on failure
 -   **VEN self-registration** — listener registers a VEN object on the VTN at startup (best-effort)
 -   **Execution reports** — VEN posts dispatch execution reports back to the VTN, closing the loop
