@@ -158,7 +158,7 @@ resource "docker_container" "iam_service" {
       API_KEY_SECRET           = local.env["API_KEY_SECRET"]
       ENVIRONMENT              = "development"
       IAM_VERIFY_AIRDROP_SOL   = coalesce(lookup(local.env, "IAM_VERIFY_AIRDROP_SOL", ""), "10")
-      IAM_REGISTER_LIMIT       = coalesce(lookup(local.env, "IAM_REGISTER_LIMIT", ""), "10000,3600")
+      IAM_REGISTER_LIMIT       = coalesce(lookup(local.env, "IAM_REGISTER_LIMIT", ""), "20,60")
       IAM_LOGIN_LIMIT          = coalesce(lookup(local.env, "IAM_LOGIN_LIMIT", ""), "10000,60")
       IAM_VERIFY_LIMIT         = coalesce(lookup(local.env, "IAM_VERIFY_LIMIT", ""), "10000,60")
       NTP_SERVERS              = local.ntp_servers

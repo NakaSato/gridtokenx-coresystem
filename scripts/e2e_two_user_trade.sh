@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# GridTokenX — minimal E2E: 2 users (1 prosumer seller + 1 consumer buyer)
-# register end-to-end, then trade with each other so the CDA matcher fills a
-# real cross and settlement is verified on-chain.
+# GridTokenX — full E2E: 2 users (1 prosumer seller + 1 consumer buyer)
+# register end-to-end, add a meter to each account, then trade with each
+# other so the CDA matcher fills a real cross and settlement is verified
+# on-chain.
 #
 # Flow (per user, HTTP API only — reuses register_users_meters_api.sh pattern):
 #   1. Register       POST /api/v1/auth/register
@@ -10,12 +11,19 @@
 #   3. Login          POST /api/v1/auth/login  -> JWT
 #   4. Read wallet    GET  /api/v1/me/wallets
 #   5. On-chain reg   POST /api/v1/me/registration  (user_type prosumer|consumer)
+#   6. Add meter      POST /api/v1/meters (meter-service, JWT) -> real meter id (UUID)
+#   6b. Wire telemetry serial = a REAL device id read from the smartmeter-simulator's
+#       own API (GET $SIM_REST_BASE/api/v1/meters — a has_solar=true meter for the
+#       prosumer, has_solar=false for the consumer), then re-point the Aggregator
+#       Bridge's Redis attribution (device pubkey + owner + wallet) at this run's
+#       user, so telemetry the simulator ALREADY emits for that meter attributes to
+#       our IAM user (mirrors scripts/register_users_meters.sh steps 6-7).
 #
 # Then the trade leg:
-#   6. Prosumer SELL  POST /api/v1/orders  (ask @ SELL_PRICE)
-#   7. Consumer BUY   POST /api/v1/orders  (bid @ BUY_PRICE >= SELL_PRICE -> crosses)
-#   8. Wait for the MatcherWorker (~1s cadence) to drain the crossed book
-#   9. Verify         GET /api/v1/markets/matching-status + /api/v1/trades
+#   7. Prosumer SELL  POST /api/v1/orders  (ask @ SELL_PRICE)
+#   8. Consumer BUY   POST /api/v1/orders  (bid @ BUY_PRICE >= SELL_PRICE -> crosses)
+#   9. Wait for the MatcherWorker (~1s cadence) to drain the crossed book
+#  10. Verify         GET /api/v1/markets/matching-status + /api/v1/trades
 #
 # Both orders land in the SAME zone so bid/ask meet. No manual match call.
 #
@@ -23,21 +31,39 @@
 #   ./scripts/e2e_two_user_trade.sh
 #
 # Env overrides:
-#   IAM_BASE       IAM/APISIX login base   (default http://localhost:4010)
-#   GW             trading gateway (https) (default https://apisix.gridtokenx-coresystem.orb.local)
-#   GATEWAY_SECRET api-gateway shared secret (default gridtokenx-gateway-secret-2025)
-#   DEFAULT_PASS   user password           (default TestPass123!)
-#   ZONE_ID        order zone              (default 1)
-#   SELL_PRICE     ask price per kWh       (default 4.00)
-#   BUY_PRICE      bid price per kWh       (default 4.50; must be >= SELL_PRICE)
-#   TRADE_KWH      energy amount per order (default 5)
-#   LAT_E7/LONG_E7 on-chain location       (default Bangkok)
-#   SETTLE_WAIT    seconds to wait for the matcher (default 8)
-#   SKIP_ONCHAIN=1 skip step 5 (custodial already auto-registered on verify)
+#   IAM_BASE        IAM/APISIX login base   (default http://localhost:4010)
+#   METER_BASE      meter-service base      (default http://localhost:4062)
+#   SIM_REST_BASE   sim's own REST API      (default http://localhost:8082)
+#   SIM_CONTAINER   sim container (Ed25519 signing derivation) (default gridtokenx-smartmeter-simulator)
+#   REDIS_CONTAINER redis container (bridge device registry)   (default gridtokenx-redis)
+#   KEY_SECRET      sim's per-meter Ed25519 seed secret (default gridtokenx-sim; must match
+#                   the sim's own MeterKey default — see transport/aggregator_bridge.py)
+#   SIM_CANDIDATE_POOL  how many real sim meter ids to try per side before falling back
+#                       to an invented serial (default 25; a sim meter is one-owner, so
+#                       ids a prior run already claimed 409 and are skipped)
+#   GW              trading gateway (https) (default https://apisix.gridtokenx-coresystem.orb.local)
+#   GATEWAY_SECRET  api-gateway shared secret (default gridtokenx-gateway-secret-2025)
+#   DEFAULT_PASS    user password           (default TestPass123!)
+#   ZONE_ID         order zone              (default 1)
+#   SELL_PRICE      ask price per kWh       (default 4.00)
+#   BUY_PRICE       bid price per kWh       (default 4.50; must be >= SELL_PRICE)
+#   TRADE_KWH       energy amount per order (default 5)
+#   LAT_E7/LONG_E7  on-chain location       (default Bangkok)
+#   SETTLE_WAIT     seconds to wait for the matcher (default 8)
+#   SKIP_ONCHAIN=1  skip step 5 (custodial already auto-registered on verify)
+#   SKIP_METER=1    skip step 6 (meter registration + telemetry wiring)
+#   WIRE_TELEMETRY=0  skip step 6b only — meter still registered, but with an
+#                     invented GRID-<stamp> serial instead of a real sim device id
 
 set -uo pipefail
 
 IAM_BASE="${IAM_BASE:-http://localhost:${IAM_HTTP_PORT:-4010}}"
+METER_BASE="${METER_BASE:-http://localhost:${METER_SERVICE_PORT:-4062}}"
+SIM_REST_BASE="${SIM_REST_BASE:-http://localhost:${SMARTMETER_PORT:-8082}}"
+SIM_CONTAINER="${SIM_CONTAINER:-gridtokenx-smartmeter-simulator}"
+REDIS_CONTAINER="${REDIS_CONTAINER:-gridtokenx-redis}"
+KEY_SECRET="${KEY_SECRET:-gridtokenx-sim}"
+WIRE_TELEMETRY="${WIRE_TELEMETRY:-1}"
 GW="${GW:-https://apisix.gridtokenx-coresystem.orb.local}"
 GW_SECRET="${GATEWAY_SECRET:-gridtokenx-gateway-secret-2025}"
 PASS="${DEFAULT_PASS:-TestPass123!}"
@@ -70,6 +96,13 @@ for bin in jq curl; do
     command -v "$bin" >/dev/null 2>&1 || { err "$bin required but not installed"; exit 1; }
 done
 curl -fsS -m 5 "$IAM_BASE/health" >/dev/null 2>&1 || { err "IAM not reachable at $IAM_BASE/health"; exit 1; }
+[ "${SKIP_METER:-0}" = "1" ] || curl -fsS -m 5 "$METER_BASE/health" >/dev/null 2>&1 || { err "meter-service not reachable at $METER_BASE/health (set METER_BASE / METER_SERVICE_PORT, or SKIP_METER=1)"; exit 1; }
+if [ "${SKIP_METER:-0}" != "1" ] && [ "$WIRE_TELEMETRY" = "1" ]; then
+    command -v docker >/dev/null 2>&1 || { err "docker required for telemetry wiring (or set WIRE_TELEMETRY=0)"; exit 1; }
+    curl -fsS -m 5 "$SIM_REST_BASE/api/v1/quality/health" >/dev/null 2>&1 || { err "sim REST not reachable at $SIM_REST_BASE (set SIM_REST_BASE / SMARTMETER_PORT, or WIRE_TELEMETRY=0)"; exit 1; }
+    docker exec "$SIM_CONTAINER" true >/dev/null 2>&1 || { err "sim container '$SIM_CONTAINER' not running (needed for Ed25519 signing derivation). Set SIM_CONTAINER or WIRE_TELEMETRY=0."; exit 1; }
+    docker exec "$REDIS_CONTAINER" redis-cli PING 2>/dev/null | grep -q PONG || { err "redis container '$REDIS_CONTAINER' not reachable. Set REDIS_CONTAINER or WIRE_TELEMETRY=0."; exit 1; }
+fi
 
 gw=(-H "x-gridtokenx-role: api-gateway" -H "x-gridtokenx-gateway-secret: $GW_SECRET")
 
@@ -105,9 +138,88 @@ wait_onchain_confirmed() {
     return 0
 }
 
-# onboard <user_type> -> sets globals: USERNAME EMAIL WALLET TOKEN
+# pick_sim_meters -> sets globals PROSUMER_SIM_CANDIDATES / CONSUMER_SIM_CANDIDATES to
+# space-separated pools of REAL device ids read from the simulator's own API
+# (has_solar=true for the generation-capable prosumer, has_solar=false for the
+# consumer). A meter-service meter is one-owner: a real sim id used by a PRIOR run
+# is already registered, so onboard() retries down this pool until one is free
+# (SIM_CANDIDATE_POOL controls how many candidates to fetch, default 25).
+pick_sim_meters() {
+    PROSUMER_SIM_CANDIDATES=""; CONSUMER_SIM_CANDIDATES=""
+    [ "$WIRE_TELEMETRY" = "1" ] || return 0
+    local list n="${SIM_CANDIDATE_POOL:-25}"
+    list=$(curl -s -m10 "$SIM_REST_BASE/api/v1/meters?limit=2000")
+    PROSUMER_SIM_CANDIDATES=$(echo "$list" | jq -r --argjson n "$n" \
+        '[.meters[] | select(.has_solar==true) | .meter_id][0:$n] | join(" ")')
+    CONSUMER_SIM_CANDIDATES=$(echo "$list" | jq -r --argjson n "$n" \
+        '[.meters[] | select(.has_solar==false) | .meter_id][0:$n] | join(" ")')
+    if [ -n "$PROSUMER_SIM_CANDIDATES" ]; then
+        ok "sim prosumer candidates (has_solar): $(echo "$PROSUMER_SIM_CANDIDATES" | wc -w | tr -d ' ')"
+    else
+        warn "no solar-capable sim meter found — prosumer meter falls back to an invented serial"
+    fi
+    if [ -n "$CONSUMER_SIM_CANDIDATES" ]; then
+        ok "sim consumer candidates: $(echo "$CONSUMER_SIM_CANDIDATES" | wc -w | tr -d ' ')"
+    else
+        warn "no consumer-type sim meter found — consumer meter falls back to an invented serial"
+    fi
+}
+
+# create_sim_meter <user_type> -> echoes a freshly-minted REAL sim meter id (or
+# empty on failure). Used when the static fleet's candidate pool is exhausted
+# (every existing meter already claimed by a prior test run) — mints a brand-new
+# device into the running sim engine via its own POST /api/v1/meters, so the sim
+# actually generates + emits telemetry for it from the next tick on. Additive
+# only: never touches or reassigns an existing meter.
+create_sim_meter() {
+    local user_type="$1" mtype hasflag resp mid
+    if [ "$user_type" = "prosumer" ]; then mtype="Solar_Prosumer"; hasflag=true
+    else mtype="Grid_Consumer"; hasflag=false; fi
+    # engine.add_meter contends with the sim's tick lock; creation typically takes
+    # 7-8s, occasionally more — a short timeout here flakes into a false failure.
+    resp=$(curl -s -m25 -X POST "$SIM_REST_BASE/api/v1/meters" -H 'Content-Type: application/json' \
+           -d "{\"meter_type\":\"$mtype\",\"lat\":13.75,\"lon\":100.5,\"has_solar\":$hasflag,\"solar_capacity\":5.0}")
+    mid=$(echo "$resp" | jq -r '.meter.meter_id // empty')
+    if [ -n "$mid" ]; then
+        ok "minted fresh sim meter (type=$mtype has_solar=$hasflag): $mid" >&2
+    else
+        warn "sim meter creation failed: $(echo "$resp" | head -c160)" >&2
+    fi
+    printf '%s' "$mid"
+}
+
+# wire_signing <serial> <user_id> <wallet> — re-derive the sim's own deterministic
+# Ed25519 pubkey for this meter (same seed = sha256(KEY_SECRET:serial) the sim uses
+# internally, see aggregator_bridge.py MeterKey) and re-point the bridge's Redis
+# device registry (pubkey + owner + wallet) at this run's user. The sim keeps
+# emitting telemetry for this meter unmodified; only attribution changes.
+wire_signing() {
+    local serial="$1" uid="$2" wallet="$3" pub
+    pub=$(docker exec -e MID="$serial" -e SECRET="$KEY_SECRET" "$SIM_CONTAINER" \
+        sh -c 'cat > /tmp/mk.py <<"PY"
+import os, hashlib
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives import serialization
+mid=os.environ["MID"]; sec=os.environ["SECRET"]
+seed=hashlib.sha256(f"{sec}:{mid}".encode()).digest()
+p=Ed25519PrivateKey.from_private_bytes(seed)
+print(p.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw).hex())
+PY
+uv run python /tmp/mk.py' 2>/dev/null | tr -d '[:space:]')
+    if [ -z "$pub" ]; then
+        warn "meter $serial signing-key derivation failed (telemetry attribution unchanged)"
+        return 1
+    fi
+    docker exec "$REDIS_CONTAINER" redis-cli SET "gridtokenx:devices:${serial}:pubkey" "$pub"    >/dev/null
+    docker exec "$REDIS_CONTAINER" redis-cli SET "gridtokenx:meters:${serial}:user_id" "$uid"    >/dev/null
+    docker exec "$REDIS_CONTAINER" redis-cli SET "gridtokenx:meters:${serial}:wallet"  "$wallet" >/dev/null
+    ok "telemetry attribution wired: sim meter $serial -> user=$uid wallet=$wallet"
+}
+
+# onboard <user_type> <sim_candidates (space-separated)> -> sets globals:
+# USERNAME EMAIL WALLET TOKEN METER_ID SERIAL
 onboard() {
-    local user_type="$1" stamp username email reg uid vres token wres wallet
+    local user_type="$1" sim_candidates="${2:-}" stamp username email reg uid vres token wres wallet meter_id serial
     stamp=$(now_ns)
     username="${user_type}_${stamp}"; email="${username}@example.com"
     info "onboard $user_type: $username"
@@ -161,7 +273,69 @@ onboard() {
         wait_onchain_confirmed "$uid"
     fi
 
+    # 7. add a meter to the account (real meter-service API -> real meter id, UUID).
+    #    Try each real sim device id in sim_candidates first (retry: a meter is
+    #    one-owner, so ids a PRIOR run already claimed 409 here); if the static
+    #    fleet's pool is fully claimed, mint a brand-new sim meter (additive, real
+    #    telemetry); only then fall back to an invented GRID-<stamp> serial
+    #    (ownership-only, no sim telemetry will ever match it).
+    meter_id=""; serial=""
+    if [ "${SKIP_METER:-0}" != "1" ]; then
+        local fallback="GRID-${user_type}-${stamp}" candidate mreg mid real_match=0 fresh=""
+        # Tier 1: retry across the static pool (a meter is one-owner; ids a prior
+        # run claimed 409 here and are skipped).
+        for candidate in $sim_candidates; do
+            mreg=$(curl -s -X POST "$METER_BASE/api/v1/meters" "${auth[@]}" \
+                   -H 'Content-Type: application/json' \
+                   -d "{\"serial_number\":\"$candidate\",\"meter_type\":\"smart_meter\",\"location\":\"Bangkok\",\"latitude\":13.75,\"longitude\":100.5}")
+            mid=$(echo "$mreg" | jq -r '.meter.id // empty')
+            if [ -n "$mid" ]; then
+                meter_id="$mid"; real_match=1
+                serial=$(echo "$mreg" | jq -r '.meter.serial_number // empty'); serial="${serial:-$candidate}"
+                break
+            fi
+        done
+        # Tier 2: static pool exhausted — mint one brand-new real sim meter
+        # (additive; sim emits real telemetry for it from the next tick).
+        if [ -z "$meter_id" ] && [ "$WIRE_TELEMETRY" = "1" ]; then
+            fresh=$(create_sim_meter "$user_type")
+            if [ -n "$fresh" ]; then
+                mreg=$(curl -s -X POST "$METER_BASE/api/v1/meters" "${auth[@]}" \
+                       -H 'Content-Type: application/json' \
+                       -d "{\"serial_number\":\"$fresh\",\"meter_type\":\"smart_meter\",\"location\":\"Bangkok\",\"latitude\":13.75,\"longitude\":100.5}")
+                mid=$(echo "$mreg" | jq -r '.meter.id // empty')
+                if [ -n "$mid" ]; then
+                    meter_id="$mid"; real_match=1
+                    serial=$(echo "$mreg" | jq -r '.meter.serial_number // empty'); serial="${serial:-$fresh}"
+                fi
+            fi
+        fi
+        # Tier 3: last resort — invented serial (ownership-only, no sim telemetry
+        # will ever match it).
+        if [ -z "$meter_id" ]; then
+            mreg=$(curl -s -X POST "$METER_BASE/api/v1/meters" "${auth[@]}" \
+                   -H 'Content-Type: application/json' \
+                   -d "{\"serial_number\":\"$fallback\",\"meter_type\":\"smart_meter\",\"location\":\"Bangkok\",\"latitude\":13.75,\"longitude\":100.5}")
+            mid=$(echo "$mreg" | jq -r '.meter.id // empty')
+            if [ -n "$mid" ]; then
+                meter_id="$mid"
+                serial=$(echo "$mreg" | jq -r '.meter.serial_number // empty'); serial="${serial:-$fallback}"
+            fi
+        fi
+        if [ -z "$meter_id" ]; then
+            warn "meter registration failed for $username (all sim candidates + fallback exhausted)"
+        else
+            ok "meter registered id=$meter_id serial=$serial"
+            # 7b. re-point sim telemetry attribution at this user (only meaningful
+            #     when serial is a REAL sim device id, not the invented fallback).
+            if [ "$WIRE_TELEMETRY" = "1" ] && [ "$real_match" = "1" ]; then
+                wire_signing "$serial" "$uid" "$wallet"
+            fi
+        fi
+    fi
+
     USERNAME="$username"; EMAIL="$email"; WALLET="$wallet"; TOKEN="$token"
+    METER_ID="$meter_id"; SERIAL="$serial"
 }
 
 # submit_order <token> <side> <kwh> <price> -> echoes order id, non-zero on fail
@@ -178,13 +352,18 @@ submit_order() {
 }
 
 # ---------------------------------------------------------------------------
-step "1) Onboard PROSUMER (seller)"
-onboard prosumer || { err "prosumer onboarding failed"; exit 1; }
-PROSUMER_USER="$USERNAME"; PROSUMER_WALLET="$WALLET"; PROSUMER_TOKEN="$TOKEN"
+step "0) Pick real sim meters for telemetry attribution"
+pick_sim_meters
 
-step "2) Onboard CONSUMER (buyer)"
-onboard consumer || { err "consumer onboarding failed"; exit 1; }
+step "1) Onboard PROSUMER (seller) + add meter"
+onboard prosumer "$PROSUMER_SIM_CANDIDATES" || { err "prosumer onboarding failed"; exit 1; }
+PROSUMER_USER="$USERNAME"; PROSUMER_WALLET="$WALLET"; PROSUMER_TOKEN="$TOKEN"
+PROSUMER_METER_ID="$METER_ID"; PROSUMER_SERIAL="$SERIAL"
+
+step "2) Onboard CONSUMER (buyer) + add meter"
+onboard consumer "$CONSUMER_SIM_CANDIDATES" || { err "consumer onboarding failed"; exit 1; }
 CONSUMER_USER="$USERNAME"; CONSUMER_WALLET="$WALLET"; CONSUMER_TOKEN="$TOKEN"
+CONSUMER_METER_ID="$METER_ID"; CONSUMER_SERIAL="$SERIAL"
 
 step "3) Trade — prosumer SELL x consumer BUY (zone $ZONE_ID)"
 info "prosumer SELL ${TRADE_KWH}kWh @ $SELL_PRICE   consumer BUY ${TRADE_KWH}kWh @ $BUY_PRICE"
@@ -221,6 +400,6 @@ else
 fi
 
 step "Summary"
-info "prosumer: $PROSUMER_USER  wallet=$PROSUMER_WALLET"
-info "consumer: $CONSUMER_USER  wallet=$CONSUMER_WALLET"
+info "prosumer: $PROSUMER_USER  wallet=$PROSUMER_WALLET  meter=${PROSUMER_METER_ID:-<skipped>} serial=${PROSUMER_SERIAL:-}"
+info "consumer: $CONSUMER_USER  wallet=$CONSUMER_WALLET  meter=${CONSUMER_METER_ID:-<skipped>} serial=${CONSUMER_SERIAL:-}"
 info "orders:   sell=$sid  buy=$bid  zone=$ZONE_ID  ${TRADE_KWH}kWh  sell@$SELL_PRICE buy@$BUY_PRICE"

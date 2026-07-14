@@ -68,3 +68,13 @@ groups:
       annotations:
         summary: "Aggregator surplus mint LOST — manual recovery needed"
         description: "{{ $value }} surplus mint(s) could not be durably handed off in the last 5m: the durable outbox enqueue failed twice and the last-resort immediate mint also failed (outcome=lost, reason=outbox_and_mint_failed). The bin's durable Redis entry was retained (not evicted) — check Chain Bridge / Redis health and recover from gridtokenx:billing:bins."
+
+    - alert: AggregatorMintParked
+      expr: increase(aggregator_mint_total{outcome="parked"}[1h]) > 0
+      for: 0m
+      labels:
+        severity: warning
+        team: grid-ops
+      annotations:
+        summary: "Surplus mint PARKED — stuck without landing on-chain"
+        description: "{{ $value }} surplus mint(s) aged past MINT_OUTBOX_MAX_AGE_SECS and were parked (moved out of the retry path) in the last hour. Check gridtokenx:billing:mint_outbox:parked, Chain Bridge / validator health, and the recipient wallet for the affected meter(s); re-enqueue manually to retry."

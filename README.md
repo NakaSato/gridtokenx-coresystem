@@ -12,7 +12,7 @@ The platform bridges **physical energy infrastructure** (smart meters, solar inv
 
 ## Architecture at a Glance
 
-GridTokenX follows a **Modern Microservices Architecture** orchestrated by a high-performance Rust gateway and secured by Solana smart contracts. The system consists of **5 core Rust services**, **3 frontend applications**, **30+ Docker containers** for infrastructure, and **5 Anchor programs** on Solana.
+GridTokenX follows a **Modern Microservices Architecture** orchestrated by a high-performance Rust gateway and secured by Solana smart contracts. The system consists of **6 core Rust services**, **3 frontend applications**, **30+ Docker containers** for infrastructure, and **5 Anchor programs** on Solana.
 
 > **Repo layout**: this is a **git superproject** — every `gridtokenx-*` service is a git submodule (see `.gitmodules`). There is **no root `Cargo.toml`**; each service is an independent Cargo workspace. Always clone with `--recursive`, and after switching branches run `git submodule update --init --recursive`.
 
@@ -32,6 +32,7 @@ graph TD
         Trading["Trading Service<br/>:8093 / :8092"]
         OracleB["Aggregator Bridge<br/>:4030"]
         Noti["Noti Service<br/>:5050"]
+        Meter["Meter Service<br/>:4062"]
     end
 
     subgraph signing["Signing Authority"]
@@ -60,6 +61,7 @@ graph TD
     Client -->|HTTPS / WSS| APISIX
     EdgeMeter -->|Ed25519-signed DLMS/COSEM| OracleB
     APISIX -->|ConnectRPC| APIS
+    APISIX -->|HTTP, JWT| Meter
     APIS <-->|gRPC| IAM
     APIS <-->|gRPC| Trading
     APIS <-->|gRPC| OracleB
@@ -77,6 +79,7 @@ graph TD
     IAM & Trading -->|live| Redis
     IAM & Trading -->|SQLx| Postgres
     Noti -->|SQLx| Postgres
+    Meter -->|SQLx, read-mostly| Postgres
     OracleB -->|readings| ZoneRedis
     OracleB -.->|async| Influx
 
@@ -84,7 +87,7 @@ graph TD
     classDef infra fill:#cfe8ff,stroke:#1c6fb5,color:#000;
     classDef chainNode fill:#e6d4ff,stroke:#7b2fbe,color:#000;
     classDef edge fill:#fff3c4,stroke:#b58900,color:#000;
-    class APIS,IAM,Trading,OracleB,Noti,ChainBridge rust;
+    class APIS,IAM,Trading,OracleB,Noti,ChainBridge,Meter rust;
     class Kafka,Rabbit,NATS,Redis,Postgres,ZoneRedis,Influx,APISIX,Vault infra;
     class Solana chainNode;
     class EdgeMeter,Client edge;
@@ -116,6 +119,7 @@ flowchart LR
     Tr -->|settle match| CB
     API --> IAM["IAM Service"]
     IAM -->|register PDA| CB
+    GW -->|HTTP, JWT| MeterSvc["Meter Service<br/>(reads mint_status)"]
 
     CB -->|signed tx| SOL["Solana"]
 
@@ -275,7 +279,12 @@ GridTokenX speaks a deliberately layered protocol stack: standard meter/IoT prot
 -   **Port**: 5040 (gRPC via ConnectRPC)
 -   **Role**: Decentralized signing authority and Solana blockchain interface. All services route blockchain transactions through Chain Bridge for distributed key management.
 
-### 6. Edge Gateway (`gridtokenx-edge-gateway`) — Edge Aggregation
+### 6. Meter Service (`gridtokenx-meter-service`) — Smart Meter Dashboard Reader
+-   **Port**: 4062 → container `8080` (HTTP, JWT-authed via APISIX)
+-   **Role**: Chain-light, read-mostly Axum service backing the Trading UI's Smart Meter dashboard. Reads shared `meters`/`meter_readings` (joined to `users` for wallet); registers meters to a user; serves readings/stats + an SSE stream of mint-status transitions (`pending`/`minted`/`denied`), detected by a background poller. Does **no** blockchain work and has **no** reading-ingest path — telemetry only enters via the Aggregator Bridge.
+-   **Blockchain**: None (read-only on mint columns written by other services)
+
+### 7. Edge Gateway (`gridtokenx-edge-gateway`) — Edge Aggregation
 -   **Role**: Local aggregation, buffering, protocol translation, Ed25519 signing. Hardware-specific (RPi, rppal, MQTT).
 -   **Communication**: Sends validated telemetry directly to the Aggregator Bridge IoT gateway (Ed25519-signed payloads)
 
@@ -464,6 +473,7 @@ grx prepare   # sqlx prepare (offline query preparation)
 | **Aggregator Bridge** | — | `4030` | Telemetry Validation |
 | **Chain Bridge** | — | `5040` | Solana Signing Authority |
 | **Noti Service** | — | `5050` | Notifications Dispatcher |
+| **Meter Service** | `4062` | — | Smart Meter Dashboard Read API |
 | **Simulator API** | `12010` | — | IoT Simulation Backend |
 | **Trading UI** | `11001` | — | Exchange Web App |
 | **Explorer UI** | `11002` | — | Block Explorer UI |
@@ -502,6 +512,7 @@ gridtokenx-coresystem/                # superproject (git submodules)
 ├── gridtokenx-aggregator-bridge/    # Edge Validation, IoT Ingestion (Rust)
 ├── gridtokenx-chain-bridge/         # Decentralized Signing Authority (Rust)
 ├── gridtokenx-noti-service/         # Notifications Dispatcher (Rust)
+├── gridtokenx-meter-service/        # Smart Meter Dashboard Read API (Rust)
 ├── gridtokenx-anchor/               # Solana Anchor Programs
 │   ├── programs/                    # Registry, Trading, Energy Token, Oracle, Governance
 │   ├── tests/                       # Program integration tests
@@ -536,6 +547,7 @@ Each Rust service builds independently. Trading Service and Edge Gateway are kep
 | `gridtokenx-aggregator-bridge` | Edge Validation & IoT | — |
 | `gridtokenx-chain-bridge` | Decentralized Signing | Binds `0.0.0.0`; isolated by mTLS + RBAC |
 | `gridtokenx-noti-service` | Notifications Dispatcher | — |
+| `gridtokenx-meter-service` | Smart Meter Dashboard Read API | Read-mostly, no blockchain, no reading-ingest |
 | `gridtokenx-blockchain-core` | Shared Blockchain Utilities | — |
 | `gridtokenx-trading/wasm` | WebAssembly | Rust→WASM client crate (inside Trading frontend) |
 | `gridtokenx-anchor/programs/*` | Anchor Programs | BPF |
