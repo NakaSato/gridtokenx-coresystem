@@ -114,18 +114,6 @@ graph TD
     class EdgeMeter,Client edge;
 ```
 
-### Two Interconnected Platforms
-
-GridTokenX is architected as **two distinct but interconnected platforms**:
-
-| Aspect | **Exchange Platform** | **Infrastructure Platform** |
-| :--- | :--- | :--- |
-| **Primary Domain** | Financial / Trading | Physical / Data Integrity |
-| **Blockchain Access** | ✅ Direct (IAM, Trading) | ❌ Indirect (signs only) |
-| **Data Direction** | Receives validated data | Produces validated data |
-| **Scaling Factor** | Trading volume / User count | Device count / Telemetry volume |
-| **Key Services** | API Services, IAM, Trading | Edge Gateway, Aggregator Bridge |
-
 ### Edge-to-Blockchain Data Flow
 
 ```mermaid
