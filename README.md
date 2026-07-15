@@ -18,21 +18,34 @@ GridTokenX follows a **Modern Microservices Architecture** orchestrated by a hig
 
 ### Platform Architecture
 
+The platform is layered so the **trust boundary is explicit at every hop**. Traffic enters through one of two doors: user/web traffic hits **APISIX** (`:4001`), which fans out over ConnectRPC to the **API Orchestrator** (`:4000`) and the Rust service mesh; edge telemetry enters directly at the **Aggregator Bridge** (`:4030`) as Ed25519-signed DLMS/COSEM frames — no shared door between the two.
+
+Three flows run through the mesh:
+
+- **User request** — APISIX → API Orchestrator → gRPC to IAM / Trading / Aggregator Bridge (Meter Service is read-mostly, JWT-authed directly off APISIX).
+- **Edge telemetry** — signed meter frames → Aggregator Bridge → zone-partitioned Redis Streams (operational) + async InfluxDB (history) → 15-min settlement bins.
+- **Blockchain settlement** — no service touches Solana directly. Writes publish to **NATS JetStream** (`chain.tx.submit` from Trading, `chain.tx.mint` from the Aggregator Bridge); the **Chain Bridge** (`:5040`) is the sole signer (Vault Transit) and sole Solana RPC client. Synchronous reads (balances, accounts) are gRPC straight to Chain Bridge.
+
+Every Rust service owns its own Postgres database (**DB-per-service**, pooled through PgDog `:7003`; migration in progress), emits domain events to Kafka, and routes durable tasks through RabbitMQ. Chain Bridge is isolated by **mTLS + RBAC**, not by network position — it binds `0.0.0.0`.
+
 ```mermaid
 graph TD
     subgraph entry["Public Entry"]
-        Client["Trading UI / Explorer / Portal"]
-        EdgeMeter["Smart Meter / Edge Gateway"]
+        Client["Trading UI :11001 · Explorer :11002 · Portal"]
+        EdgeMeter["Smart Meter / Edge Gateway<br/>Ed25519-signed DLMS/COSEM"]
     end
 
-    subgraph mesh["GridTokenX Service Mesh (Rust)"]
-        APISIX["Apache APISIX<br/>:4001"]
+    subgraph gw["Gateway"]
+        APISIX["Apache APISIX<br/>:4001 (user-facing)"]
         APIS["API Orchestrator<br/>:4000"]
+    end
+
+    subgraph mesh["Service Mesh (Rust)"]
         IAM["IAM Service<br/>:4010 / :5010"]
         Trading["Trading Service<br/>:8093 / :8092"]
         OracleB["Aggregator Bridge<br/>:4030"]
-        Noti["Noti Service<br/>:5050"]
         Meter["Meter Service<br/>:4062"]
+        Noti["Noti Service<br/>:5050"]
     end
 
     subgraph signing["Signing Authority"]
@@ -46,20 +59,23 @@ graph TD
 
     subgraph msg["Messaging"]
         Kafka["Kafka<br/>cmd / market / audit"]
-        Rabbit["RabbitMQ<br/>tasks + DLQ"]
         NATS["NATS JetStream<br/>chain.tx.*"]
-        Redis["Redis Pub/Sub"]
+        Rabbit["RabbitMQ<br/>tasks + DLQ"]
+        Redis["Redis 7<br/>Pub/Sub + zone Streams"]
     end
 
-    subgraph store["Persistence"]
-        Postgres[("PostgreSQL 17<br/>+ PgDog pooler")]
-        ZoneRedis["Redis Streams<br/>zone-partitioned"]
+    subgraph store["Persistence — Postgres 17 via PgDog :7003 · DB-per-service (migration in progress)"]
+        IamDB[("gridtokenx_iam")]
+        TradeDB[("gridtokenx_trading")]
+        MeterDB[("gridtokenx_meter")]
+        ChainDB[("gridtokenx_chain")]
+        NotiDB[("gridtokenx_noti")]
         Influx[("InfluxDB v2<br/>telemetry history")]
     end
 
     %% --- request path ---
     Client -->|HTTPS / WSS| APISIX
-    EdgeMeter -->|Ed25519-signed DLMS/COSEM| OracleB
+    EdgeMeter -->|signed telemetry| OracleB
     APISIX -->|ConnectRPC| APIS
     APISIX -->|HTTP, JWT| Meter
     APIS <-->|gRPC| IAM
@@ -68,19 +84,24 @@ graph TD
 
     %% --- blockchain path ---
     IAM & Trading -->|gRPC reads| ChainBridge
+    Trading -->|chain.tx.submit| NATS
     OracleB -->|chain.tx.mint| NATS
     NATS --> ChainBridge
     ChainBridge --> Vault
-    ChainBridge -->|RPC| Solana
+    ChainBridge -->|JSON-RPC| Solana
 
-    %% --- messaging + persistence ---
+    %% --- messaging ---
     IAM & Trading & OracleB -->|events| Kafka
     IAM & Trading & Noti -->|tasks| Rabbit
     IAM & Trading -->|live| Redis
-    IAM & Trading -->|SQLx| Postgres
-    Noti -->|SQLx| Postgres
-    Meter -->|SQLx, read-mostly| Postgres
-    OracleB -->|readings| ZoneRedis
+    OracleB -->|zone readings| Redis
+
+    %% --- persistence: each service owns its DB (all pooled via PgDog) ---
+    IAM -->|owns| IamDB
+    Trading -->|owns| TradeDB
+    OracleB & Meter -->|metering ctx| MeterDB
+    ChainBridge -->|owns| ChainDB
+    Noti -->|owns| NotiDB
     OracleB -.->|async| Influx
 
     classDef rust fill:#dea584,stroke:#8b4513,color:#000;
@@ -88,7 +109,7 @@ graph TD
     classDef chainNode fill:#e6d4ff,stroke:#7b2fbe,color:#000;
     classDef edge fill:#fff3c4,stroke:#b58900,color:#000;
     class APIS,IAM,Trading,OracleB,Noti,ChainBridge,Meter rust;
-    class Kafka,Rabbit,NATS,Redis,Postgres,ZoneRedis,Influx,APISIX,Vault infra;
+    class Kafka,Rabbit,NATS,Redis,IamDB,TradeDB,MeterDB,ChainDB,NotiDB,Influx,APISIX,Vault infra;
     class Solana chainNode;
     class EdgeMeter,Client edge;
 ```
@@ -161,6 +182,8 @@ flowchart LR
 |-----------|---------|---------|
 | **PostgreSQL 17** | Primary + Replica | User data, orders, trades, **Transactional Outbox** |
 | **Redis 7** | Primary + Replica | Cache, session, Pub/Sub, zone-partitioned meter Streams |
+
+> **Database-per-service migration (in progress).** The platform is moving off the shared-database integration pattern toward physical **database-per-service** — each service owns its data, no cross-service SQL, cross-domain data flows via API reads + NATS event-carried state transfer. Target DBs: `gridtokenx_iam`, `gridtokenx_trading`, `gridtokenx_meter` (shared by the metering bounded context — aggregator + meter-service), `gridtokenx_chain`, and `gridtokenx_noti` (**already isolated** — the reference model). Phases 1–2 are authored but **gated off** (`TRADING_READMODEL_FEED`, `METER_EVENTS_ENABLED`, `*_DATABASE_URL` unchanged) — the running stack still uses the single `gridtokenx` DB. See [Database-per-Service Migration](docs/design-docs/db-per-service-migration.md).
 
 ### Infrastructure & Observability
 
@@ -574,6 +597,7 @@ Detailed specifications are located in the `/docs` directory:
 -   [National Control Plane Design](docs/product-specs/National.md)
 -   [gTHB Issuer Service Spec](docs/product-specs/gTHB_ISSUER_SERVICE.md)
 -   [System Architecture](ARCHITECTURE.md)
+-   [Database-per-Service Migration](docs/design-docs/db-per-service-migration.md)
 -   [Documentation Map](docs/DESIGN.md)
 -   [Benchmark Best-Practices](docs/benchmark-best-practices.md)
 -   [Glossary](docs/glossary.md)
