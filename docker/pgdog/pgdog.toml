@@ -62,3 +62,25 @@ role = "primary"
 pooler_mode = "session"
 pool_size = 3
 min_pool_size = 1
+
+# DB-per-service Phase 1: Trading Service's own physical DB (see
+# docs/design-docs/db-per-service-migration.md). Trading points its
+# TRADING_DATABASE_URL at pgdog:6432/gridtokenx_trading at cutover.
+[[databases]]
+name = "gridtokenx_trading"
+host = "postgres"
+port = 5432
+role = "primary"
+pooler_mode = "transaction"
+
+# Session-mode alias for applying Trading's migrations (advisory-lock safe),
+# same physical DB as "gridtokenx_trading".
+[[databases]]
+name = "gridtokenx_trading_migrate"
+database_name = "gridtokenx_trading"
+host = "postgres"
+port = 5432
+role = "primary"
+pooler_mode = "session"
+pool_size = 3
+min_pool_size = 1

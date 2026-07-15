@@ -123,8 +123,19 @@ gw=(-H "x-gridtokenx-role: api-gateway" -H "x-gridtokenx-gateway-secret: $GW_SEC
 # breaks the feeder's csv.DictReader).
 [ -s "$OUTFILE" ] || printf 'username\tpassword\temail\twallet_address\tserial_number\tmeter_id\tuser_id\n' > "$OUTFILE"
 
+# Full raw response log — one JSON-line record per API call (step, http code, body),
+# distinct from OUTFILE (creds TSV) so the feeder's csv.DictReader is unaffected.
+APILOG="${APILOG:-$(cd "$(dirname "$0")" && pwd)/register_users_meters.api.log}"
+: > "$APILOG"
+log_api() { # step user_i http_code body
+    jq -cn --arg step "$1" --arg user "$2" --arg code "$3" --arg body "$4" \
+        '{step:$step,user:$user,http_code:($code|tonumber? // $code),body:($body|fromjson? // $body)}' \
+        >> "$APILOG"
+}
+
 info "Registering $COUNT user(s) + one meter each -> $IAM_BASE"
 info "Credentials: $OUTFILE"
+info "Full API responses: $APILOG"
 
 done_n=0 fail_n=0
 for i in $(seq 1 "$COUNT"); do
@@ -133,24 +144,30 @@ for i in $(seq 1 "$COUNT"); do
     printf '\n'; info "user $i/$COUNT: $username"
 
     # 1. register
-    reg=$(curl -s -X POST "$IAM_BASE/api/v1/auth/register" -H 'Content-Type: application/json' \
+    reg=$(curl -s -w '\n%{http_code}' -X POST "$IAM_BASE/api/v1/auth/register" -H 'Content-Type: application/json' \
           -d "{\"username\":\"$username\",\"email\":\"$email\",\"password\":\"$PASS\"}")
-    uid=$(echo "$reg" | jq -r '.id // .data.id // empty')
-    [ -z "$uid" ] && { err "register failed: $(echo "$reg" | head -c160)"; fail_n=$((fail_n+1)); continue; }
+    reg_code=$(printf '%s' "$reg" | tail -n1); reg_body=$(printf '%s' "$reg" | sed '$d')
+    log_api "register" "$username" "$reg_code" "$reg_body"
+    uid=$(echo "$reg_body" | jq -r '.id // .data.id // empty')
+    [ -z "$uid" ] && { err "register failed: $(echo "$reg_body" | head -c160)"; fail_n=$((fail_n+1)); continue; }
     ok "registered user_id=$uid"
 
     # 2. verify email (confirm account)
-    vres=$(curl -s "$IAM_BASE/api/v1/auth/verify?token=verify_${email}")
-    if [ "$(echo "$vres" | jq -r '.success // .data.success // empty')" = "true" ]; then
+    vres=$(curl -s -w '\n%{http_code}' "$IAM_BASE/api/v1/auth/verify?token=verify_${email}")
+    v_code=$(printf '%s' "$vres" | tail -n1); v_body=$(printf '%s' "$vres" | sed '$d')
+    log_api "verify" "$username" "$v_code" "$v_body"
+    if [ "$(echo "$v_body" | jq -r '.success // .data.success // empty')" = "true" ]; then
         ok "email verified (account confirmed)"
     else
-        warn "verify unconfirmed: $(echo "$vres" | head -c160)"
+        warn "verify unconfirmed: $(echo "$v_body" | head -c160)"
     fi
 
     # 3. login
-    token=$(curl -s -X POST "$IAM_BASE/api/v1/auth/login" -H 'Content-Type: application/json' \
-            -d "{\"username\":\"$username\",\"password\":\"$PASS\"}" \
-            | jq -r '.access_token // .data.auth.access_token // empty')
+    lres=$(curl -s -w '\n%{http_code}' -X POST "$IAM_BASE/api/v1/auth/login" -H 'Content-Type: application/json' \
+            -d "{\"username\":\"$username\",\"password\":\"$PASS\"}")
+    l_code=$(printf '%s' "$lres" | tail -n1); l_body=$(printf '%s' "$lres" | sed '$d')
+    log_api "login" "$username" "$l_code" "$l_body"
+    token=$(echo "$l_body" | jq -r '.access_token // .data.auth.access_token // empty')
     [ -z "$token" ] && { err "login failed"; fail_n=$((fail_n+1)); continue; }
     auth=(-H "Authorization: Bearer $token")
 
@@ -160,9 +177,11 @@ for i in $(seq 1 "$COUNT"); do
     kf=$(mktemp)
     solana-keygen new --no-bip39-passphrase --silent --force --outfile "$kf" >/dev/null 2>&1
     wallet=$(solana-keygen pubkey "$kf"); rm -f "$kf"
-    wl_code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$IAM_BASE/api/v1/me/wallets" "${gw[@]}" "${auth[@]}" \
+    wlres=$(curl -s -w '\n%{http_code}' -X POST "$IAM_BASE/api/v1/me/wallets" "${gw[@]}" "${auth[@]}" \
          -H 'Content-Type: application/json' \
          -d "{\"wallet_address\":\"$wallet\",\"label\":\"Primary\",\"is_primary\":true}")
+    wl_code=$(printf '%s' "$wlres" | tail -n1); wl_body=$(printf '%s' "$wlres" | sed '$d')
+    log_api "link_wallet" "$username" "$wl_code" "$wl_body"
     case "$wl_code" in
         2??) ok "linked wallet $wallet (http=$wl_code)" ;;
         *)   err "wallet link failed http=$wl_code for $wallet"; fail_n=$((fail_n+1)); continue ;;
@@ -170,10 +189,12 @@ for i in $(seq 1 "$COUNT"); do
 
     # 4b. airdrop SOL to the confirmed account's wallet (validator faucet, dev-only)
     if [ "$AIRDROP_SOL" != "0" ]; then
-        if solana airdrop "$AIRDROP_SOL" "$wallet" --url "$RPC_URL" >/dev/null 2>&1; then
+        if ad_out=$(solana airdrop "$AIRDROP_SOL" "$wallet" --url "$RPC_URL" 2>&1); then
             bal=$(solana balance "$wallet" --url "$RPC_URL" 2>/dev/null)
+            log_api "airdrop" "$username" "ok" "$ad_out (balance: ${bal:-?})"
             ok "airdropped $AIRDROP_SOL SOL (balance: ${bal:-?})"
         else
+            log_api "airdrop" "$username" "fail" "$ad_out"
             warn "airdrop failed for $wallet (validator up at $RPC_URL?)"
         fi
     fi
@@ -184,6 +205,7 @@ for i in $(seq 1 "$COUNT"); do
               -H 'Content-Type: application/json' \
               -d "{\"user_type\":\"prosumer\",\"location\":{\"lat_e7\":$LAT,\"long_e7\":$LONG}}")
         onb_code=$(printf '%s' "$onb" | tail -n1); onb_body=$(printf '%s' "$onb" | sed '$d')
+        log_api "onchain_register" "$username" "$onb_code" "$onb_body"
         onb_status=$(printf '%s' "$onb_body" | jq -r '.status // "unknown"')
         # Not fatal: telemetry + mint resolve off owner+wallet (steps 4/7), not the PDA.
         case "$onb_code" in
@@ -195,9 +217,11 @@ for i in $(seq 1 "$COUNT"); do
     # 6. register meter via the real meter-service API -> real meter id (UUID)
     #    Serial = the simulator's real meter id when SERIALS_FILE is set, else GRID-<stamp>.
     if [ "${#SERIALS[@]}" -gt 0 ]; then serial="${SERIALS[$((i-1))]}"; else serial="GRID-${stamp}"; fi
-    mreg=$(curl -s -X POST "$METER_BASE/api/v1/meters" "${auth[@]}" \
+    mres=$(curl -s -w '\n%{http_code}' -X POST "$METER_BASE/api/v1/meters" "${auth[@]}" \
            -H 'Content-Type: application/json' \
            -d "{\"serial_number\":\"$serial\",\"meter_type\":\"smart_meter\",\"location\":\"Bangkok\",\"latitude\":13.75,\"longitude\":100.5}")
+    m_code=$(printf '%s' "$mres" | tail -n1); mreg=$(printf '%s' "$mres" | sed '$d')
+    log_api "register_meter" "$username" "$m_code" "$mreg"
     meter_id=$(echo "$mreg" | jq -r '.meter.id // empty')
     reg_serial=$(echo "$mreg" | jq -r '.meter.serial_number // empty')
     if [ -z "$meter_id" ]; then
@@ -237,3 +261,4 @@ printf '\n'
 ok "Registered $done_n/$COUNT user(s) with one meter each."
 [ "$fail_n" -gt 0 ] && warn "$fail_n failed (see log above)."
 info "Credentials saved to: $OUTFILE"
+info "Full API responses: $APILOG"

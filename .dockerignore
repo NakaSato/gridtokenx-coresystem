@@ -61,6 +61,15 @@ docs/
 dev-wallet.json
 benchmark_results.json
 
+# Not needed by any image build — keep the root build context small
+terraform/
+Paper/
+papers/
+monitoring/
+infra/
+apisix_conf/
+.claude/
+
 # Submodules (not needed for API Gateway build)
 gridtokenx-anchor/
 gridtokenx-smartmeter-simulator/

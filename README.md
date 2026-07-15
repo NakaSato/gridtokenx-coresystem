@@ -12,25 +12,39 @@ The platform bridges **physical energy infrastructure** (smart meters, solar inv
 
 ## Architecture at a Glance
 
-GridTokenX follows a **Modern Microservices Architecture** orchestrated by a high-performance Rust gateway and secured by Solana smart contracts. The system consists of **5 core Rust services**, **3 frontend applications**, **30+ Docker containers** for infrastructure, and **5 Anchor programs** on Solana.
+GridTokenX follows a **Modern Microservices Architecture** orchestrated by a high-performance Rust gateway and secured by Solana smart contracts. The system consists of **6 core Rust services**, **3 frontend applications**, **30+ Docker containers** for infrastructure, and **5 Anchor programs** on Solana.
 
 > **Repo layout**: this is a **git superproject** — every `gridtokenx-*` service is a git submodule (see `.gitmodules`). There is **no root `Cargo.toml`**; each service is an independent Cargo workspace. Always clone with `--recursive`, and after switching branches run `git submodule update --init --recursive`.
 
 ### Platform Architecture
 
+The platform is layered so the **trust boundary is explicit at every hop**. Traffic enters through one of two doors: user/web traffic hits **APISIX** (`:4001`), which fans out over ConnectRPC to the **API Orchestrator** (`:4000`) and the Rust service mesh; edge telemetry enters directly at the **Aggregator Bridge** (`:4030`) as Ed25519-signed DLMS/COSEM frames — no shared door between the two.
+
+Three flows run through the mesh:
+
+- **User request** — APISIX → API Orchestrator → gRPC to IAM / Trading / Aggregator Bridge (Meter Service is read-mostly, JWT-authed directly off APISIX).
+- **Edge telemetry** — signed meter frames → Aggregator Bridge → zone-partitioned Redis Streams (operational) + async InfluxDB (history) → 15-min settlement bins.
+- **Blockchain settlement** — no service touches Solana directly. Writes publish to **NATS JetStream** (`chain.tx.submit` from Trading, `chain.tx.mint` from the Aggregator Bridge); the **Chain Bridge** (`:5040`) is the sole signer (Vault Transit) and sole Solana RPC client. Synchronous reads (balances, accounts) are gRPC straight to Chain Bridge.
+
+Every Rust service owns its own Postgres database (**DB-per-service**, pooled through PgDog `:7003`; migration in progress), emits domain events to Kafka, and routes durable tasks through RabbitMQ. Chain Bridge is isolated by **mTLS + RBAC**, not by network position — it binds `0.0.0.0`.
+
 ```mermaid
 graph TD
     subgraph entry["Public Entry"]
-        Client["Trading UI / Explorer / Portal"]
-        EdgeMeter["Smart Meter / Edge Gateway"]
+        Client["Trading UI :11001 · Explorer :11002 · Portal"]
+        EdgeMeter["Smart Meter / Edge Gateway<br/>Ed25519-signed DLMS/COSEM"]
     end
 
-    subgraph mesh["GridTokenX Service Mesh (Rust)"]
-        APISIX["Apache APISIX<br/>:4001"]
+    subgraph gw["Gateway"]
+        APISIX["Apache APISIX<br/>:4001 (user-facing)"]
         APIS["API Orchestrator<br/>:4000"]
+    end
+
+    subgraph mesh["Service Mesh (Rust)"]
         IAM["IAM Service<br/>:4010 / :5010"]
         Trading["Trading Service<br/>:8093 / :8092"]
         OracleB["Aggregator Bridge<br/>:4030"]
+        Meter["Meter Service<br/>:4062"]
         Noti["Noti Service<br/>:5050"]
     end
 
@@ -45,62 +59,60 @@ graph TD
 
     subgraph msg["Messaging"]
         Kafka["Kafka<br/>cmd / market / audit"]
-        Rabbit["RabbitMQ<br/>tasks + DLQ"]
         NATS["NATS JetStream<br/>chain.tx.*"]
-        Redis["Redis Pub/Sub"]
+        Rabbit["RabbitMQ<br/>tasks + DLQ"]
+        Redis["Redis 7<br/>Pub/Sub + zone Streams"]
     end
 
-    subgraph store["Persistence"]
-        Postgres[("PostgreSQL 17<br/>+ PgDog pooler")]
-        ZoneRedis["Redis Streams<br/>zone-partitioned"]
+    subgraph store["Persistence — Postgres 17 via PgDog :7003 · DB-per-service (migration in progress)"]
+        IamDB[("gridtokenx_iam")]
+        TradeDB[("gridtokenx_trading")]
+        MeterDB[("gridtokenx_meter")]
+        ChainDB[("gridtokenx_chain")]
+        NotiDB[("gridtokenx_noti")]
         Influx[("InfluxDB v2<br/>telemetry history")]
     end
 
     %% --- request path ---
     Client -->|HTTPS / WSS| APISIX
-    EdgeMeter -->|Ed25519-signed DLMS/COSEM| OracleB
+    EdgeMeter -->|signed telemetry| OracleB
     APISIX -->|ConnectRPC| APIS
+    APISIX -->|HTTP, JWT| Meter
     APIS <-->|gRPC| IAM
     APIS <-->|gRPC| Trading
     APIS <-->|gRPC| OracleB
 
     %% --- blockchain path ---
     IAM & Trading -->|gRPC reads| ChainBridge
+    Trading -->|chain.tx.submit| NATS
     OracleB -->|chain.tx.mint| NATS
     NATS --> ChainBridge
     ChainBridge --> Vault
-    ChainBridge -->|RPC| Solana
+    ChainBridge -->|JSON-RPC| Solana
 
-    %% --- messaging + persistence ---
+    %% --- messaging ---
     IAM & Trading & OracleB -->|events| Kafka
     IAM & Trading & Noti -->|tasks| Rabbit
     IAM & Trading -->|live| Redis
-    IAM & Trading -->|SQLx| Postgres
-    Noti -->|SQLx| Postgres
-    OracleB -->|readings| ZoneRedis
+    OracleB -->|zone readings| Redis
+
+    %% --- persistence: each service owns its DB (all pooled via PgDog) ---
+    IAM -->|owns| IamDB
+    Trading -->|owns| TradeDB
+    OracleB & Meter -->|metering ctx| MeterDB
+    ChainBridge -->|owns| ChainDB
+    Noti -->|owns| NotiDB
     OracleB -.->|async| Influx
 
     classDef rust fill:#dea584,stroke:#8b4513,color:#000;
     classDef infra fill:#cfe8ff,stroke:#1c6fb5,color:#000;
     classDef chainNode fill:#e6d4ff,stroke:#7b2fbe,color:#000;
     classDef edge fill:#fff3c4,stroke:#b58900,color:#000;
-    class APIS,IAM,Trading,OracleB,Noti,ChainBridge rust;
-    class Kafka,Rabbit,NATS,Redis,Postgres,ZoneRedis,Influx,APISIX,Vault infra;
+    class APIS,IAM,Trading,OracleB,Noti,ChainBridge,Meter rust;
+    class Kafka,Rabbit,NATS,Redis,IamDB,TradeDB,MeterDB,ChainDB,NotiDB,Influx,APISIX,Vault infra;
     class Solana chainNode;
     class EdgeMeter,Client edge;
 ```
-
-### Two Interconnected Platforms
-
-GridTokenX is architected as **two distinct but interconnected platforms**:
-
-| Aspect | **Exchange Platform** | **Infrastructure Platform** |
-| :--- | :--- | :--- |
-| **Primary Domain** | Financial / Trading | Physical / Data Integrity |
-| **Blockchain Access** | ✅ Direct (IAM, Trading) | ❌ Indirect (signs only) |
-| **Data Direction** | Receives validated data | Produces validated data |
-| **Scaling Factor** | Trading volume / User count | Device count / Telemetry volume |
-| **Key Services** | API Services, IAM, Trading | Edge Gateway, Aggregator Bridge |
 
 ### Edge-to-Blockchain Data Flow
 
@@ -116,6 +128,7 @@ flowchart LR
     Tr -->|settle match| CB
     API --> IAM["IAM Service"]
     IAM -->|register PDA| CB
+    GW -->|HTTP, JWT| MeterSvc["Meter Service<br/>(reads mint_status)"]
 
     CB -->|signed tx| SOL["Solana"]
 
@@ -157,6 +170,8 @@ flowchart LR
 |-----------|---------|---------|
 | **PostgreSQL 17** | Primary + Replica | User data, orders, trades, **Transactional Outbox** |
 | **Redis 7** | Primary + Replica | Cache, session, Pub/Sub, zone-partitioned meter Streams |
+
+> **Database-per-service migration (in progress).** The platform is moving off the shared-database integration pattern toward physical **database-per-service** — each service owns its data, no cross-service SQL, cross-domain data flows via API reads + NATS event-carried state transfer. Target DBs: `gridtokenx_iam`, `gridtokenx_trading`, `gridtokenx_meter` (shared by the metering bounded context — aggregator + meter-service), `gridtokenx_chain`, and `gridtokenx_noti` (**already isolated** — the reference model). Phases 1–2 are authored but **gated off** (`TRADING_READMODEL_FEED`, `METER_EVENTS_ENABLED`, `*_DATABASE_URL` unchanged) — the running stack still uses the single `gridtokenx` DB. See [Database-per-Service Migration](docs/design-docs/db-per-service-migration.md).
 
 ### Infrastructure & Observability
 
@@ -212,7 +227,7 @@ GridTokenX speaks a deliberately layered protocol stack: standard meter/IoT prot
 
 | Protocol | Implementation | Role |
 | :--- | :--- | :--- |
-| **OpenADR 3 / OpenLEADR** | `openleadr-rs` v0.2.3 | Preferred VTN↔VEN dispatch — flex events, VEN registration, execution reports |
+| **OpenADR 3 / OpenLEADR** | `openleadr-rs` v0.2.4 | Preferred VTN↔VEN dispatch — flex events, VEN registration, execution reports |
 | **IEEE 2030.5 (SEP2)** | adapter | Alternate demand-response standard alongside OpenADR |
 | **OAuth 2.0 (client credentials)** | — | VTN client auth (`OPENLEADR_CLIENT_ID`/`SECRET`); frontend auth via Supabase |
 
@@ -275,7 +290,12 @@ GridTokenX speaks a deliberately layered protocol stack: standard meter/IoT prot
 -   **Port**: 5040 (gRPC via ConnectRPC)
 -   **Role**: Decentralized signing authority and Solana blockchain interface. All services route blockchain transactions through Chain Bridge for distributed key management.
 
-### 6. Edge Gateway (`gridtokenx-edge-gateway`) — Edge Aggregation
+### 6. Meter Service (`gridtokenx-meter-service`) — Smart Meter Dashboard Reader
+-   **Port**: 4062 → container `8080` (HTTP, JWT-authed via APISIX)
+-   **Role**: Chain-light, read-mostly Axum service backing the Trading UI's Smart Meter dashboard. Reads shared `meters`/`meter_readings` (joined to `users` for wallet); registers meters to a user; serves readings/stats + an SSE stream of mint-status transitions (`pending`/`minted`/`denied`), detected by a background poller. Does **no** blockchain work and has **no** reading-ingest path — telemetry only enters via the Aggregator Bridge.
+-   **Blockchain**: None (read-only on mint columns written by other services)
+
+### 7. Edge Gateway (`gridtokenx-edge-gateway`) — Edge Aggregation
 -   **Role**: Local aggregation, buffering, protocol translation, Ed25519 signing. Hardware-specific (RPi, rppal, MQTT).
 -   **Communication**: Sends validated telemetry directly to the Aggregator Bridge IoT gateway (Ed25519-signed payloads)
 
@@ -326,7 +346,7 @@ Autonomous, fleet-driven demand response with no external SCADA feed — the met
 
 -   **Fleet-as-sensor frequency monitoring** — each meter reading carries instantaneous grid frequency; a rolling-window `FrequencyMonitor` folds samples into a mean (implausible <40Hz / >70Hz dropped)
 -   **Grid-status publishing** — periodic task turns the mean into `GridStatusEvent`s on Kafka (`gridtokenx.aggregator.grid_status`), the dispatch engine's trigger
--   **VTN dispatch (OpenADR 3 / OpenLEADR)** — dispatch engine emits flex events on a VTN; `openleadr` adapter (openleadr-rs v0.2.3) preferred over the IEEE 2030.5 adapter; requires ≥1 completed aggregation bin
+-   **VTN dispatch (OpenADR 3 / OpenLEADR)** — dispatch engine emits flex events on a VTN; `openleadr` adapter (openleadr-rs v0.2.4) preferred over the IEEE 2030.5 adapter; requires ≥1 completed aggregation bin
 -   **VEN listener + execution** — polling listener consumes `DISPATCH_SETPOINT` events from a utility VTN and executes them (positive setpoint → FLEX_UP, negative → FLEX_DOWN); multi-interval events executed per-window, deduped by id + modificationDateTime, retried on failure
 -   **VEN self-registration** — listener registers a VEN object on the VTN at startup (best-effort)
 -   **Execution reports** — VEN posts dispatch execution reports back to the VTN, closing the loop
@@ -464,6 +484,7 @@ grx prepare   # sqlx prepare (offline query preparation)
 | **Aggregator Bridge** | — | `4030` | Telemetry Validation |
 | **Chain Bridge** | — | `5040` | Solana Signing Authority |
 | **Noti Service** | — | `5050` | Notifications Dispatcher |
+| **Meter Service** | `4062` | — | Smart Meter Dashboard Read API |
 | **Simulator API** | `12010` | — | IoT Simulation Backend |
 | **Trading UI** | `11001` | — | Exchange Web App |
 | **Explorer UI** | `11002` | — | Block Explorer UI |
@@ -502,6 +523,7 @@ gridtokenx-coresystem/                # superproject (git submodules)
 ├── gridtokenx-aggregator-bridge/    # Edge Validation, IoT Ingestion (Rust)
 ├── gridtokenx-chain-bridge/         # Decentralized Signing Authority (Rust)
 ├── gridtokenx-noti-service/         # Notifications Dispatcher (Rust)
+├── gridtokenx-meter-service/        # Smart Meter Dashboard Read API (Rust)
 ├── gridtokenx-anchor/               # Solana Anchor Programs
 │   ├── programs/                    # Registry, Trading, Energy Token, Oracle, Governance
 │   ├── tests/                       # Program integration tests
@@ -536,6 +558,7 @@ Each Rust service builds independently. Trading Service and Edge Gateway are kep
 | `gridtokenx-aggregator-bridge` | Edge Validation & IoT | — |
 | `gridtokenx-chain-bridge` | Decentralized Signing | Binds `0.0.0.0`; isolated by mTLS + RBAC |
 | `gridtokenx-noti-service` | Notifications Dispatcher | — |
+| `gridtokenx-meter-service` | Smart Meter Dashboard Read API | Read-mostly, no blockchain, no reading-ingest |
 | `gridtokenx-blockchain-core` | Shared Blockchain Utilities | — |
 | `gridtokenx-trading/wasm` | WebAssembly | Rust→WASM client crate (inside Trading frontend) |
 | `gridtokenx-anchor/programs/*` | Anchor Programs | BPF |
@@ -562,6 +585,7 @@ Detailed specifications are located in the `/docs` directory:
 -   [National Control Plane Design](docs/product-specs/National.md)
 -   [gTHB Issuer Service Spec](docs/product-specs/gTHB_ISSUER_SERVICE.md)
 -   [System Architecture](ARCHITECTURE.md)
+-   [Database-per-Service Migration](docs/design-docs/db-per-service-migration.md)
 -   [Documentation Map](docs/DESIGN.md)
 -   [Benchmark Best-Practices](docs/benchmark-best-practices.md)
 -   [Glossary](docs/glossary.md)
