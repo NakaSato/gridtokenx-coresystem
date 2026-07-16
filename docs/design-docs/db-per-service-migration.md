@@ -256,11 +256,14 @@ Adversarial review of the plan before any live flip. ✅ = verified against code
   meter decommission emits no event — but meter-service has NO delete path today,
   so no stale meter rows can arise yet; add `MeterDecommissioned` if/when meter
   deletion is introduced.
-- ⚠️ **(#2) Event ordering.** Read-model last-writer-wins uses `updated_at=now()`
-  (write time, not event time); `user_events` partitioning/keying unpinned. Out-of-
-  order per-user wallet events could mis-set primary. *Low severity* (rare, heals on
-  re-backfill). ☐ Key `user_events` by `user_id`, or stamp `updated_at` from the
-  event timestamp.
+- ✅ **(#2) Event ordering — already correct (verified).** The IAM Kafka producer
+  already keys every event by `user_id` (`event_bus/kafka.rs:84-90`,
+  `.key(user_id)`). So all of a user's wallet events (`Linked`/`Onboarded`/
+  `PrimaryChanged`/`Unlinked`) land on ONE partition → Kafka guarantees per-partition
+  order → the trading consumer applies them in event order → `updated_at=now()`
+  last-writer-wins is correct (monotonic per user; the `<= EXCLUDED.updated_at` guard
+  is a replay safety net). Holds under scaled consumers (one user → one partition →
+  one consumer). No code change needed; the earlier "keying unpinned" note was wrong.
 - ☐ **(#4) pgdog routes.** Only `gridtokenx_trading` staged. Add
   `gridtokenx_meter`, `gridtokenx_iam`, `gridtokenx_chain` (+ `_migrate` aliases)
   before their phase flips.
