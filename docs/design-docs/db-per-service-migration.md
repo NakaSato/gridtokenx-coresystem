@@ -266,6 +266,14 @@ Adversarial review of the plan before any live flip. ✅ = verified against code
 - ☐ **(#5) Write-freeze / downtime.** Backfill is point-in-time with no dual-write
   → each flip needs a write freeze (or dual-write window) so writes between backfill
   and flip aren't lost. Plan the maintenance window accordingly.
+- ⚠️ **(#8) Read-model feed test coverage.** Graph code-review flags the feed code
+  as untested — trading `read_model.rs`/`read_model_feed.rs` (risk 0.85, elevated by
+  the security-sensitive `WalletAuditLogger.log_operation` in the same diff) and
+  aggregator `owner_read_model` backfill (risk 0.60). The feeds' correctness
+  (last-writer-wins, sibling-demote of `is_primary`, event→upsert routing, idempotent
+  backfill parity) rests on unverified code. ☐ Add docker integration tests (Kafka +
+  Postgres) before production reliance. Also confirm `trading_wallet_audit_log`
+  retention/columns match the IAM original before the wallet-audit write repoints.
 
 **Phase 2 note:** the aggregator `meter_readings` sink uses `INSERT ... SELECT ...
 JOIN users` — a cross-DB join that BREAKS after the split. Phase 2 cutover code
