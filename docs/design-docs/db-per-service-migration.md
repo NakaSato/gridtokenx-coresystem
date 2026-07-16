@@ -230,6 +230,48 @@ below couple code to the new tables so they can't precede the env flip): re-appl
 audit repoint, swap the 2 read sites, reload pgdog, enable feeds + verify
 read-models populate, freeze + backfill, flip `TRADING_DATABASE_URL`, `just e2e`.
 
+## 5c. Pre-cutover checklist (plan review 2026-07-16)
+
+Adversarial review of the plan before any live flip. ✅ = verified against code,
+⚠️ = confirmed gap to handle, ☐ = must do per phase.
+
+**Verified safe (no action):**
+- ✅ **No cross-domain write transactions.** trading/aggregator never `INSERT/
+  UPDATE/DELETE` foreign tables (`users`/`user_wallets`/`api_keys`/`meters`); all
+  `pool.begin()` txns write only same-domain tables → atomicity preserved within
+  each new DB. All cross-domain access was READ-only.
+- ✅ **:4000/:4001 gateway is APISIX** — proxies to services, no `DATABASE_URL`,
+  no direct DB access. Transparent to the split.
+
+**Confirmed gaps — handle before/at cutover:**
+- ⚠️ **(#6b) e2e DB-assertion coupling.** `tests/e2e/env.sh` +
+  `tests/e2e/lib/db.py` connect directly to shared `gridtokenx`. DB-level e2e
+  assertions will false-fail after data moves to the per-service DBs (HTTP/curl
+  assertions — ~70 files — are split-resilient). ☐ Update `lib/db.py`/`env.sh` to
+  resolve per-domain DBs, applied with each phase.
+- ⚠️ **(#1) Revocation not evented.** IAM `DELETE FROM user_wallets ...
+  is_primary=false` (`wallet.rs:112`) and meter decommission emit no delete event
+  → read-models keep stale rows. *Low severity* (primary-wallet query filters
+  `is_primary=true`). ☐ Add `UserWalletUnlinked`/`MeterDecommissioned` events or a
+  periodic read-model reconcile before relying on read-models for delete-sensitive
+  logic.
+- ⚠️ **(#2) Event ordering.** Read-model last-writer-wins uses `updated_at=now()`
+  (write time, not event time); `user_events` partitioning/keying unpinned. Out-of-
+  order per-user wallet events could mis-set primary. *Low severity* (rare, heals on
+  re-backfill). ☐ Key `user_events` by `user_id`, or stamp `updated_at` from the
+  event timestamp.
+- ☐ **(#4) pgdog routes.** Only `gridtokenx_trading` staged. Add
+  `gridtokenx_meter`, `gridtokenx_iam`, `gridtokenx_chain` (+ `_migrate` aliases)
+  before their phase flips.
+- ☐ **(#5) Write-freeze / downtime.** Backfill is point-in-time with no dual-write
+  → each flip needs a write freeze (or dual-write window) so writes between backfill
+  and flip aren't lost. Plan the maintenance window accordingly.
+
+**Phase 2 note:** the aggregator `meter_readings` sink uses `INSERT ... SELECT ...
+JOIN users` — a cross-DB join that BREAKS after the split. Phase 2 cutover code
+(not yet written) must swap that JOIN to `meter_owner_read_model`, same as Phase 1's
+read-swaps (`db-split/phase1-cutover-code`).
+
 ## 6. Rollback / safety
 
 - Each phase gated behind an env cutover (`*_DATABASE_URL`) — flip back to
