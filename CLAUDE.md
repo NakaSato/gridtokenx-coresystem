@@ -3,7 +3,7 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 > Also auto-read by other LLM coding assistants.
-> Last reviewed: 2026-06-13
+> Last reviewed: 2026-07-17
 
 ---
 
@@ -46,6 +46,7 @@ This rule overrides any tendency to report completion before tests run.
 - Read [README.md](README.md) for the full architecture diagram, service list, and port table. The root [`ARCHITECTURE.md`](ARCHITECTURE.md) is the top-level system map; its §8 indexes every per-component `<component>/ARCHITECTURE.md`. Per-component detail lives in those files (most `gridtokenx-*` services, plus `apisix_conf/`).
 - Read [docs/glossary.md](docs/glossary.md) for domain terms (GRID, GRX, REC, VPP, CDA, PDA, etc.).
 - Each service = **independent Cargo workspace** — no root `Cargo.toml`. Don't `cargo` from repo root; `cd` into the service first.
+- **DB-per-service split is mid-flight.** Trading is live on `gridtokenx_trading`; metering rolled back to shared `gridtokenx` (meter-service still JOINs `users`); `gridtokenx_noti` already isolated. Don't add new cross-service JOINs — check [docs/design-docs/db-per-service-migration.md](docs/design-docs/db-per-service-migration.md) before touching DB wiring.
 - IAM Service = **modular monolith** with 6 sub-crates. Others: layered modules, single crate.
 - Two interconnected platforms: **Exchange** (IAM + Trading, direct blockchain) and **Infrastructure** (Aggregator Bridge + edge, produces validated telemetry). Gateway: **APISIX** (`:4001`, user-facing); **API orchestrator** at `:4000`. IoT/edge telemetry ingresses directly to the Aggregator Bridge IoT gateway (Ed25519-signed payloads; no separate edge proxy).
 - **Not every submodule is a Rust backend.** `gridtokenx-trading-service` (Rust, `crates/`) = the matching/settlement backend; `gridtokenx-trading` (Next.js, `app/`) = its **Trading UI frontend** — different repos, easy to confuse. `gridtokenx-explorer` (Next.js) = block/chain explorer frontend. The Rust→WASM client crate lives at `gridtokenx-trading/wasm/` (inside the Trading frontend submodule) — there is no top-level `gridtokenx-wasm` submodule. `gridtokenx-telemetry` is a **plain dir, not a submodule** (Rust crate, no `.gitmodules` entry). `infra/` (untracked) holds local-dev assets: `aggregator-bridge/`, `certs/`, `solana/`.
@@ -76,7 +77,7 @@ verified, not vibes. Read in this order before touching anything non-trivial:
 
 Rules that keep the harness trustworthy:
 
-- **Cite, don't assert.** Back architectural claims with `path:line` (e.g. Chain Bridge binds `0.0.0.0`, verified `main.rs:155`). A claim with no citation is a hypothesis.
+- **Cite, don't assert.** Back architectural claims with `path:line` (e.g. Chain Bridge binds `0.0.0.0`, verified `crates/chain-bridge-api/src/main.rs:251`). A claim with no citation is a hypothesis.
 - **Edit the doc next to the code you change.** Submodule docs live in the submodule — commit there, bump the pointer here.
 - **The doc-lint gate is enforced.** `just lint-docs` (CI: `.github/workflows/docs.yml`) fails on broken relative links and stale `path:line` citations. Run it before committing doc changes.
 
@@ -392,8 +393,8 @@ just openadr-e2e        # OpenADR / OpenLEADR VTN↔VEN demand-response flow
 - **Only** service that directly touches Solana RPC.
 - Signs transactions using Vault Transit (not local keypair files — dev mode supports keypair path).
 - NATS JetStream for async tx submission; gRPC for synchronous reads.
-- Binds `0.0.0.0` (verified `main.rs:155`). The trust boundary is **mTLS + role/RBAC**, not the
-  bind address. Dev reads need `CHAIN_BRIDGE_INSECURE=true`.
+- Binds `0.0.0.0` (verified `crates/chain-bridge-api/src/main.rs:251`). The trust boundary is
+  **mTLS + role/RBAC**, not the bind address. Dev reads need `CHAIN_BRIDGE_INSECURE=true`.
 
 <!-- code-review-graph MCP tools -->
 ## MCP Tools: code-review-graph

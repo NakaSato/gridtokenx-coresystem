@@ -1,8 +1,8 @@
 # GridTokenX — System Architecture
 
 > Top-level architecture map for the GridTokenX superproject.
-> Per-service internals live in `<service>/ARCHITECTURE.md`. Deep dives in [`docs/`](docs/).
-> Last reviewed: 2026-06-22
+> Per-service internals live in `<service>/ARCHITECTURE.md` (§8 indexes them). Deep dives in [`docs/`](docs/).
+> Last reviewed: 2026-07-17
 
 ---
 
@@ -83,6 +83,8 @@ IV.  Distributed Ledger → Solana programs: Registry, Settlement, Energy Asset 
 
 ## 4. Service Mesh
 
+Host ports below (container ports may differ — the compose file maps them).
+
 | Service | Lang | HTTP | gRPC | Role |
 | :--- | :--- | :--- | :--- | :--- |
 | API Services Orchestrator | Rust | 4000 | — | Public ConnectRPC entry / fan-out |
@@ -90,8 +92,9 @@ IV.  Distributed Ledger → Solana programs: Registry, Settlement, Energy Asset 
 | Trading Service | Rust | 4020 | 5020 | CDA matching, settlement |
 | Aggregator Bridge | Rust | 4030 | 5030 | Telemetry verify + aggregation |
 | Chain Bridge | Rust | — | 5040 | **Only** service touching Solana RPC |
+| Meter Service | Rust | 4062 | — | Smart-meter dashboard read API (no ingest, no chain) |
 | Noti Service | Rust | 4060 | 5060 | Notification delivery |
-| Smartmeter Simulator | Python | — | — | Telemetry generation / load test |
+| Smartmeter Simulator | Python | 12010 | — | Telemetry generation / load test |
 
 Gateways: **APISIX** `:4001` (user-facing, HTTPS/WSS). IoT/edge telemetry ingresses directly to the Aggregator Bridge IoT gateway (Ed25519-signed payloads); there is no separate edge proxy.
 
@@ -109,10 +112,15 @@ See [`CLAUDE.md`](CLAUDE.md) for the enforced conventions behind these rules.
 
 - **Kafka** — command / market / audit event logs (event sourcing).
 - **NATS JetStream** — async on-chain tx submission.
-- **RabbitMQ** `:5672` — task queues.
-- **Redis** `:7010` — live pub/sub + telemetry streams.
-- **PostgreSQL 17** `:7001` — IAM + Trading relational state (single primary).
+- **RabbitMQ** `:9030` (host; AMQP 5672 in-network) — task queues + DLQ.
+- **Redis** `:7010` — live pub/sub + zone-partitioned telemetry streams.
+- **PostgreSQL 17** `:7001` — relational state, moving to **DB-per-service**:
+  `gridtokenx_noti` isolated (reference model); Phase 1 Trading → `gridtokenx_trading` **live**;
+  Phase 2 Metering rolled back (shared `gridtokenx` until meter-service reads move to
+  `meter_owner_read_model`); Phase 3 Chain authored, not cut over.
+  See [`docs/design-docs/db-per-service-migration.md`](docs/design-docs/db-per-service-migration.md).
 - **[PgDog](https://docs.pgdog.dev)** `:7003` — sole Postgres connection pooler (Rust; replaced PgBouncer); all services connect in-network via `pgdog:6432`.
+- **InfluxDB v2** — Aggregator Bridge's own realtime telemetry history (async fire-and-forget; dedicated instance, not shared).
 
 Port scheme: 4000s gateways · 5000s gRPC mesh · 7000s persistence · 9000s messaging.
 
@@ -170,6 +178,10 @@ submodule; commit them there, then bump the pointer here.
 | Explorer frontend | [`gridtokenx-explorer/README.md`](gridtokenx-explorer/README.md) | Next.js (README only) |
 | Telemetry (shared lib) | [`gridtokenx-telemetry/ARCHITECTURE.md`](gridtokenx-telemetry/ARCHITECTURE.md) | Rust crate |
 | APISIX gateway (user) | [`apisix_conf/ARCHITECTURE.md`](apisix_conf/ARCHITECTURE.md) | Gateway config |
+
+> `gridtokenx-meter-service` has no `ARCHITECTURE.md` yet — see the service section in
+> [`README.md`](README.md) and [`CLAUDE.md`](CLAUDE.md) for its scope (read-mostly dashboard
+> API; no ingest, no chain).
 
 ### 8.1 meter→solana settlement trace
 

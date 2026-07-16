@@ -9,6 +9,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **Database-per-Service Migration** (see `docs/design-docs/db-per-service-migration.md`):
+  - All 3 phases authored with env-gated cutovers (`*_DATABASE_URL`) and rollback per phase.
+  - **Phase 1 (Trading → `gridtokenx_trading`): LIVE + e2e-validated** (`40_trading` 26/26, `90_golden_path` on-chain).
+  - **Phase 2 (Metering → `gridtokenx_meter`): rolled back** — aggregator cuts over cleanly, but meter-service still `JOIN users`; metering stays on shared `gridtokenx` until those reads move to `meter_owner_read_model`.
+  - `gridtokenx_noti` confirmed already physically isolated (the reference model).
+  - NATS event-carried read models (`meter_owner_read_model`) replace cross-service JOINs; owner lookup canonicalizes meter serials.
+
+- **Meter Service** (`gridtokenx-meter-service`, new submodule):
+  - Chain-light, read-mostly Axum service backing the Trading UI Smart Meter dashboard (`:4062`, JWT via APISIX).
+  - Meter registration, readings/stats, SSE stream of mint-status transitions (`pending`/`minted`/`denied`).
+  - No blockchain work, no reading-ingest path — telemetry enters only via the Aggregator Bridge.
+
+- **Aggregator Bridge reliability & throughput**:
+  - **Durable mint outbox** — durable bins + JetStream + retry-until-CONFIRMED; no mint loss across restarts.
+  - **Ingest hot-path caches** — per-reading IAM/Redis/PG floods removed via positive + short-negative TTL caches (api-key, pubkey, enc-key, meter-owner).
+  - **Kafka producer hardening** — socket keepalive fixes the idle stale-socket wedge (100% `MessageTimedOut` until restart).
+  - **Postgres `meter_readings` sink** (`AGGREGATOR_PG_READINGS`) feeding the Meter Service dashboard.
+  - **Dedicated InfluxDB v2** re-introduced for realtime telemetry history (async fire-and-forget, gated on `INFLUXDB_URL`) — supersedes the earlier "InfluxDB removed" entry below, which dropped the old *shared, unused* container.
+
+- **Chain Bridge HA hardening**:
+  - **DedupPort** (Postgres-backed) replaces the process-local DashMap — safe with 2+ replicas.
+  - Audit append serialized under an advisory lock (was a hash-chain fork risk).
+  - Mint replies gated on on-chain **finality** (CONFIRMED), not RPC-accept.
+
+- **On-chain settlement hardening**:
+  - Per-match **TradeNullifier** on all settle instructions (settlement replay closed).
+  - Settlement currency scaling fix (`amount*price/1e9` — was overpaying sellers 1e9×).
+  - Batched generation-mint (Lever A) proven on-chain.
+
 - **Global Platform Hardening**:
   - **Vault Transit Integration**: Migrated all services to HashiCorp Vault Transit for decentralized, secure signing (replaces local AES keys).
   - **SPIFFE/mTLS RBAC**: Implemented identity-aware RBAC across the gRPC mesh using SPIFFE URIs extracted from mTLS certificates.

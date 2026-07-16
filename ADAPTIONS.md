@@ -364,7 +364,7 @@ commitment. This document is a strategy analysis, not investment, tax, or legal 
   wholesale/retail split. ✓
 - Fungible REC mint = 1 token = 1 MWh, 6 dec — `governance/init_rec_mint.rs`. ✓
 - gTHB issuer invariants (1:1 fully-reserved, mint-atomicity, supply ≤ reserves). ✓
-- License = Proprietary © 2026 GridTokenX (superproject `README.md:573`). ✓
+- License = Proprietary © 2026 GridTokenX (superproject `README.md:586`). ✓
 
 **External (web, verified 2026-07-12) — CONFIRMED, with two updates folded in above:**
 - Retail tariff **3.95 THB/unit May–Aug 2026** (base 3.78 + Ft 0.1623, pre-VAT). ✓ exact.

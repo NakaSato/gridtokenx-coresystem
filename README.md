@@ -119,7 +119,7 @@ graph TD
         Trading["Trading Service<br/>:8093 / :8092"]
         OracleB["Aggregator Bridge<br/>:4030"]
         Meter["Meter Service<br/>:4062"]
-        Noti["Noti Service<br/>:5050"]
+        Noti["Noti Service<br/>:4060 / :5060"]
     end
 
     subgraph signing["Signing Authority"]
@@ -249,7 +249,7 @@ flowchart LR
 - Sends validated telemetry directly to the Aggregator Bridge IoT gateway — no separate edge proxy.
 
 ### Notification Service (`gridtokenx-noti-service`)
-- **Port**: 5050 · Email pipeline (register → verify → welcome) over RabbitMQ task queues + DLQ for guaranteed delivery. Own physical database (`gridtokenx_noti`) with its own migrations (`just noti-migrate`).
+- **Ports**: 4060 (HTTP) / 5060 (gRPC) · Email pipeline (register → verify → welcome) over RabbitMQ task queues + DLQ for guaranteed delivery. Own physical database (`gridtokenx_noti`) with its own migrations (`just noti-migrate`).
 
 ### Demand Response (VPP flex dispatch)
 
@@ -404,7 +404,7 @@ A deliberately layered protocol stack: standard meter/IoT protocols at the physi
 | **Trading Service** | `8093` | `8092` | Matching & Settlement |
 | **Aggregator Bridge** | — | `4030` | Telemetry Validation |
 | **Chain Bridge** | — | `5040` | Solana Signing Authority |
-| **Noti Service** | — | `5050` | Notifications Dispatcher |
+| **Noti Service** | `4060` | `5060` | Notifications Dispatcher |
 | **Meter Service** | `4062` | — | Smart Meter Dashboard Read API |
 | **Simulator API** | `12010` | — | IoT Simulation Backend |
 | **Trading UI** | `11001` | — | Exchange Web App |

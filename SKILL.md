@@ -5,16 +5,17 @@ description: Global workspace instructions and machine-specific configurations f
 
 # Global Workspace Skills & Config
 
-This file contains global instructions and machine-specific configurations for the GridTokenX monorepo.
+Machine-specific configuration for the GridTokenX superproject. Scripts and manual commands must respect these constraints.
 
-## Machine-Specific Configurations (Apple Silicon / M-Series)
+## Dev Machine: Apple Silicon (M2, 16 GB RAM)
 
-This project is being developed on an Apple M2 machine with 16GB of RAM. The following optimizations must be respected by scripts and manual commands:
+### Solana Test Validator — "Too many open files"
 
-### Solana Test Validator (Too Many Open Files)
-Running `solana-test-validator` natively on macOS (Apple Silicon) will crash under load due to aggressive default OS file descriptor limits (typically 256 or 2560). 
-- **Fix:** Always tune the system limit by running `ulimit -n 65536` before starting the validator. This has been integrated into `scripts/cmd/start.sh` and `scripts/cmd/init.sh`.
-- **Memory Limit:** Always use `--limit-ledger-size 10000` to prevent the ledger from exhausting the 16GB of unified memory.
+`solana-test-validator` crashes under load on macOS Apple Silicon because default file-descriptor limits are tiny (256–2560).
+
+- **Fix:** `ulimit -n 65536` before starting the validator. Already integrated into `scripts/cmd/start.sh` and `scripts/cmd/init.sh` — only needed manually when launching the validator outside those scripts.
+- **Memory:** always pass `--limit-ledger-size 10000` so the ledger can't exhaust the 16 GB unified memory.
 
 ### Metaplex Localnet Programs
-GridTokenX relies heavily on Metaplex standards. The local test validator dynamically loads the Metaplex mainnet programs (`mpl-token-metadata`, `mpl-bubblegum`, `mpl-core`) on startup via the `--bpf-program` argument, using the automated `scripts/setup-metaplex.sh` cache.
+
+GridTokenX relies on Metaplex standards. The local test validator loads the Metaplex mainnet programs (`mpl-token-metadata`, `mpl-bubblegum`, `mpl-core`) at startup via `--bpf-program`, using the automated `scripts/setup-metaplex.sh` cache — no manual download.
