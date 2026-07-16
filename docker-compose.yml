@@ -588,6 +588,8 @@ services:
       DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgdog:6432/gridtokenx_meter
       JWT_SECRET: ${JWT_SECRET}
       METER_EVENTS_ENABLED: "true"
+      KAFKA_BOOTSTRAP_SERVERS: kafka-market:9002
+      METER_EVENTS_TOPIC: meter_events
       METER_SERVICE_PORT: 8080
       RUST_LOG: info,sqlx=warn
     depends_on:
