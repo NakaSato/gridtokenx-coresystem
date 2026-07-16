@@ -249,12 +249,13 @@ Adversarial review of the plan before any live flip. ✅ = verified against code
   assertions will false-fail after data moves to the per-service DBs (HTTP/curl
   assertions — ~70 files — are split-resilient). ☐ Update `lib/db.py`/`env.sh` to
   resolve per-domain DBs, applied with each phase.
-- ⚠️ **(#1) Revocation not evented.** IAM `DELETE FROM user_wallets ...
-  is_primary=false` (`wallet.rs:112`) and meter decommission emit no delete event
-  → read-models keep stale rows. *Low severity* (primary-wallet query filters
-  `is_primary=true`). ☐ Add `UserWalletUnlinked`/`MeterDecommissioned` events or a
-  periodic read-model reconcile before relying on read-models for delete-sensitive
-  logic.
+- ✅ **(#1) Revocation — wallet-unlink path FIXED.** IAM now emits
+  `UserWalletUnlinked{user_id,wallet_address}` on `delete_if_not_primary` (via
+  `DELETE ... RETURNING wallet_address`), and the trading feed consumes it →
+  `DELETE FROM iam_wallet_read_model` (idempotent). Committed. ☐ Remaining:
+  meter decommission emits no event — but meter-service has NO delete path today,
+  so no stale meter rows can arise yet; add `MeterDecommissioned` if/when meter
+  deletion is introduced.
 - ⚠️ **(#2) Event ordering.** Read-model last-writer-wins uses `updated_at=now()`
   (write time, not event time); `user_events` partitioning/keying unpinned. Out-of-
   order per-user wallet events could mis-set primary. *Low severity* (rare, heals on
