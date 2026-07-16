@@ -6,6 +6,8 @@ POST a phase flip, override that phase's env (e.g. PG_DB_TRADING=gridtokenx_trad
 so DB-level assertions hit the DB where the data actually lives. See
 docs/design-docs/db-per-service-migration.md §5c (#6b).
 """
+from __future__ import annotations  # PEP 604 `str | None` on the Py3.9 e2e venv
+
 import os
 import subprocess
 
