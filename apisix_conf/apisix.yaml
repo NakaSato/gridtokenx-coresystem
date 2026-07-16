@@ -108,6 +108,7 @@ routes:
       - /api/v1/markets/settlement-stats
       - /api/v1/markets/orderbook
       - /api/v1/markets/clearing-epochs
+      - /api/v1/markets/active-order-meters
       - /api/v1/markets/p2p/*
     plugin_config_id: 1
     upstream:
