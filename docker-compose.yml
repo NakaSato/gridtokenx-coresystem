@@ -584,12 +584,13 @@ services:
     ports:
       - "${METER_SERVICE_PORT:-4062}:8080"
     environment:
-      # DB-per-service Phase 2 ROLLED BACK: meter-service still JOINs IAM `users`
-      # (register + list, meter.rs:37,138) which is absent from gridtokenx_meter →
-      # 500 "relation users does not exist". Needs a user/wallet read-model in
-      # gridtokenx_meter before cutover. Back on shared gridtokenx for now.
-      DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgdog:6432/gridtokenx
+      # DB-per-service Phase 2: meter-service owns meters/registry in gridtokenx_meter;
+      # owner wallet now resolved via meter_owner_read_model (users JOIN removed, fa3f537).
+      DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgdog:6432/gridtokenx_meter
       JWT_SECRET: ${JWT_SECRET}
+      METER_EVENTS_ENABLED: "true"
+      KAFKA_BOOTSTRAP_SERVERS: kafka-market:9002
+      METER_EVENTS_TOPIC: meter_events
       METER_SERVICE_PORT: 8080
       RUST_LOG: info,sqlx=warn
     depends_on:
@@ -763,10 +764,10 @@ services:
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-gridtokenx}:${RABBITMQ_DEFAULT_PASS:-rabbitmq_secret_2025}@rabbitmq:5672
       DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgdog:6432/gridtokenx
       TRADING_DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgdog:6432/gridtokenx
-      # DB-per-service Phase 2 ROLLED BACK (with meter-service) — see meter-service
-      # note above. Reverts the aggregator to the shared-DB owner-resolution path.
-      # METER_DATABASE_URL: ...gridtokenx_meter  (re-enable once meter-service's
-      # users JOINs are read-model-backed)
+      # DB-per-service Phase 2: aggregator metering pool = gridtokenx_meter
+      # (own_meter_db seam — reads meter_owner_read_model, not meters⋈users).
+      METER_DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgdog:6432/gridtokenx_meter
+      AGGREGATOR_OWNER_READMODEL_FEED: "true"
       API_GATEWAY_URL: http://apisix:9080
       IAM_GRPC_URL: http://apisix:9080
       TRADING_GRPC_URL: http://apisix:9080
