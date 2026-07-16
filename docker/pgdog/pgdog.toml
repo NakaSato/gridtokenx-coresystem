@@ -84,3 +84,54 @@ role = "primary"
 pooler_mode = "session"
 pool_size = 3
 min_pool_size = 1
+
+# DB-per-service Phase 2: metering bounded context (meter-service + aggregator).
+[[databases]]
+name = "gridtokenx_meter"
+host = "postgres"
+port = 5432
+role = "primary"
+pooler_mode = "transaction"
+[[databases]]
+name = "gridtokenx_meter_migrate"
+database_name = "gridtokenx_meter"
+host = "postgres"
+port = 5432
+role = "primary"
+pooler_mode = "session"
+pool_size = 3
+min_pool_size = 1
+
+# DB-per-service Phase 3: IAM identity-only DB.
+[[databases]]
+name = "gridtokenx_iam"
+host = "postgres"
+port = 5432
+role = "primary"
+pooler_mode = "transaction"
+[[databases]]
+name = "gridtokenx_iam_migrate"
+database_name = "gridtokenx_iam"
+host = "postgres"
+port = 5432
+role = "primary"
+pooler_mode = "session"
+pool_size = 3
+min_pool_size = 1
+
+# DB-per-service Phase 3: Chain Bridge DB (audit_log, dedup_effects, nonce_allocations).
+[[databases]]
+name = "gridtokenx_chain"
+host = "postgres"
+port = 5432
+role = "primary"
+pooler_mode = "transaction"
+[[databases]]
+name = "gridtokenx_chain_migrate"
+database_name = "gridtokenx_chain"
+host = "postgres"
+port = 5432
+role = "primary"
+pooler_mode = "session"
+pool_size = 3
+min_pool_size = 1
