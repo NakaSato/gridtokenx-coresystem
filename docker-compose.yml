@@ -756,8 +756,9 @@ services:
       KAFKA_MARKET_BROKERS: kafka-market:9002
       KAFKA_AUDIT_BROKERS: kafka-audit:9003
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-gridtokenx}:${RABBITMQ_DEFAULT_PASS:-rabbitmq_secret_2025}@rabbitmq:5672
-      DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgdog:6432/gridtokenx
-      TRADING_DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgdog:6432/gridtokenx
+      # DB-per-service Phase 1 cutover: Trading owns gridtokenx_trading.
+      DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgdog:6432/gridtokenx_trading
+      TRADING_DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgdog:6432/gridtokenx_trading
       API_GATEWAY_URL: http://apisix:9080
       IAM_GRPC_URL: http://apisix:9080
       TRADING_GRPC_URL: http://apisix:9080

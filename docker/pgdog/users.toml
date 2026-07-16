@@ -20,3 +20,44 @@ password = "gridtokenx_password"
 name = "gridtokenx_user"
 database = "gridtokenx_noti_migrate"
 password = "gridtokenx_password"
+
+# DB-per-service target DBs (routes in pgdog.toml).
+[[users]]
+name = "gridtokenx_user"
+database = "gridtokenx_trading"
+password = "gridtokenx_password"
+
+[[users]]
+name = "gridtokenx_user"
+database = "gridtokenx_trading_migrate"
+password = "gridtokenx_password"
+
+[[users]]
+name = "gridtokenx_user"
+database = "gridtokenx_meter"
+password = "gridtokenx_password"
+
+[[users]]
+name = "gridtokenx_user"
+database = "gridtokenx_meter_migrate"
+password = "gridtokenx_password"
+
+[[users]]
+name = "gridtokenx_user"
+database = "gridtokenx_iam"
+password = "gridtokenx_password"
+
+[[users]]
+name = "gridtokenx_user"
+database = "gridtokenx_iam_migrate"
+password = "gridtokenx_password"
+
+[[users]]
+name = "gridtokenx_user"
+database = "gridtokenx_chain"
+password = "gridtokenx_password"
+
+[[users]]
+name = "gridtokenx_user"
+database = "gridtokenx_chain_migrate"
+password = "gridtokenx_password"
