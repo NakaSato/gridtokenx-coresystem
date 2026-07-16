@@ -274,6 +274,15 @@ Adversarial review of the plan before any live flip. ✅ = verified against code
   backfill parity) rests on unverified code. ☐ Add docker integration tests (Kafka +
   Postgres) before production reliance. Also confirm `trading_wallet_audit_log`
   retention/columns match the IAM original before the wallet-audit write repoints.
+- ⚠️ **(#9) Feeds interpret `is_primary`-absent OPPOSITELY** (surfaced by the feed
+  unit tests). Trading's `WalletLinkedData.is_primary` is a bare `bool`
+  (`#[serde(default)]` → **false** = non-primary); the aggregator's is `Option<bool>`
+  (`None` → treated **primary**). Same wire event, opposite projection — harmless
+  *only because IAM always emits an explicit `is_primary`*, but a latent divergence
+  to unify. Related sharp edge: the aggregator's authoritative `update_wallet_by_user`
+  writes NULL on a blank-wallet `Linked`/`Onboarded` event (blanks all a user's meter
+  wallets), unlike the meter path's COALESCE-preserve — safe only while those events
+  always carry a wallet (they do today).
 
 **Phase 2 note:** the aggregator `meter_readings` sink uses `INSERT ... SELECT ...
 JOIN users` — a cross-DB join that BREAKS after the split. Phase 2 cutover code
