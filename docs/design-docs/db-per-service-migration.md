@@ -190,9 +190,28 @@ Ordered by risk, lowest coupling first. **Noti already done.**
 3. Cut `AGGREGATOR_PG_READINGS` DB over. Verify ingest→mint hops.
 
 ### Phase 3 — Chain-bridge isolate + IAM trim
-1. Confirm/park chain-bridge in `gridtokenx_chain`.
+1. Confirm/park chain-bridge in `gridtokenx_chain`. Chain-bridge now owns its
+   schema in its OWN migrations (`gridtokenx-chain-bridge/migrations/`: `0001_audit_log`,
+   `0002_dedup_effects`, `0003_dedup_owner_token`, `0004_nonce_allocations`) and applies
+   them at boot via `CHAIN_BRIDGE_DATABASE_URL` (single-owner DB, so boot-migrate is
+   safe — unlike the shared `gridtokenx_meter`). §3.4 defect 1 (`nonce_allocations` had
+   no creating migration) is fixed by `0004`.
 2. Delete reassigned tables from IAM migrations; IAM keeps identity/wallet/key
    + its outbox only.
+   - **`audit_log` (§3.4 defect 2) — deploy-ordered drop, NOT an auto-run migration.**
+     IAM's `20260620000000_add_chain_bridge_audit_log.sql` is the applied "shared-DB
+     owner copy" of chain-bridge's table (IAM code never touches it; chain-bridge's
+     `0001_audit_log` is now the canonical source). It cannot be deleted/edited (applied
+     ⇒ sqlx checksum/missing-migration break), and a **new `DROP TABLE audit_log` IAM
+     migration would auto-run on the next IAM deploy — dropping the table chain-bridge
+     is STILL writing in the shared DB until step 1 lands.** So run the drop as a manual
+     cutover step, AFTER chain-bridge is confirmed writing `gridtokenx_chain` (step 1),
+     against the OLD shared DB:
+     ```sql
+     -- Only after chain-bridge writes gridtokenx_chain; the shared-DB audit_log is now orphaned.
+     DROP TABLE IF EXISTS audit_log;
+     ```
+     Rollback: chain-bridge's `0001_audit_log` recreates it if a flip-back is needed.
 3. Per-service DB roles: each login can touch **only** its own DB (revoke the rest).
 4. Full-stack verify + update `ARCHITECTURE.md` topology + fix the misleading
    `docker-compose.yml:916` "schema" comment.
