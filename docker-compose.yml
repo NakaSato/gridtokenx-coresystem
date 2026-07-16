@@ -584,8 +584,10 @@ services:
     ports:
       - "${METER_SERVICE_PORT:-4062}:8080"
     environment:
-      DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgdog:6432/gridtokenx
+      # DB-per-service Phase 2: meter-service owns meters/registry in gridtokenx_meter.
+      DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgdog:6432/gridtokenx_meter
       JWT_SECRET: ${JWT_SECRET}
+      METER_EVENTS_ENABLED: "true"
       METER_SERVICE_PORT: 8080
       RUST_LOG: info,sqlx=warn
     depends_on:
@@ -628,7 +630,8 @@ services:
       - ./infra/certs/clients/trading-service-api.crt:/app/infra/certs/client.crt:ro
       - ./infra/certs/clients/trading-service-api.key:/app/infra/certs/client.key:ro
     environment:
-      DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgdog:6432/gridtokenx
+      # DB-per-service Phase 1 cutover: Trading owns gridtokenx_trading.
+      DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgdog:6432/gridtokenx_trading
       REDIS_URL: redis://redis:6379
       KAFKA_CMD_BROKERS: kafka-cmd:9001
       KAFKA_MARKET_BROKERS: kafka-market:9002
@@ -756,9 +759,13 @@ services:
       KAFKA_MARKET_BROKERS: kafka-market:9002
       KAFKA_AUDIT_BROKERS: kafka-audit:9003
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-gridtokenx}:${RABBITMQ_DEFAULT_PASS:-rabbitmq_secret_2025}@rabbitmq:5672
-      # DB-per-service Phase 1 cutover: Trading owns gridtokenx_trading.
-      DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgdog:6432/gridtokenx_trading
-      TRADING_DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgdog:6432/gridtokenx_trading
+      DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgdog:6432/gridtokenx
+      TRADING_DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgdog:6432/gridtokenx
+      # DB-per-service Phase 2: metering bounded context owns gridtokenx_meter.
+      # own_meter_db seam — aggregator uses this pool for metering + reads the
+      # local meter_owner_read_model instead of the cross-domain meters⋈users JOIN.
+      METER_DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgdog:6432/gridtokenx_meter
+      AGGREGATOR_OWNER_READMODEL_FEED: "true"
       API_GATEWAY_URL: http://apisix:9080
       IAM_GRPC_URL: http://apisix:9080
       TRADING_GRPC_URL: http://apisix:9080
