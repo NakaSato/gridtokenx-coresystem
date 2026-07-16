@@ -312,6 +312,26 @@ JOIN users` — a cross-DB join that BREAKS after the split. Phase 2 cutover cod
 (not yet written) must swap that JOIN to `meter_owner_read_model`, same as Phase 1's
 read-swaps (`db-split/phase1-cutover-code`).
 
+## 5d. Live cutover outcomes (2026-07-17)
+
+- **Phase 1 Trading → `gridtokenx_trading`: LIVE + e2e-validated.** `40_trading`
+  26/26, `90_golden_path` (on-chain) pass on the new DB. Verify a cutover by the
+  **container's own** `DATABASE_URL` env + the service-IP's DB in pgdog logs —
+  manual `psql` sessions show up as pooler clients and mislead (a first flip
+  edited the aggregator compose block by mistake; the container-env check caught
+  it).
+- **Phase 2 Metering → `gridtokenx_meter`: BLOCKED, rolled back.** The aggregator
+  cuts over cleanly (own_meter_db `METER_DATABASE_URL` seam → reads
+  `meter_owner_read_model`, writes `meter_readings` there). **meter-service does
+  not**: it still `JOIN users` in register + list (`meter-persistence/.../meter.rs:37,138`,
+  `COALESCE(u.wallet_address)`) → 500 `relation "users" does not exist` on
+  `gridtokenx_meter` (caught by `30_settlement` `test_db_registered_meter_mints_to_owner`).
+  **Fix:** repoint those JOINs to the already-seeded `meter_owner_read_model`
+  (serial/user→wallet), then re-run Phase 2. Metering is back on shared
+  `gridtokenx` and working; `gridtokenx_meter` stays migrated+seeded.
+- **pgdog needs BOTH** a `[[databases]]` route **and** a `users.toml` SCRAM entry
+  per new DB (routes+auth added for trading/meter/iam/chain).
+
 ## 6. Rollback / safety
 
 - Each phase gated behind an env cutover (`*_DATABASE_URL`) — flip back to
