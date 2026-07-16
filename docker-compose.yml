@@ -472,10 +472,12 @@ services:
       - "${IAM_HTTP_PORT:-4010}:8080"
       - "${IAM_GRPC_PORT:-5010}:8090"
     environment:
-      DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgdog:6432/gridtokenx
+      # DB-per-service Phase 3: IAM owns its identity DB gridtokenx_iam
+      # (migrate! runner switched to migrations-iam/ — 4 tables + user_role).
+      DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgdog:6432/gridtokenx_iam
       # sqlx::migrate! at startup uses a dedicated session-mode pooler alias so
       # its advisory lock can't leak into the transaction-mode pool above.
-      MIGRATION_DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgdog:6432/gridtokenx_migrate
+      MIGRATION_DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgdog:6432/gridtokenx_iam_migrate
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://tempo:4318}
       REDIS_URL: redis://redis:6379
       KAFKA_CMD_BROKERS: kafka-cmd:9001
