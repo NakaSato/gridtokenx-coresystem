@@ -101,6 +101,12 @@ lint-docs:
 lint-docs-all:
     bash scripts/lint-docs-all.sh
 
+# Guard: meter-registry DDL stays identical between the aggregator's canonical
+# migrate set (0002) and meter-service's ownership copy (0001) — DB-per-service
+# Phase 2 "aggregator applies the complete set" model.
+check-ddl-sync:
+    bash scripts/check-metering-ddl-sync.sh
+
 # Advisory: list docs whose `Last reviewed:` date is older than days (default 180)
 lint-docs-stale days="180":
     python3 scripts/lint-docs.py --warn-stale {{days}}
