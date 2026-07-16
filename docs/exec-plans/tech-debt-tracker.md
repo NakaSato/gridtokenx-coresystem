@@ -83,7 +83,7 @@ re-creates the bin, but the mint is a PDA no-op (`init_if_needed`) → that ener
 
 ## Sources to mine for debt
 
-- [`../../gridtokenx-refactor-checklist.md`](../../gridtokenx-refactor-checklist.md)
-- [`../../gridtokenx-refactor-plan.md`](../../gridtokenx-refactor-plan.md)
+- [`../gridtokenx-refactor-checklist.md`](../gridtokenx-refactor-checklist.md)
+- [`../gridtokenx-refactor-plan.md`](../gridtokenx-refactor-plan.md)
 - `cargo clippy -- -D warnings` output across services
 - `// TODO` / `// FIXME` / `// HACK` markers in service code
