@@ -1,5 +1,9 @@
 # Suite 97 — P2P Energy Trade: Prosumer ↔ Consumer (plan)
 
+> **Status: IMPLEMENTED** — as the standalone bash suite `run.sh` in this directory
+> (not the pytest layout originally sketched below; see "Files" and "Open questions",
+> both since resolved). Phase annotations below note where the implementation differs.
+
 Scenario: 2 users (1 prosumer, 1 consumer) go through full lifecycle — register,
 verify, add meter, trade — using **real self-service APIs only** (no Redis/DB
 backdoors), distinct from suite `90_golden_path` which uses a Redis backdoor for
@@ -49,6 +53,8 @@ Confirmed with user: 2 users total (1 prosumer, 1 consumer), not 3.
 - Accept `200/202/409` (idempotent path, mirrors golden path).
 - Poll for on-chain PDA existence (DB flag or Chain Bridge read) up to ~30s —
   known detached/async gap, don't assert immediately.
+- *(Implemented: `run.sh` gates on `users.blockchain_registered = t` via
+  `docker exec` psql, up to `REG_CONFIRM_WAIT` = 45s; `SKIP_ONCHAIN=1` skips.)*
 
 ### Phase 4 — Add meter to account (real API, not Redis backdoor)
 - Prosumer: `POST /api/v1/meters` (meter-service, JWT) with
@@ -60,6 +66,11 @@ Confirmed with user: 2 users total (1 prosumer, 1 consumer), not 3.
 - Assert `meter.id` returned and linked to the registering user (per
   `meter-readings-writer-and-verified` memory: `meter_id` FK → user via
   `meter_registry`, `is_verified=true` at register).
+- *(Implemented: `run.sh` first tries real simulator device ids as the serial —
+  solar-capable for the prosumer — retrying down a candidate pool since a meter
+  is one-owner, then falls back to an invented serial; for a real sim id it also
+  re-points the bridge's Redis device registry (pubkey + owner + wallet) so
+  signed telemetry attributes to this run's user.)*
 
 ### Phase 5 — Trade together (P2P match)
 - Optional but realistic: prosumer sends 2–3 signed GENERATION readings via
@@ -81,25 +92,25 @@ Confirmed with user: 2 users total (1 prosumer, 1 consumer), not 3.
 
 ## Stage/skip model
 
-Reuse golden path's `Stages` accumulator: hard-fail only on **reachable**
-stage failures; unreachable services record `SKIP`, not `FAIL`. IAM must be up
-(hard prerequisite) — mirrors `pytestmark = pytest.mark.skipif(not _up(IAM), ...)`.
+Same tolerance model as golden path, implemented with warn-and-continue in
+bash rather than the pytest `Stages` accumulator: hard prerequisites are IAM
+and meter-service reachability; the single hard gate is the Phase 5 P2P match
+fill. Telemetry, settlement, and mint evidence are best-effort (warn, not
+fail).
 
-## Files to add
+## Files (as implemented)
 
 ```
 tests/e2e/97_p2p_prosumer_consumer/
-  run.sh                    # mirrors 90_golden_path/run.sh (pytest_suite $HERE)
-  test_p2p_prosumer_consumer.py
+  run.sh                    # standalone bash suite (no pytest file)
 ```
 
-## Open questions for user before implementing
+## Open questions — resolved in the implementation
 
-1. Should Phase 5 include the real signed-telemetry step (proves actual
-   surplus → real mint), or skip straight to placing orders (faster, less
-   flaky, mirrors most other trading-only scripts)?
-2. Consumer meter in Phase 4 — register one for symmetry with "user add
-   meter id to account," or skip it since only prosumers need meters for
-   this scenario?
-3. Run mode: pytest suite (like golden path, `just e2e` picks it up) or a
-   standalone bash script (like `scripts/e2e_two_user_trade.sh`)?
+1. Phase 5 signed telemetry: **included** — the prosumer pushes signed
+   GENERATION readings (AES-256-GCM dlms-enc + mTLS, run inside the sim
+   container) as best-effort proof of surplus; `SKIP_SURPLUS=1` opts out.
+2. Consumer meter: **registered** — both users add a meter via the real
+   meter-service API.
+3. Run mode: **standalone bash script** (`run.sh`), like
+   `scripts/e2e_two_user_trade.sh` — not a pytest suite.

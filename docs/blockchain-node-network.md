@@ -8,7 +8,7 @@
 > consortium's. See [`docs/master-architecture-v3.md §IV`](master-architecture-v3.md) for
 > the full honest statement.
 >
-> Last reviewed: June 2026
+> Last reviewed: 2026-07-17
 
 ---
 
@@ -422,13 +422,9 @@ Chain Bridge is the only application service that connects to the consortium RPC
 
 ### RBAC — Role from SPIFFE mTLS Certificate
 
-| SPIFFE URI | ServiceRole | Allowed Instructions |
-|---|---|---|
-| `spiffe://gridtokenx.th/prod/aggregator-bridge` | `AggregatorBridge` | `mint_generation`, `mint_rec`, `submit_mv_proof` |
-| `spiffe://gridtokenx.th/prod/trading-service` | `TradingService` | `settle_p2p_trade`, `record_settlement_batch` |
-| `spiffe://gridtokenx.th/prod/la2-bid-engine` | `BidEngine` | `submit_mv_proof`, `settle_offchain_match` — NOT `mint_generation` |
-| `spiffe://gridtokenx.th/prod/iam-service` | `IamService` | Read-only |
-| (unverified) | `Unknown` | Rejected |
+The Chain Bridge maps the caller's SPIFFE SAN to a `ServiceRole` and gates instructions per role
+(`AggregatorBridge` may mint; `BidEngine` may not; `IamService` is read-only). The full
+role-to-instruction table lives in [`blockchain-service-mesh.md §10`](blockchain-service-mesh.md#10-chain-bridge-rbac).
 
 ### Blockhash Cache
 
@@ -469,59 +465,21 @@ Aggregator Node (one per zone)
 
 ### Exactly-Once Minting (Double Lock)
 
-The most safety-critical guarantee: a meter that generated 5 kWh in window W must produce exactly 5 GRID — never 0 (lost), never 10 (double-mint) — even if two aggregator nodes race.
-
-```
-Layer 1 (off-chain): Redis MINTED_SET keyed by (meter_id, epoch)
-    → fast local skip before RPC submit
-
-Layer 2 (on-chain):  GenerationMintRecord PDA seeded by (meter, window)
-    → mint_generation is a no-op / error if PDA already exists
-    → ultimate source of truth; immune to forged off-chain state
-
-If two aggregator nodes race:
-    First to land transaction → creates PDA → wins
-    Second → PDA already exists → fails → no double-mint
-```
+The most safety-critical guarantee: a meter that generated 5 kWh in window W must produce exactly 5 GRID — never 0 (lost), never 10 (double-mint) — even if two aggregator nodes race. Two layers enforce this: an off-chain Redis `MINTED_SET` (fast local skip) and the on-chain `GenerationMintRecord` PDA (ultimate source of truth — if two nodes race, the first transaction creates the PDA and the second fails). Mechanics in [`blockchain-tokens.md §2`](blockchain-tokens.md#2-grid-token).
 
 ### Permissioning & Bond
 
-Private LA#2 admission follows the 3-step process. Utility (MEA/PEA) aggregator nodes are admitted by virtue of their regulatory role.
-
-```
-LA#2 Admission:
-
-Step 1: ERC / MEA / PEA calls admit_aggregator on-chain
-            → creates AggregatorEntry PDA
-            Seed: [b"aggregator", la2_pubkey]; stores assigned zone
-
-Step 2: LA#2 calls register_validator + stake_grx(≥ 10,000 GRX)
-            Status → Active (bond is slashable)
-
-Step 3: Consortium operator issues SPIFFE cert
-            Role: BidEngine
-            URI SAN: spiffe://gridtokenx/service/bid-engine
-            Can: submit_mv_proof + settle_offchain_match
-            Cannot: mint_generation (AggregatorBridge role only)
-```
+Utility (MEA/PEA) aggregator nodes are admitted by virtue of their regulatory role. Private
+LA#2 operators follow the 3-step admission process (on-chain `admit_aggregator` → bonded
+`register_validator` + `stake_grx` ≥ 10,000 GRX → SPIFFE `BidEngine` cert), detailed in
+[`blockchain-governance.md §2`](blockchain-governance.md#2-consortium-membership--admission).
 
 ### Slashing
 
-```
-Misbehavior detected (fraud proof submitted within challenge window):
-    registry.slash_validator(severity_bps)
-        │
-        ├── slash = bond × severity_bps / 10,000
-        ├── compensation = min(slash, proven_loss)  → paid to harmed party
-        └── remainder → slash_destination (ERC / consumer-rebate pool)
-
-Invariant: slash == compensation + remainder  (enforced by program)
-
-Partial slash → validator status → Suspended
-Full slash    → validator status → Slashed (terminal; cannot re-enter)
-Active validators only can be slashed (stake-escape prevention)
-Cannot unstake while Active
-```
+Misbehaviour proven within the challenge window triggers `registry.slash_validator(severity_bps)`
+against the bond. The slash formula, conservation invariant, status transitions
+(Suspended / Slashed), and the open slash-escape gap are specified in
+[`blockchain-governance.md §2`](blockchain-governance.md#2-consortium-membership--admission).
 
 ---
 
@@ -659,20 +617,14 @@ VAULT_ADDR=https://vault.gridtokenx.th:8200
 | 8900 | WSS mTLS | WebSocket subscriptions | Chain Bridge mTLS only — NOT public |
 | 8003 | HTTP | Validator metrics (Prometheus) | Internal monitoring only |
 
-### Program IDs (from `gridtokenx-anchor/Anchor.toml`)
+### Program IDs
 
-| Program | ID |
-|---|---|
-| `energy-token` | `6FZKcVKCLFSNLMxypFJGU4K14xUBnxNW9VAuKGhmqjGX` |
-| `governance` | `FokVuBSPXP11aeL7VZWd8n8aVAhWqVpyPZETToSxdvTS` |
-| `oracle` | `64Vgos61STZ8pW9NnHi2iGtXMTQr7NqBoMorK6Zg8RJU` |
-| `registry` | `FcSd5x4X1nzJMKLZC4tMZXnQ1ipLrGsEfeoH8N4mvJX7` |
-| `trading` | `CnWDEUhTvSixeLSyViWgAnnu9YouBAYVGcrrFm1s9WcX` |
-| `treasury` | `FfxSQYKUmx9NGdCC9TDPmZSYjWYE1h4ruu3JatzHN5Tn` |
-
-> Program IDs are authoritative in `gridtokenx-anchor/Anchor.toml`. If this table diverges, `Anchor.toml` is correct.
+The localnet program-ID table lives in
+[`blockchain-smart-contracts.md §6`](blockchain-smart-contracts.md#6-program-ids).
+Program IDs are authoritative in `gridtokenx-anchor/Anchor.toml`; if any doc table diverges,
+`Anchor.toml` is correct.
 
 ---
 
-*GridTokenX Blockchain Node Network — v3.0 (Topic Split) — June 2026*
+*GridTokenX Blockchain Node Network — v3.0 (Topic Split)*
 *See also: [blockchain-architecture.md](blockchain-architecture.md) · [blockchain-smart-contracts.md](blockchain-smart-contracts.md) · [blockchain-governance.md](blockchain-governance.md) · [ARCHITECTURE.md](../ARCHITECTURE.md)*

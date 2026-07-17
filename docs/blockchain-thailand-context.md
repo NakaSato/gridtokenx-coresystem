@@ -1,7 +1,7 @@
 # GridTokenX — Thailand Energy Market Context
 
 > Load Aggregator hierarchy, regulatory framework, and market structure.
-> Last reviewed: June 2026
+> Last reviewed: 2026-07-17
 
 ---
 
@@ -143,26 +143,7 @@ MEA co-signs DR settlement **only** for Bangkok zone DERs. PEA co-signs **only**
 
 ## 7. Private LA#2 Participation (designed — future extension)
 
-A licensed private LA#2 may participate in the GridTokenX network under delegation from MEA or PEA. The admission process differs from utilities in key ways.
-
-### Admission Flow (3 steps)
-
-```
-Step 1: ERC / MEA / PEA calls admit_aggregator on-chain
-            → creates AggregatorEntry PDA
-            Seed: [b"aggregator", la2_pubkey]
-            Stores assigned zone
-
-Step 2: LA#2 calls register_validator + stake_grx(≥ 10,000 GRX)
-            Status → Active
-            Bond is slashable (see §7.2)
-
-Step 3: Consortium operator issues SPIFFE cert to LA#2 services
-            URI SAN: spiffe://gridtokenx/service/bid-engine
-            Role: BidEngine
-            Permitted: submit_mv_proof + settle_offchain_match
-            NOT permitted: mint_generation (AggregatorBridge role only — MEA/PEA only)
-```
+A licensed private LA#2 may participate in the GridTokenX network under delegation from MEA or PEA. Admission is the 3-step process specified in [`blockchain-governance.md §2`](blockchain-governance.md#2-consortium-membership--admission): on-chain `admit_aggregator` (creates the zone-scoped `AggregatorEntry` PDA), a slashable bond via `register_validator` + `stake_grx` (≥ 10,000 GRX), and a SPIFFE `BidEngine` cert that permits `submit_mv_proof` + `settle_offchain_match` but never `mint_generation` (AggregatorBridge role — MEA/PEA only).
 
 ### Key Differences from Utility (MEA/PEA) Participation
 
@@ -177,17 +158,7 @@ Step 3: Consortium operator issues SPIFFE cert to LA#2 services
 
 ### Bond Slashing for Private LA#2
 
-```
-slash = bond × severity_bps / 10,000
-compensation = min(slash, proven_loss)  → harmed party
-remainder → ERC / consumer-rebate pool
-
-Invariant: slash == compensation + remainder
-
-Partial slash → Suspended
-Full slash    → Slashed (terminal status — cannot re-enter while Slashed)
-Cannot unstake while Active (slash-escape prevention)
-```
+Misbehaviour is punished by slashing the GRX bond (`slash = bond × severity_bps / 10,000`, split between compensation to the harmed party and the ERC / consumer-rebate pool; partial slash → Suspended, full slash → Slashed, no unstake while Active). The full formula, conservation invariant, and open gaps are in [`blockchain-governance.md §2`](blockchain-governance.md#2-consortium-membership--admission).
 
 ---
 

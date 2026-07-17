@@ -2,7 +2,7 @@
 
 > Last reviewed: 2026-06-26
 
-The simulator → Aggregator Bridge DLMS/COSEM telemetry path is hardened in six
+The simulator → Aggregator Bridge DLMS/COSEM telemetry path is hardened in seven
 layered, independently-toggleable phases. Each is **off by default** so dev/e2e
 keep their conveniences; flip them all on together with `just secure-up`.
 

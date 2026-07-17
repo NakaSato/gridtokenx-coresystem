@@ -1,7 +1,7 @@
 # GridTokenX Glossary
 
 > Domain-specific terms used across the GridTokenX platform.
-> Last reviewed: 2026-04-16
+> Last reviewed: 2026-07-17
 
 ---
 
@@ -81,13 +81,14 @@
 | **SPIFFE** | Secure Production Identity Framework for Everyone — provides cryptographic identities (SVIDs) to workloads. Format: `spiffe://gridtokenx.th/prod/<service>`. |
 | **SPIRE** | SPIFFE Runtime Environment — the server/agent pair that issues and manages SPIFFE identities. |
 | **Vault Transit** | HashiCorp Vault's encryption-as-a-service backend. Chain Bridge uses it for transaction signing without exposing private keys. |
-| **NATS JetStream** | Distributed messaging system with persistence. Used by Chain Bridge for async transaction submission (`chain.tx.submit`). |
+| **NATS JetStream** | Distributed messaging system with persistence. Used by Chain Bridge for async transaction submission (`chain.tx.submit`, `chain.tx.cancel`, `chain.tx.mint`). |
 | **OrbStack** | Lightweight Docker runtime for macOS — replaces Docker Desktop with 2-second startup and lower resource usage. |
 | **APISIX** | Apache APISIX — the user-facing API gateway (port 4001). Handles JWT validation, rate limiting, CORS, WebSocket proxying. |
 | **Kafka** | Distributed event streaming platform. GridTokenX uses 3 logical clusters: cmd-events (9001), market-data (9002), audit (9003). |
 | **RabbitMQ** | Message broker for task queues. Used for email notifications, settlement retries, and dead letter queues (DLQ). |
 | **ClickHouse** | Column-oriented OLAP database. Intended as the CQRS read side for analytics. **Not currently provisioned** — no ClickHouse container in the stack and no client in any service. Listed for design context and to disambiguate older docs. |
-| **InfluxDB** | Time-series database. **Not used and not provisioned** — there is no InfluxDB container in the stack and no client in any service. Verified meter telemetry is disseminated to zone-partitioned Redis Streams + Kafka. Listed only to disambiguate older docs that referenced it. |
+| **InfluxDB** | Time-series database. The Aggregator Bridge writes realtime telemetry history to its **own dedicated InfluxDB v2 instance** (the `aggregator-influxdb` compose service) as an async fire-and-forget sink, gated on `INFLUXDB_URL`. Not shared with other services; the operational dissemination path remains zone-partitioned Redis Streams + Kafka. |
+| **PgDog** | Rust Postgres connection pooler / load balancer. The **sole** pooler for the stack (replaced PgBouncer): services point `DATABASE_URL` at `pgdog:6432` in-network (host `localhost:7003`). |
 | **SQLx** | Rust SQL toolkit with compile-time query verification. Primary ORM for Postgres. |
 
 ---

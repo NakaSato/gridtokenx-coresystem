@@ -11,7 +11,7 @@ single `solana-test-validator`).
 
 ## Why this exists
 
-The repo only had single-node tooling (`scripts/lib/common.sh:50`, `just solana-up`,
+The repo only had single-node tooling (`scripts/lib/common.sh:74`, `just solana-up`,
 `surfpool`). "PoA" in the codebase = an on-chain `poa_config` PDA (application authority),
 **not** validator consensus. Measuring the consensus cost that the paper assumes requires a
 real multi-validator cluster — built here from scratch.

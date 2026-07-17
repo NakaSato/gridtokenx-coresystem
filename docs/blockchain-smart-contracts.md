@@ -2,13 +2,13 @@
 
 > On-chain program architecture, account structures, CPI graph, and invariants.
 > Status: **(impl)** runs on localnet/LiteSVM · **(designed)** not yet built
-> Last reviewed: June 2026
+> Last reviewed: 2026-07-17
 
 ---
 
 ## 1. Program Map
 
-Six production programs form the settlement layer. All run on Solana/Anchor (permissioned SVM).
+Six production programs form the settlement layer. All run on Solana/Anchor (permissioned SVM) — Anchor 1.0.0, SPL Token-2022. The `gridtokenx-anchor/programs/` workspace also contains two benchmark-harness programs (`blockbench`, `tpc-benchmark`) that are not part of the settlement layer.
 
 ```
   Governance  FokVuBSPXP1...          (impl)
@@ -58,7 +58,7 @@ All other cross-program relationships are read-only (deserialize account data). 
 ### 3.1 Governance `FokVuBSPXP1...` (impl)
 
 **Owner (target):** ERC k-of-n multisig council  
-**Current code:** single `Pubkey`, 2-step single→single transfer (gap — see role-map.md)
+**Current code:** single `Pubkey`, 2-step single→single transfer (gap — see `gridtokenx-anchor/docs/design/role-map.md`)
 
 | Instruction | Authority | Who Can Call | Purpose |
 |---|---|---|---|
@@ -190,7 +190,7 @@ All other cross-program relationships are read-only (deserialize account data). 
 
 ## 6. Program IDs
 
-Authoritative source: `gridtokenx-anchor/Anchor.toml`. If the table below diverges, `Anchor.toml` wins.
+Authoritative source: `gridtokenx-anchor/Anchor.toml` (localnet; matches each program's `declare_id!`). If the table below diverges, `Anchor.toml` wins.
 
 | Program | ID |
 |---|---|

@@ -35,7 +35,7 @@ The hard rule between L3 and everything below it: **no service holds a private k
 │ L2 — CORE MICROSERVICES (Rust)                                          │
 │   iam-service           identity, JWT, wallet authority mapping         │
 │   trading-service       CDA matcher, escrow, zone markets, settlement   │
-│   aggregator-bridge         zone-partitioned telemetry, signature verify    │
+│   aggregator-bridge     zone-partitioned telemetry, signature verify    │
 │   noti-service          email/WS/webhook dispatch (Kafka + RabbitMQ)    │
 └─────┬─────────────────────────────────────────┬─────────────────────────┘
       │                                         │
@@ -98,7 +98,7 @@ The Chain Bridge is the **only** component that talks to Vault Transit, and it d
 
 ## 4. Core Services (L2)
 
-All L2 services are Rust binaries built from a single workspace. They share a common transport convention: **internal traffic is gRPC (tonic + connectrpc) over TCP**; HTTP/JSON is exposed only at the user-facing edge. QUIC/H3 is reserved for the public mobile-subscriber WebSocket and SSE paths in `noti-server` and is not used internally.
+All L2 services are Rust binaries, each built from its own independent Cargo workspace (there is no root workspace). They share a common transport convention: **internal traffic is gRPC (tonic + connectrpc) over TCP**; HTTP/JSON is exposed only at the user-facing edge. QUIC/H3 is reserved for the public mobile-subscriber WebSocket and SSE paths in `noti-server` and is not used internally.
 
 ### 4.1 `iam-service`
 
@@ -150,10 +150,10 @@ The Chain Bridge specifically uses **NATS JetStream as a durable write-ahead log
 
 ## 6. Persistence Tier
 
-- **PostgreSQL** — primary transactional store. Topology is primary + read replica + cascading read replica behind PgBouncer. Hot tables (`trading_orders`, `order_matches`) carry composite indexes tuned for the order-book and zone-analytics access patterns; `order_matches.match_time` uses a BRIN index for time-series scans.
+- **PostgreSQL** — primary transactional store. Topology is primary + read replica + cascading read replica behind PgDog (the sole connection pooler; services connect via `pgdog:6432`, host `:7003`). Hot tables (`trading_orders`, `order_matches`) carry composite indexes tuned for the order-book and zone-analytics access patterns; `order_matches.match_time` uses a BRIN index for time-series scans.
 - **Redis** — caching for IAM (session, token introspection) and Trading (order book hot path), plus the Streams transport above.
 - **ClickHouse** — OLAP for trade history, settlement analytics, regulatory reporting.
-- **InfluxDB** — raw smart-meter telemetry, retained at full fidelity for forecasting model retraining.
+- **InfluxDB v2** — raw smart-meter telemetry (a dedicated instance owned by the Aggregator Bridge, not shared), retained at full fidelity for forecasting model retraining.
 - **MinIO** — S3-compatible object store for cold settlements, large payloads, model artefacts.
 
 ## 7. Blockchain Layer (L3)
@@ -216,7 +216,7 @@ Three known production gaps remain ring-fenced:
 
 - **Vault unavailable** → `chain-bridge` returns `Unavailable` on gRPC, and the NATS message remains unacked. Callers retry; nothing is lost.
 - **Chain unavailable** → transactions queue in NATS JetStream. The Chain Bridge re-drains on recovery.
-- **Postgres primary failover** → PgBouncer transparently fails over; in-flight writes return `40001` and are retried at the service layer.
+- **Postgres primary failover** → PgDog transparently fails over; in-flight writes return `40001` and are retried at the service layer.
 - **Single zone overloaded** → only that zone's ingester backpressures; other zones are unaffected (this is the entire reason for partitioning).
 
 ## 9. Observability
@@ -255,4 +255,4 @@ Each tier preserves the on-chain settlement contract; only the off-chain matchin
 
 ---
 
-_Maintained by GridTokenX Platform Engineering. Last revised: June 2026._
+_Maintained by GridTokenX Platform Engineering. Last revised: 2026-07-17._

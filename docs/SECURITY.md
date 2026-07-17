@@ -54,6 +54,7 @@ A request earns trust by crossing each boundary's check. Nothing skips a boundar
 See the checklist in the root [`../SECURITY.md`](../SECURITY.md#security-best-practices-for-contributors)
 and the enforced conventions in [`../CLAUDE.md`](../CLAUDE.md).
 
-> ℹ️ **Chain Bridge bind address:** it binds `0.0.0.0` (verified `main.rs:155`), **not** loopback.
+> ℹ️ **Chain Bridge bind address:** it binds `0.0.0.0` (verified
+> `gridtokenx-chain-bridge/crates/chain-bridge-api/src/main.rs:251`), **not** loopback.
 > Do not treat a loopback bind as the isolation control — the boundary is **mTLS + role/RBAC**. Dev
 > reads require `CHAIN_BRIDGE_INSECURE=true`.

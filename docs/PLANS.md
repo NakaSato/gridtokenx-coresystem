@@ -16,9 +16,9 @@ PLANS.md (this file)        → directions, themes, "we should eventually…"
 
 | Theme | Intent | Status |
 | :--- | :--- | :--- |
-| _example_ — settlement throughput | Raise CDA → on-chain settlement rate under load | exploring |
+| DB-per-service split | Isolate each service's schema into its own database. Noti already isolated; Phase 1 (Trading → `gridtokenx_trading`) live and e2e-validated; Phase 2 (Metering → `gridtokenx_meter`) rolled back — meter-service still JOINs `users`; Phase 3 (Chain) authored, not cut over. See [`design-docs/db-per-service-migration.md`](design-docs/db-per-service-migration.md) §5d. | in progress |
 
-_Replace the example. Keep themes coarse; detail belongs in exec-plans._
+_Keep themes coarse; detail belongs in exec-plans._
 
 ## Tracking
 

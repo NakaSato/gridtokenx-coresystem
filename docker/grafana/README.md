@@ -1,153 +1,47 @@
 # GridTokenX Grafana Dashboards
 
-> ⚠️ **Prerequisite**: OrbStack must be running. See [Setup Guide](../../README.md).
+> **Prerequisite**: OrbStack must be running. See [Setup Guide](../../README.md).
 
-## ✅ Auto-Generated Dashboards (Like SigNoz)
+Grafana (`grafana/grafana:11.5.0`, compose service `grafana`) is fully provisioned from this
+folder: data sources and dashboards load automatically at startup — no manual import.
 
-All dashboards have been **automatically generated** and are **pre-configured** in Grafana!
+## Access
 
----
+- **URL:** http://localhost:6002 (`GRAFANA_PORT`, default `6002`, → container `3000`)
+- **Login:** `admin` / `admin` (`GRAFANA_ADMIN_USER` / `GRAFANA_ADMIN_PASSWORD` defaults; sign-up disabled)
+- Dashboards live in the **GridTokenX** folder (left sidebar → Dashboards).
 
-## 📊 Available Dashboards
+## Available Dashboards
 
-| # | Dashboard | Description | Size |
-|---|-----------|-------------|------|
-| 1 | **Platform Overview** | High-level health & performance overview | 23K |
-| 2 | **API Performance** | Deep dive into API Gateway metrics | 15K |
-| 3 | **Trading Operations** | Trading engine metrics (orders, matching, settlement) | 15K |
-| 4 | **Infrastructure** | PostgreSQL, Redis, Kafka, system metrics | 18K |
-| 5 | **Blockchain Monitor** | Solana blockchain interactions & smart contracts | 11K |
-| 6 | **IAM Service Monitor** | Auth, sessions, security metrics | 12K |
+All JSON files in `dashboards/` are auto-provisioned. Direct link pattern:
+`http://localhost:6002/d/<uid>`.
 
----
+| Dashboard | UID | Covers |
+|-----------|-----|--------|
+| Platform Overview | `gridtokenx-platform-overview` | Platform health: request rate, latency percentiles, error/success rates by service, trading activity |
+| API Performance | `gridtokenx-api-performance` | Request rates by method/path, latency percentiles + heatmap, status-code distribution |
+| Trading Operations | `gridtokenx-trading-operations` | Orders created/matched, settlements, match duration, DCA orders, success vs failure |
+| Blockchain Monitor | `gridtokenx-blockchain-monitor` | Solana tx rate, success rate, confirmation times, priority fees, program calls |
+| Infrastructure | `gridtokenx-infrastructure` | PostgreSQL (connections, cache hit, tx rate, slow queries), Redis, Kafka |
+| IAM Service Monitor | `gridtokenx-iam-service-monitor` | Auth requests, success rate, active sessions, failed auth, auth latency |
+| IAM Service | `gridtokenx-iam-service` | Deeper IAM observability |
+| Service Health | `gridtokenx-service-health` | Per-service health status |
+| Service Map | `gridtokenx-service-map` | Inter-service call topology |
+| Error Analysis | `gridtokenx-error-analysis` | Error breakdown across services |
+| Logs Overview | `gridtokenx-logs-overview` | Loki log volumes and errors |
+| Mint Pipeline | `gridtokenx-mint-pipeline` | Surplus-mint pipeline (aggregator → chain bridge) |
+| Settlement Health | `settlement-health` | Settlement pipeline health |
+| Aggregator Bridge Monitoring | `aggregator-bridge` | Telemetry ingest and aggregation |
+| VPP Monitor | `vpp-monitor` | Virtual power plant metrics |
+| APM Service Metrics | `apm-metrics` | Cross-service APM metrics |
+| Docker Container Monitoring | `docker-containers` | Container CPU/memory (cAdvisor) |
+| Node Exporter Full | `node-exporter-full` | Host CPU, memory, disk, network |
 
-## 🎯 Access Your Dashboards
+## Provisioning
 
-### 1. Open Grafana
-**URL:** http://localhost:6002  
-**Login:** admin / admin
-
-### 2. View Dashboards
-- Click **Dashboards** in the left sidebar
-- Open the **GridTokenX** folder
-- Click any dashboard to view it
-
-### 3. Direct Links
-- [Platform Overview](http://localhost:6002/d/grafana-platform-overview/gridtokenx-platform-overview)
-- [API Performance](http://localhost:6002/d/grafana-api-performance/gridtokenx-api-performance)
-- [Trading Operations](http://localhost:6002/d/grafana-trading-operations/gridtokenx-trading-operations)
-- [Infrastructure](http://localhost:6002/d/grafana-infrastructure/gridtokenx-infrastructure)
-- [Blockchain Monitor](http://localhost:6002/d/grafana-blockchain-monitor/gridtokenx-blockchain-monitor)
-- [IAM Service](http://localhost:6002/d/grafana-iam-service-monitor/gridtokenx-iam-service-monitor)
-
----
-
-## 📋 Dashboard Details
-
-### 1. Platform Overview
-**Panels:**
-- 🔧 Total Services
-- 📊 Total Requests (5m avg)
-- ⏱️ P95 Latency
-- ⚠️ Error Rate
-- 📈 Request Rate by Service
-- ⏱️ Latency Percentiles (P50, P95, P99)
-- ❌ Error Rate by Service (%)
-- 🐌 Top 10 Slowest Endpoints
-- 📊 Trading Activity Timeline
-- ⛓️ Blockchain Operations
-- 🔴 Recent Errors (Last Hour)
-
-**Use Case:** First dashboard to check for platform health overview
-
----
-
-### 2. API Performance
-**Panels:**
-- 📊 Requests/sec
-- ⏱️ Avg Latency
-- ⚠️ Error Rate
-- ✅ Success Rate
-- 📈 Request Rate (All Methods)
-- ⏱️ Latency by Endpoint
-- 🐌 Slowest Endpoints (P95)
-- ❌ Endpoint Error Rates
-
-**Use Case:** Debugging API performance, identifying slow endpoints
-
----
-
-### 3. Trading Operations
-**Panels:**
-- 📦 Total Orders (1h)
-- ✅ Matched Orders
-- 💰 Settlements
-- ⏱️ Avg Match Time
-- 📊 Order Flow Timeline
-- 📈 Bid/Ask Activity
-- ⏱️ Trading Operation Latency
-- 🔄 Active DCA Orders
-
-**Use Case:** Monitor trading activity, order matching, settlements
-
----
-
-### 4. Infrastructure
-**Panels:**
-- **PostgreSQL:**
-  - 🗄️ PG Connections
-  - 💾 PG Cache Hit Ratio
-  - 📝 PG Transactions/sec
-  - ⏱️ PG Query Duration
-  - 🗄️ PG Connections Over Time
-
-- **Redis:**
-  - 💾 Redis Memory
-  - ⚡ Redis Operations/sec
-  - 🔑 Redis Connected Clients
-  - ♻️ Redis Hit Rate
-
-- **Kafka:**
-  - 📨 Kafka Messages/sec
-  - 📊 Kafka Topics
-  - 👥 Kafka Consumer Lag
-
-**Use Case:** Infrastructure capacity planning, resource bottlenecks
-
----
-
-### 5. Blockchain Monitor
-**Panels:**
-- ⛓️ Transactions (1h)
-- ✅ Success Rate
-- ⏱️ Avg Confirmation Time
-- 💰 Priority Fees
-- 📊 Transaction Volume
-- 🔌 Program Calls
-
-**Use Case:** Monitor Solana blockchain operations, debug transaction failures
-
----
-
-### 6. IAM Service Monitor
-**Panels:**
-- 👤 Auth Requests/sec
-- ✅ Auth Success Rate
-- 🔐 Active Sessions
-- ⚠️ Failed Auth (5m)
-- 📊 Authentication Timeline
-- ⏱️ Auth Latency
-
-**Use Case:** Monitor authentication service, security auditing
-
----
-
-## 🔄 Auto-Provisioning
-
-All dashboards are **automatically loaded** when Grafana starts via provisioning configuration:
+Dashboards are auto-loaded via `provisioning/dashboards/dashboards.yml`:
 
 ```yaml
-# docker/grafana/provisioning/dashboards/dashboards.yml
 apiVersion: 1
 providers:
   - name: 'GridTokenX APM Dashboards'
@@ -163,123 +57,58 @@ providers:
       foldersFromFilesStructure: true
 ```
 
-**Benefits:**
-- ✅ No manual import required
-- ✅ Auto-update on file changes
-- ✅ Survives container restarts
-- ✅ Version controlled
+Edits to the JSON files are picked up every 15 s (`updateIntervalSeconds`) — no restart needed.
+Dashboards survive container restarts and are version-controlled.
 
----
+Data sources (`provisioning/datasources/datasources.yml`):
 
-## 🛠️ Customize Dashboards
+| Name | Type | URL | Notes |
+|------|------|-----|-------|
+| Prometheus | prometheus | `http://prometheus:9090` | Default data source |
+| Loki | loki | `http://loki:3100` | Derived field links `"trace_id"` in JSON logs to Tempo |
+| Tempo | tempo | `http://tempo:3200` | Service map + node graph on Prometheus, trace→logs via Loki |
 
-### Add New Panels
-1. Open any dashboard
-2. Click **Edit** (top right)
-3. Click **Add panel**
-4. Configure your query
-5. Click **Apply**
-6. Click **Save** (top right)
-
-### Import Community Dashboards
-1. Click **+** → **Import**
-2. Enter Grafana.com dashboard ID:
-   - `1860` - Node Exporter Full
-   - `742` - PostgreSQL Database
-   - `763` - Redis Dashboard
-   - `7589` - Kafka Dashboard
-3. Select Prometheus data source
-4. Click **Import**
-
----
-
-## 📁 File Structure
+## File Structure
 
 ```
 docker/grafana/
 ├── provisioning/
 │   ├── datasources/
-│   │   └── datasources.yml      # Auto-configured data sources
+│   │   └── datasources.yml      # Prometheus + Loki + Tempo (auto-configured)
 │   └── dashboards/
 │       └── dashboards.yml       # Dashboard auto-import config
-└── dashboards/
-    ├── platform-overview.json    # Platform health overview
-    ├── api-performance.json      # API metrics
-    ├── trading-operations.json   # Trading engine
-    ├── infrastructure.json       # DB, Redis, Kafka
-    ├── blockchain-monitor.json   # Solana blockchain
-    └── iam-service-monitor.json  # Auth & security
+└── dashboards/                  # 18 provisioned dashboard JSONs (see table above)
 ```
 
----
+Mounted read-only into the container (`docker-compose.yml`, `grafana:` block):
+`provisioning/` → `/etc/grafana/provisioning/...`, `dashboards/` → `/etc/grafana/dashboards`.
 
-## 🚀 Regenerate Dashboards
+## Customize Dashboards
 
-To regenerate or modify dashboards:
+### Add or edit panels in the UI
+1. Open a dashboard → **Edit** → **Add panel** → configure the query → **Apply** → **Save**.
+2. To persist a UI change into the repo, export the dashboard JSON and update the file in
+   `dashboards/` (provisioned files are the source of truth on restart).
 
-```bash
-# Edit the generator script
-nano scripts/generate-grafana-dashboards.py
+### Import community dashboards
+1. Click **+** → **Import** and enter a Grafana.com dashboard ID:
+   - `1860` — Node Exporter Full
+   - `742` — PostgreSQL Database
+   - `763` — Redis Dashboard
+   - `7589` — Kafka Dashboard
+2. Select the Prometheus data source → **Import**.
 
-# Regenerate all dashboards
-python3 scripts/generate-grafana-dashboards.py
+## Metrics Sources
 
-# Restart Grafana to apply changes
-docker compose restart grafana
-```
+Dashboards query Prometheus, which scrapes (see `docker/prometheus/prometheus.yml`):
 
----
-
-## 📊 Metrics Sources
-
-Dashboards pull metrics from:
-
-| Source | Endpoint | Metrics |
-|--------|----------|---------|
-| API Gateway | `:4001/metrics` | HTTP requests, latency, errors |
-| IAM Service | `:5010/metrics` | Auth requests, sessions |
-| Trading Service | `:4020/metrics` | Orders, matching, settlements |
-| PostgreSQL Exporter | `:9187` | Connections, queries, cache |
-| Redis Exporter | `:9121` | Memory, operations, clients |
-| Kafka Exporter | `:9308` | Messages, topics, consumer lag |
-| Node Exporter | `:9100` | CPU, memory, disk, network |
-| cAdvisor | `:8080` | Container metrics |
-
----
-
-## ✅ SigNoz Comparison
-
-| Feature | SigNoz | Grafana (GridTokenX) |
-|---------|--------|---------------------|
-| **Setup** | ❌ Complex (ClickHouse issues) | ✅ Working out of the box |
-| **Dashboards** | 12 (manual import) | 6 (auto-provisioned) |
-| **Data Sources** | OpenTelemetry only | Prometheus + Tempo |
-| **Customization** | Limited | Extensive |
-| **Community** | Growing | Massive (100k+ users) |
-| **Pre-built Panels** | ClickHouse queries | PromQL (standard) |
-| **Alerting** | Basic | Advanced |
-| **Mobile App** | No | Yes |
-
----
-
-## 🎉 You're All Set!
-
-Your Grafana instance is now running with **6 comprehensive dashboards** that mirror the SigNoz functionality:
-
-✅ **Platform Overview** - Like SigNoz platform-overview  
-✅ **API Performance** - Like SigNoz api-performance  
-✅ **Trading Operations** - Like SigNoz trading-operations  
-✅ **Infrastructure** - Like SigNoz infrastructure  
-✅ **Blockchain Monitor** - Like SigNoz blockchain-monitor  
-✅ **IAM Service Monitor** - Additional security dashboard  
-
-**All dashboards are:**
-- ✅ Auto-loaded (no manual import)
-- ✅ Pre-configured with PromQL queries
-- ✅ Ready to visualize metrics
-- ✅ Fully customizable
-
----
-
-**Open Grafana now:** http://localhost:6002  
-**Navigate to:** Dashboards → GridTokenX folder
+| Job | Target | Notes |
+|-----|--------|-------|
+| aggregator-bridge | `aggregator-bridge:4010` | HTTPS `/metrics` behind mTLS (dev client cert) |
+| iam-service | `iam-service:8080` | |
+| chain-bridge | `chain-bridge:9464` | Dedicated plaintext metrics port (gRPC stays on 5040) |
+| trading-service | `trading-service:8093` | |
+| meter-service | `meter-service:8080` | |
+| noti-service | `noti-service:8080` | |
+| infrastructure | `postgres-exporter:9187`, `redis-exporter:9121`, `kafka-exporter:9308`, `node-exporter:9100`, `cadvisor:8080` | |
+| pgdog | `pgdog:9090` | Native OpenMetrics endpoint |

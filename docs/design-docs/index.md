@@ -20,5 +20,6 @@ must survive, the alternatives that were rejected, and the constraints future ch
 | [core-beliefs.md](core-beliefs.md) | The non-negotiable principles every design must honor |
 | [api-design-guide.md](api-design-guide.md) | API conventions across services |
 | [openadr-scale-proposal.md](openadr-scale-proposal.md) | RFC: full-feature, large-scale, certifiable OpenADR (hybrid VTN) |
+| [db-per-service-migration.md](db-per-service-migration.md) | Migration from shared-database to physical database-per-service (phased cutover, in progress) |
 
 _Add subsystem design docs here as they are written._

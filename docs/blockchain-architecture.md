@@ -3,7 +3,7 @@
 > **Scope:** System framing, justification, and layered architecture model.
 > For topic details see the companion docs listed in §6.
 > Status tags: **(impl)** built · **(sim)** localnet/LiteSVM only · **(designed)** not yet built · **(extension)** beyond ERC framework
-> Last reviewed: June 2026
+> Last reviewed: 2026-07-17
 
 ---
 
@@ -21,7 +21,7 @@ GridTokenX is a **software co-simulation study** of a consortium energy settleme
 
 Authoritative specification: [`docs/master-architecture-v3.md`](master-architecture-v3.md)
 
-> **Network Access:** The consortium SVM has NO public endpoints. All RPC, gRPC, NATS, and gossip require mTLS client certificates. This is a private permissioned network — not public Solana mainnet. RPC :8899 is accessible only from Chain Bridge; gossip UDP :8001-8009 is firewalled to consortium member IPs (EGAT/MEA/PEA) only; Chain Bridge gRPC :5040 requires a SPIFFE cert and mTLS; NATS :4222 requires a SPIFFE cert and P256 envelope signing.
+> **Network Access:** The consortium SVM has NO public endpoints — a private permissioned network, not public Solana mainnet. All RPC, gRPC, NATS, and gossip access requires mTLS client certificates; RPC :8899 is reachable only from Chain Bridge. Full access model: [`blockchain-node-network.md §2`](blockchain-node-network.md#2-network-access-model--private-consortium).
 
 ---
 
@@ -65,7 +65,7 @@ When a buyer and seller exchange energy or RECs, the settlement record must be o
 │  Ed25519 verify · DLMS decrypt · 15-min aggregation            │
 │  OpenADR VEN/BL · M&V proof  (operated by MEA / PEA / EGAT)   │
 └──────────────────────────┬──────────────────────────────────────┘
-                           │  NATS chain.tx.submit / gRPC
+                           │  NATS chain.tx.submit/cancel/mint / gRPC
 ┌──────────────────────────┴──────────────────────────────────────┐
 │  SETTLEMENT PLANE — Blockchain (Solana/Anchor, localnet sim)    │
 │  Records what happened · settles who owes whom · mints tokens   │

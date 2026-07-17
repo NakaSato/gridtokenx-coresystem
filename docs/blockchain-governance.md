@@ -2,7 +2,9 @@
 
 > Multi-sig upgrade authority, consortium admission, ERC audit access, and standards compliance.
 > Status: **(impl)** single-sig current · **(designed)** k-of-n multi-sig target
-> Last reviewed: June 2026
+> This file is the canonical home for admission, slashing, audit access, and standards
+> compliance — other blockchain docs link here rather than restating.
+> Last reviewed: 2026-07-17
 
 ---
 
@@ -84,7 +86,7 @@ Step 2: LA#2 registers on-chain and stakes bond:
             → Status: Active (bond is slashable)
 
 Step 3: Consortium operator issues SPIFFE cert to LA#2 services:
-            URI SAN: spiffe://gridtokenx/service/bid-engine
+            URI SAN: spiffe://gridtokenx.th/prod/la2-bid-engine
             Role: BidEngine
             CAN:    submit_mv_proof + settle_offchain_match
             CANNOT: mint_generation (AggregatorBridge role only — MEA/PEA)
@@ -234,7 +236,7 @@ Required before EV fleet expands beyond EGAT V2G pilot scope.
 
 ## 6. Three Authority Separations
 
-From `role-map.md` — the design enforces three clean separations that prevent any single party from controlling the full settlement chain:
+From `gridtokenx-anchor/docs/design/role-map.md` — the design enforces three clean separations that prevent any single party from controlling the full settlement chain:
 
 | Separation | Description | Why it matters |
 |---|---|---|

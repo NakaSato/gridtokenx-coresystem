@@ -2,7 +2,7 @@
 
 > Test reference for the Chain Bridge, NATS settlement pipeline, and consortium node connectivity.
 > Covers what each test proves, how to run it, and what failure means.
-> Last reviewed: June 2026
+> Last reviewed: 2026-07-17
 
 ---
 
@@ -59,11 +59,11 @@ Tests read these from the shell or `.env`:
 | `CHAIN_BRIDGE_GRPC` | `localhost:5040` | All Chain Bridge tests |
 | `CHAIN_BRIDGE_HTTP` | `http://localhost:5040` | ConnectRPC tests |
 | `CHAIN_BRIDGE_INSECURE` | `true` (dev) | mTLS mode detection |
-| `NATS_URL` | `nats://localhost:4222` | NATS write path tests |
+| `NATS_URL_HOST` | `nats://localhost:9020` | NATS write path tests (host port 9020 maps to container 4222) |
 | `SOLANA_RPC_URL` | `http://localhost:8899` | Direct validator checks |
 | `IAM_URL` | `http://localhost:4010` | Golden path tests |
 | `AGGREGATOR_BRIDGE_REST` | `http://localhost:4030` | Settlement tests |
-| `TRADING_URL` | `http://localhost:8093` | Golden path tests |
+| `TRADING_URL` | `http://localhost:4020` | Golden path tests (`env.sh`; host 4020 maps to container 8093, which `conftest.py` still uses as its own fallback) |
 | `AGGREGATOR_API_KEY` | `engineering-department-api-key-2025` | Meter ingest |
 
 ### Python Test Dependencies
@@ -80,7 +80,7 @@ uv run --no-project python -m pytest <suite> -v
 
 | Mode | Command | What runs |
 |---|---|---|
-| All E2E suites | `just e2e` | Suites 00–90 in sequence |
+| All E2E suites | `just e2e` | All numbered suites (00–97) in sequence; invasive suites (85, 95) and Anchor phases (70) are opt-in via `E2E_RUN_*` gates |
 | Single suite | `just e2e-suite name="50_chain_bridge"` | Only that suite |
 | Skip health gate | `SKIP_GATE=1 just e2e` | Useful when doctor is slow |
 | Unit tests (service) | `cd gridtokenx-<service> && cargo test` | Rust unit tests |
@@ -95,14 +95,19 @@ uv run --no-project python -m pytest <suite> -v
 tests/e2e/
 ├── 00_harness/          Health gate — verify all services reachable before any test
 ├── 10_iam/              IAM registration, wallet provisioning, on-chain PDA creation
-├── 20_oracle/           Meter ingest, Ed25519 verify, aggregation window
-├── 30_settlement/       Mint exact delta, idempotency, surplus calculation, rejection
+├── 20_oracle/           Meter ingest: DLMS/COSEM frames (plain + encrypted, fail-closed), Ed25519 verify
+├── 30_settlement/       Mint exact delta, idempotency, aggregation window, surplus, rejection
 ├── 40_trading/          CDA order matching, partial fills, trade lifecycle
-├── 50_chain_bridge/     gRPC reads, NATS write path, RBAC, mTLS cert isolation
+├── 50_chain_bridge/     gRPC reads, NATS write path, NATS auth reject, RBAC, mTLS cert isolation
 ├── 60_noti/             Notification dispatch (email/push pipeline)
-├── 70_anchor/           Anchor program integration (on-chain program logic)
+├── 70_anchor/           Anchor program integration: LiteSVM guards + registry sharding (gated: E2E_RUN_ANCHOR_LITESVM / E2E_RUN_ANCHOR)
 ├── 80_gateways/         APISIX routing, rate limiting, JWT enforcement
+├── 85_openadr/          OpenADR VTN↔VEN demand-response loop (gated: E2E_RUN_OPENADR — invasive)
 ├── 90_golden_path/      Full lifecycle: register → meter → mint → trade → settle
+├── 92_frontend/         Trading UI Playwright suite through APISIX (browser → gateway → backend)
+├── 95_chaos/            Fault injection — break an isolated dependency, assert graceful degrade (gated: E2E_RUN_CHAOS — invasive)
+├── 96_token_lifecycle/  On-chain balance deltas across the token lifecycle
+├── 97_p2p_prosumer_consumer/  Self-service P2P trade: two real users, real APIs only, signed surplus telemetry
 ├── lib/                 Shared helpers (assert.sh, crypto.py, nats_util.py, etc.)
 └── run.sh               Orchestrator: health gate → suites → summary
 ```
@@ -359,7 +364,7 @@ assert response.status_code == 401   # or 400 — not 200
 
 ---
 
-### Test: Aggregation Window (`tests/e2e/20_oracle/test_aggregation_window.py`)
+### Test: Aggregation Window (`tests/e2e/30_settlement/test_aggregation_window.py`)
 
 **What it proves:** Multiple readings within the same 15-minute window are aggregated into one bin; readings in different windows produce separate bins.
 
@@ -698,5 +703,5 @@ just benchmark
 
 ---
 
-*GridTokenX Blockchain & Service Integration Tests — v1.0 — June 2026*
+*GridTokenX Blockchain & Service Integration Tests — v1.1 — 2026-07-17*
 *See also: [blockchain-node-network.md](../blockchain-node-network.md) · [blockchain-system.md](../blockchain-system.md) · [ARCHITECTURE.md](../../ARCHITECTURE.md)*

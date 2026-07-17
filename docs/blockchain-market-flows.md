@@ -2,51 +2,17 @@
 
 > Step-by-step traces for the DR wholesale flow and P2P retail flow.
 > Status: **(impl)** trading engine + escrow · **(designed)** DR co-sign + rail B
-> Last reviewed: June 2026
+> Last reviewed: 2026-07-17
 
 ---
 
 ## 0. Prerequisites — Network & Participant Admission
 
-All market flows require network admission and participant setup before any on-chain action can occur. This is a **private consortium SVM** — there are no public endpoints.
+All market flows require network admission and participant setup before any on-chain action can occur. This is a **private consortium SVM** — there are no public endpoints; every participant and service must hold a valid mTLS client certificate. The full network access model (RPC, Chain Bridge gRPC, NATS, gossip) is in [`blockchain-node-network.md §2`](blockchain-node-network.md#2-network-access-model--private-consortium).
 
-### Network Access
+**Utility admission (MEA / PEA):** admitted as consensus participants by virtue of their regulatory role — consensus node credentials, the AggregatorBridge SPIFFE cert (`spiffe://gridtokenx.th/prod/aggregator-bridge`), zone-matched DR co-sign authority, `admit_aggregator` authority (delegated from ERC), and the capability to `mint_generation` / `mint_rec`.
 
-Every participant and service must hold a valid mTLS client certificate to access the network:
-
-- **RPC :8899** — accessible only from Chain Bridge (mTLS cert required)
-- **Chain Bridge gRPC :5040** — requires SPIFFE cert + mTLS; accessible to admitted services only
-- **NATS :4222** — requires SPIFFE cert + P256 envelope signing
-- **Gossip UDP :8001-8009** — firewalled to consortium member IPs (EGAT/MEA/PEA) only
-- **Public Internet** — no path in; zero public endpoints exist
-
-### Utility Admission (MEA / PEA)
-
-MEA and PEA are admitted as consensus participants by virtue of their regulatory role. They hold:
-- Consensus node credentials (gossip network)
-- AggregatorBridge SPIFFE cert (`spiffe://gridtokenx.th/prod/aggregator-bridge`)
-- DR settlement co-sign authority (zone-matched)
-- `admit_aggregator` authority (delegated from ERC)
-- Capability to `mint_generation` and `mint_rec`
-
-### Private LA#2 Admission (3-step process)
-
-```
-Step 1: ERC / MEA / PEA calls admit_aggregator on-chain
-            → AggregatorEntry PDA created
-            Seed: [b"aggregator", la2_pubkey]
-            Stores assigned zone
-
-Step 2: LA#2 calls register_validator + stake_grx(≥ 10,000 GRX)
-            Status → Active
-            Bond is slashable
-
-Step 3: Consortium operator issues SPIFFE cert
-            URI SAN: spiffe://gridtokenx/service/bid-engine
-            Role: BidEngine
-            CAN: submit_mv_proof + settle_offchain_match
-            CANNOT: mint_generation (AggregatorBridge role only), DR co-sign
-```
+**Private LA#2 admission:** the 3-step process (on-chain `admit_aggregator` → bonded `register_validator` + `stake_grx` ≥ 10,000 GRX → SPIFFE `BidEngine` cert, which can `submit_mv_proof` and `settle_offchain_match` but never mint or co-sign DR) is specified in [`blockchain-governance.md §2`](blockchain-governance.md#2-consortium-membership--admission).
 
 ---
 
@@ -128,15 +94,9 @@ If actual_kwh < baseline_kwh × 0.80 (penalty threshold):
     penalty = shortfall_kwh × incentive_rate × penalty_multiplier
     deducted from next settlement cycle (not immediate seizure)
     on-chain record: permanent; auditable by ERC
-
-Penalty model is asymmetric:
-    State validators (EGAT/MEA/PEA): governance removal + audit; no stake slash
-    Private LA#2 operators: bond slash by registry.slash_validator
-        slash = bond × severity_bps / 10,000
-        compensation = min(slash, proven_loss) → harmed party
-        remainder → ERC / consumer-rebate pool
-        Invariant: slash == compensation + remainder
 ```
+
+The penalty model is asymmetric: state validators (EGAT/MEA/PEA) face governance removal + audit record only, while private LA#2 operators face a bond slash via `registry.slash_validator`. Slash formula and conservation invariant: [`blockchain-governance.md §2`](blockchain-governance.md#2-consortium-membership--admission).
 
 ### Bid Pricing
 

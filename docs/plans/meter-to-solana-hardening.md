@@ -1,8 +1,9 @@
 # Plan — Harden meter→solana settlement path
 
+> Status: **Phases 1–4 complete** (verified 2026-06-13/14); production rollout steps still open (see [Rollout](#rollout)).
 > Scope: the verified end-to-end flow
 > `smartmeter → aggregator-bridge → blockchain-core → chain-bridge → solana`.
-> Two gaps found during trace (2026-06-13); this plan closes them and documents the path.
+> Three gaps found during trace (2026-06-13); this plan closes them and documents the path.
 
 ## Findings (from trace)
 

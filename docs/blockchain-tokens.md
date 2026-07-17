@@ -2,7 +2,7 @@
 
 > GRID, GRX, REC, and THBG — mint/burn mechanics, escrow, and atomic settlement.
 > Status: **(impl)** on localnet · **(sim)** on-chain payment simulated · **(designed)** not yet built
-> Last reviewed: June 2026
+> Last reviewed: 2026-07-17
 
 ---
 
@@ -43,7 +43,7 @@ Smart Meter OBIS 2.8.0 export register
     ▼
 Aggregator Bridge — verify sig (fail-closed) · decrypt · aggregate 15-min window
     │  (operated by MEA or PEA; holds AggregatorBridge SPIFFE cert)
-    ▼  NATS chain.tx.submit
+    ▼  NATS chain.tx.mint
 Chain Bridge — RBAC check (AggregatorBridge role required) · dedup · Vault Transit sign
     │
     ▼  mint_generation instruction

@@ -15,7 +15,8 @@ states the shared conventions; per-app detail lives in each app's own README.
 - **All traffic goes through APISIX** `:4001` — never directly to service ports.
 - The trading frontend calls the backend over **plain REST/JSON** (`fetch` against `/api/v1/*`),
   **not** ConnectRPC. (ConnectRPC is used inside the mesh and on the gateway's gRPC routes
-  — e.g. `IdentityService` `:5010`, `TradingService` `:8092` — but the browser client speaks REST.)
+  — e.g. `IdentityService` `:5010`, `TradingService` `:5020` (container 8092) — but the browser
+  client speaks REST.)
 - Live updates (order book, market, telemetry) arrive over **WebSocket** (reconnecting client),
   plus external price streams (Pyth / TradingView) where applicable.
 
