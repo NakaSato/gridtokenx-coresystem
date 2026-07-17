@@ -9,6 +9,7 @@ docs/design-docs/db-per-service-migration.md §5c (#6b).
 from __future__ import annotations  # PEP 604 `str | None` on the Py3.9 e2e venv
 
 import os
+import re
 import subprocess
 
 PG_CONTAINER = os.getenv("PG_CONTAINER", "gridtokenx-postgres")
@@ -46,11 +47,33 @@ def db_for(table: str) -> str:
     return _TABLE_DB.get(table, PG_DB)
 
 
+# Table references in a statement: FROM/JOIN/UPDATE/INTO <table>. Post-split a
+# single statement never spans two service DBs (no cross-DB JOINs), so the first
+# referenced table that maps to a non-shared DB decides the route.
+_TABLE_REF = re.compile(
+    r"\b(?:FROM|JOIN|UPDATE|INTO)\s+([a-zA-Z_][a-zA-Z0-9_]*)", re.IGNORECASE
+)
+
+
+def _auto_db(sql: str) -> str:
+    """Route a bare query (no explicit db=) to the DB owning the tables it names.
+    Falls back to the shared PG_DB when nothing maps to a split DB — so pre-cutover
+    (every PG_DB_* == PG_DB) this is a no-op."""
+    for tbl in _TABLE_REF.findall(sql):
+        target = _TABLE_DB.get(tbl.lower())
+        if target and target != PG_DB:
+            return target
+    return PG_DB
+
+
 def query(sql: str, db: str | None = None) -> str:
     """Run SQL via docker exec psql, return trimmed output. `db` overrides the
-    target database (defaults to the shared PG_DB); pass db_for(table) to route."""
+    target database; when omitted the DB is inferred from the tables the SQL
+    names (see `_auto_db`) so DB-per-service routing works without every call
+    site threading db_for(...)."""
     out = subprocess.run(
-        ["docker", "exec", "-i", PG_CONTAINER, "psql", "-U", PG_USER, "-d", db or PG_DB,
+        ["docker", "exec", "-i", PG_CONTAINER, "psql", "-U", PG_USER,
+         "-d", db or _auto_db(sql),
          "-t", "-A", "-c", sql],
         capture_output=True, text=True, check=True,
     )
