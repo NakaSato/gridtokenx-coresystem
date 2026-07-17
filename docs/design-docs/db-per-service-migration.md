@@ -349,9 +349,12 @@ read-swaps (`db-split/phase1-cutover-code`).
   safe)` confirms it left the in-memory fallback; 4 migrations applied
   (audit_log, dedup_effects, dedup owner token, nonce_allocations), own ledger,
   all `success=t`. Nonce pool intentionally empty (allocate errors
-  "pool exhausted" — seeding is out-of-band, durable-nonce path not live). The
-  shared-`gridtokenx` `audit_log` (0 rows) is now orphaned — drop per §5 step
-  1's SQL.
+  "pool exhausted" — seeding is out-of-band, durable-nonce path not live).
+  **Orphan cleaned:** the shared-`gridtokenx` `audit_log` (0 rows, created by
+  IAM's now-dead `migrations/20260620000000`) was dropped once
+  `gridtokenx_chain.audit_log` was confirmed live and growing (2096→2225 rows in
+  a minute — active hash-chaining). IAM boots from `migrations-iam/` (no
+  audit_log) so it cannot recreate it; rollback = chain-bridge's `0001_audit_log`.
 - **pgdog needs BOTH** a `[[databases]]` route **and** a `users.toml` SCRAM entry
   per new DB (routes+auth added for trading/meter/iam/chain).
 - **Full-topology e2e (`PG_DB_TRADING/METER/IAM` routing).** One real DB-split
