@@ -297,12 +297,15 @@ Adversarial review of the plan before any live flip. ✅ = verified against code
   backfill parity) rests on unverified code. ☐ Add docker integration tests (Kafka +
   Postgres) before production reliance. Also confirm `trading_wallet_audit_log`
   retention/columns match the IAM original before the wallet-audit write repoints.
-- ⚠️ **(#9) Feeds interpret `is_primary`-absent OPPOSITELY** (surfaced by the feed
-  unit tests). Trading's `WalletLinkedData.is_primary` is a bare `bool`
-  (`#[serde(default)]` → **false** = non-primary); the aggregator's is `Option<bool>`
-  (`None` → treated **primary**). Same wire event, opposite projection — harmless
-  *only because IAM always emits an explicit `is_primary`*, but a latent divergence
-  to unify. Related sharp edge: the aggregator's authoritative `update_wallet_by_user`
+- ✅ **(#9) RESOLVED — feeds now agree on `is_primary`-absent.** Trading's
+  `WalletLinkedData.is_primary` was a bare `bool` (`#[serde(default)]` → **false** =
+  non-primary) while the aggregator treats an absent `is_primary` on Linked/Onboarded
+  as **primary**. Aligned trading to the aggregator (`#[serde(default = "default_true"]`,
+  trading commit `1410000`): a Linked/Onboarded event's wallet is the onboarding
+  (primary) wallet, so an absent field defaults to primary in both feeds. Still only a
+  defensive default (IAM always emits explicit `is_primary`); test flipped to assert
+  the true default (`wallet_linked_absent_is_primary_defaults_true`, suite 21/0).
+  Related sharp edge (still open, low-risk): the aggregator's authoritative `update_wallet_by_user`
   writes NULL on a blank-wallet `Linked`/`Onboarded` event (blanks all a user's meter
   wallets), unlike the meter path's COALESCE-preserve — safe only while those events
   always carry a wallet (they do today).
