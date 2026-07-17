@@ -434,6 +434,10 @@ services:
       NATS_URL: ${NATS_URL:-nats://nats:4222}
       VAULT_ADDR: http://vault:8200
       VAULT_TOKEN: root
+      # DB-per-service: Chain Bridge's own DB (audit hash-chain + effect dedup +
+      # nonce pool). Boot runs its embedded sqlx migrations against this URL
+      # (chain-bridge-persistence::db). Unset ⇒ in-memory fallbacks (single-replica).
+      CHAIN_BRIDGE_DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgdog:6432/gridtokenx_chain
     volumes:
       - ./infra/certs/server.crt:/app/infra/certs/server.crt:ro
       - ./infra/certs/server.key:/app/infra/certs/server.key:ro

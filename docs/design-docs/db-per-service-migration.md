@@ -320,17 +320,53 @@ read-swaps (`db-split/phase1-cutover-code`).
   manual `psql` sessions show up as pooler clients and mislead (a first flip
   edited the aggregator compose block by mistake; the container-env check caught
   it).
-- **Phase 2 Metering → `gridtokenx_meter`: BLOCKED, rolled back.** The aggregator
-  cuts over cleanly (own_meter_db `METER_DATABASE_URL` seam → reads
-  `meter_owner_read_model`, writes `meter_readings` there). **meter-service does
-  not**: it still `JOIN users` in register + list (`meter-persistence/.../meter.rs:37,138`,
+- **Phase 2 Metering → `gridtokenx_meter`: LIVE.** Initial blocker was meter-service
+  `JOIN users` in register + list (`meter-persistence/.../meter.rs:37,138`,
   `COALESCE(u.wallet_address)`) → 500 `relation "users" does not exist` on
-  `gridtokenx_meter` (caught by `30_settlement` `test_db_registered_meter_mints_to_owner`).
-  **Fix:** repoint those JOINs to the already-seeded `meter_owner_read_model`
-  (serial/user→wallet), then re-run Phase 2. Metering is back on shared
-  `gridtokenx` and working; `gridtokenx_meter` stays migrated+seeded.
+  `gridtokenx_meter`. **Fixed** by repointing both JOINs to the seeded
+  `meter_owner_read_model` (`LEFT JOIN ... ON u.serial_number = m.serial_number`,
+  meter commit `fa3f537`); rebuilt (Dockerfile needed rdkafka toolchain,
+  `d6fa556`), re-flipped. Register + readings verified (meters 23→42). Aggregator
+  reads via the `METER_DATABASE_URL` seam; both share `gridtokenx_meter` (one
+  bounded context, deliberate exception).
+- **Phase 3 IAM → `gridtokenx_iam`: LIVE.** Runner switched to
+  `sqlx::migrate!("../../migrations-iam")` (iam `1fcd99e`, pointer `c0a547b`).
+  **migrate!-ledger trap:** pre-seeding schema via raw `psql` leaves no
+  `_sqlx_migrations` ledger, so boot `migrate!` re-runs `0001` →
+  `type "user_role" already exists` crash-loop (auth down). Recovery:
+  `DROP DATABASE gridtokenx_iam WITH (FORCE)` (plain DROP fails — pgdog holds
+  pooled sessions), recreate empty, let `migrate!` build schema **and** ledger
+  fresh, THEN reseed data-only (142 users / 144 wallets / 2 keys / 530 outbox).
+  Register 200 lands in `gridtokenx_iam`; cross-service auth intact.
+- **Phase 3b chain-bridge → `gridtokenx_chain`: LIVE.** Unblocked once the
+  concurrent persistence refactor landed its own boot migration runner
+  (`chain-bridge-persistence::db`, `sqlx::migrate!("../../migrations")`, keyed on
+  `CHAIN_BRIDGE_DATABASE_URL`; commit `2a7b96d`). Cutover: create empty
+  `gridtokenx_chain` (NO psql pre-seed — avoids the IAM ledger trap), add
+  `CHAIN_BRIDGE_DATABASE_URL` to the chain-bridge compose block, rebuild from
+  `feat/batch-mint-lever-a` HEAD (`df0ed72`), recreate. Boot log
+  `📓 Audit → Postgres (own DB, hash-chained) · 🔁 Dedup → Postgres (multi-replica
+  safe)` confirms it left the in-memory fallback; 4 migrations applied
+  (audit_log, dedup_effects, dedup owner token, nonce_allocations), own ledger,
+  all `success=t`. Nonce pool intentionally empty (allocate errors
+  "pool exhausted" — seeding is out-of-band, durable-nonce path not live). The
+  shared-`gridtokenx` `audit_log` (0 rows) is now orphaned — drop per §5 step
+  1's SQL.
 - **pgdog needs BOTH** a `[[databases]]` route **and** a `users.toml` SCRAM entry
   per new DB (routes+auth added for trading/meter/iam/chain).
+- **Full-topology e2e (`PG_DB_TRADING/METER/IAM` routing).** One real DB-split
+  regression surfaced + fixed: `tests/e2e/lib/db.py` `query()/scalar()` only
+  routed when a caller passed `db=db_for(table)`; bare calls (golden_path's
+  verify-token lookup, token-lifecycle, settlement cleanup) still hit shared
+  `gridtokenx` and found nothing in the now-empty legacy tables. Fixed by
+  `_auto_db()` — infer the DB from the tables the SQL names (`f1d0e96`).
+  Passing on new DBs: `40_trading` 26/26, `20_oracle`, `30_settlement`,
+  `60_noti`, `50_chain_bridge` 19/20, suite-97 P2P. The 2 remaining reds
+  (`90_golden_path` on-chain onboard timeout, `50_chain_bridge` nats-tx never
+  landed, plus settlement/mint "unconfirmed") are **environmental, not DB-split**:
+  the validator came up with **no programs deployed** (all 5 program IDs return
+  `value:null`, slot ~2.7k) — needs the documented re-deploy + bootstrap
+  (see `validator-reset-authority-drift`), orthogonal to this migration.
 
 ## 6. Rollback / safety
 
