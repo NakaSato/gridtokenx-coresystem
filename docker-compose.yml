@@ -774,6 +774,12 @@ services:
       # (own_meter_db seam — reads meter_owner_read_model, not meters⋈users).
       METER_DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgdog:6432/gridtokenx_meter
       AGGREGATOR_OWNER_READMODEL_FEED: "true"
+      # iam.user.events lives on the kafka-cmd cluster (IAM + noti consume there),
+      # while meter_events is on this service's KAFKA_BOOTSTRAP_SERVERS (kafka-market).
+      # Point the read-model feed's IAM consumer at kafka-cmd so live wallet events
+      # (link / primary-change / unlink) propagate to meter_owner_read_model, not just
+      # the wallet embedded in meter_events + the backfill backstop.
+      READMODEL_IAM_BROKERS: kafka-cmd:9001
       API_GATEWAY_URL: http://apisix:9080
       IAM_GRPC_URL: http://apisix:9080
       TRADING_GRPC_URL: http://apisix:9080
