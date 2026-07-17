@@ -651,6 +651,12 @@ services:
       KAFKA_EVENTS_ENABLED: "true"
       KAFKA_BOOTSTRAP_SERVERS: kafka-cmd:9001
       KAFKA_TOPIC_PREFIX: trading
+      # DB-per-service read-model feed: project IAM wallet + meter events into the
+      # trading-local read-model tables (iam_wallet_read_model, meter_read_model).
+      # iam.user.events is on kafka-cmd (KAFKA_BOOTSTRAP_SERVERS above); meter_events
+      # is on kafka-market, so the feed runs a second consumer there.
+      TRADING_READMODEL_FEED: "true"
+      READMODEL_METER_BROKERS: kafka-market:9002
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://tempo:4318}
       NTP_SERVERS: ${NTP_SERVERS:-time.cloudflare.com:123,time.google.com:123}
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-gridtokenx}:${RABBITMQ_DEFAULT_PASS:-rabbitmq_secret_2025}@rabbitmq:5672
