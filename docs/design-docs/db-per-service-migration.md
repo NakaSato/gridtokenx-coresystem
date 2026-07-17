@@ -363,13 +363,32 @@ read-swaps (`db-split/phase1-cutover-code`).
   verify-token lookup, token-lifecycle, settlement cleanup) still hit shared
   `gridtokenx` and found nothing in the now-empty legacy tables. Fixed by
   `_auto_db()` — infer the DB from the tables the SQL names (`f1d0e96`).
-  Passing on new DBs: `40_trading` 26/26, `20_oracle`, `30_settlement`,
-  `60_noti`, `50_chain_bridge` 19/20, suite-97 P2P. The 2 remaining reds
-  (`90_golden_path` on-chain onboard timeout, `50_chain_bridge` nats-tx never
-  landed, plus settlement/mint "unconfirmed") are **environmental, not DB-split**:
-  the validator came up with **no programs deployed** (all 5 program IDs return
-  `value:null`, slot ~2.7k) — needs the documented re-deploy + bootstrap
-  (see `validator-reset-authority-drift`), orthogonal to this migration.
+  A second bash-suite analog was then found + fixed: `lib/db.sh` `db_scalar`
+  hardcoded `-d $PG_DB`, so `10_iam`'s `db_verify_token` read `users` from the
+  shared DB, got an empty token, and died at Case 1 (`verify failed: no
+  response`). Added the same `_db_route` table→DB inference to `db.sh`
+  (`ffe062f`); `10_iam` then runs fully (55 passed).
+- **Validator was empty — re-deployed + re-seeded.** The 2 reds in the first
+  full run (`90_golden_path` onboard, `50_chain_bridge` nats-tx) were the
+  validator coming up with **no programs** (all 5 IDs `value:null`, slot ~2.7k),
+  not a DB issue. Recovery (see `validator-reset-authority-drift` for the full
+  recipe + new wrinkles): the workspace program keypairs in `target/deploy/`
+  were random/missing, so **copy the canonical `gridtokenx-anchor/keys/localnet/
+  *-keypair.json` into `target/deploy/`** first; `anchor idl build` is broken by
+  the concurrent shielded-transfer WIP (`BalanceProof` not in scope under the
+  `privacy` feature, `programs/trading/src/lib.rs:234`) so the BPF `.so` build
+  succeeds but IDL emit fails — **deploy the built `.so` directly** (`solana
+  program deploy -k dev-wallet.json`, dev-wallet = `EzudwoHv`) and **supply the
+  committed app IDL** (`gridtokenx-trading/lib/idl/trading.json`, address matches
+  the deployed program) into `target/idl/trading.json` so `bootstrap.ts`'s
+  workspace loader resolves. Then `app.sh reseed` (bootstrap mints + registry
+  authority + 16 shards + fund-platform escrows). After this: `90_golden_path`
+  1/0 ✅, `50_chain_bridge` 20/0 ✅, `30_settlement` 4, `40_trading` 26/26,
+  `20_oracle` 6, `60_noti` 15, `92_frontend` 3, suite-97 P2P — all green.
+- **Only remaining reds are out-of-scope + pre-existing:** `10_iam`'s 4
+  refresh-token cases (IAM `/auth/refresh` takes the token in a JSON body; the
+  bash `refresh_token()` helper sends only a bearer header → 400) — a stale test
+  vs the current auth contract, unrelated to the DB split.
 
 ## 6. Rollback / safety
 
