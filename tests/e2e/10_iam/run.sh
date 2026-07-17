@@ -119,20 +119,24 @@ assert_status "$(hs)" "200" "list wallets authorized"
 assert_contains "$WL" "$SEC_WALLET" "linked wallet present in list"
 
 # --- Case 12: Refresh token -> new access_token --------------------------
-log_info "Case 12: refresh exchanges valid JWT for a fresh access_token"
-REF=$(refresh_token "$JWT")
+# IAM /auth/refresh takes the refresh token in the body (RefreshRequest), not a
+# bearer header — the long-lived refresh token issued at verify is the credential.
+log_info "Case 12: refresh exchanges a valid refresh token for a fresh access_token"
+REF=$(refresh_token "$E2E_REFRESH")
 assert_status "$(hs)" "200" "refresh authorized"
 assert_nonempty "$(echo "$REF" | jq -r '.access_token // empty')" "refresh returns access_token"
 assert_eq "$(echo "$REF" | jq -r '.token_type // empty')" "Bearer" "refresh token_type=Bearer"
 
-# --- Case 13: Refresh without token rejected ----------------------------
-log_info "Case 13: refresh without bearer token rejected"
-http_json POST "$IAM_URL/api/v1/auth/refresh" "" "${GATEWAY_HEADERS[@]}" >/dev/null
-if [ "$(hs)" == "401" ] || [ "$(hs)" == "403" ]; then
-    log_success "unauthenticated refresh blocked [$(hs)]"
-else
-    log_fail "unauthenticated refresh not blocked (got $(hs))"
-fi
+# --- Case 13: Refresh with an invalid token rejected --------------------
+# Security property: a refresh must present a valid refresh token — a bogus one
+# must never mint an access token. IAM rejects it (invalid token / bad request).
+log_info "Case 13: refresh with an invalid token rejected"
+BADREF=$(refresh_token "not-a-real-refresh-token-${E2E_RUN_ID}")
+case "$(hs)" in
+    400|401|403|422) log_success "invalid refresh token rejected [$(hs)]" ;;
+    *) log_fail "invalid refresh not rejected (got $(hs))" ;;
+esac
+assert_eq "$(echo "$BADREF" | jq -r '.access_token // empty')" "" "no access_token on invalid refresh"
 
 # --- Case 14: Resend verification is anti-enumeration -------------------
 # Generic 200 ack whether the email is known, unknown, or already verified.

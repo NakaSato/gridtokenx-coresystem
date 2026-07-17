@@ -65,6 +65,7 @@ verify_user() {
     VERIFY_RESP=$(http_json GET "$IAM_URL/api/v1/auth/verify" "" --get --data-urlencode "token=$token")
     WALLET_ADDRESS=$(echo "$VERIFY_RESP" | jq -r '.wallet_address // empty')
     E2E_JWT=$(echo "$VERIFY_RESP" | jq -r '.auth.access_token // empty')
+    E2E_REFRESH=$(echo "$VERIFY_RESP" | jq -r '.auth.refresh_token // empty')
     if [ -z "$WALLET_ADDRESS" ] && [ -n "$E2E_JWT" ]; then
         local pk
         pk=$(gen_pubkey)
@@ -118,8 +119,12 @@ link_wallet() {
 # get_me <jwt> — GET /me. Echoes body; status via `hs`.
 get_me() { auth_json GET "$IAM_URL/api/v1/me" "$1"; }
 
-# refresh_token <jwt> — POST /auth/refresh (auth, no body). Echoes body; status via `hs`.
-refresh_token() { auth_json POST "$IAM_URL/api/v1/auth/refresh" "$1"; }
+# refresh_token <refresh_token> — POST /auth/refresh with the token in the JSON
+# body (IAM RefreshRequest{refresh_token}; the refresh token IS the credential, so
+# no Authorization header). Echoes body; status via `hs`.
+refresh_token() {
+    http_json POST "$IAM_URL/api/v1/auth/refresh" "{\"refresh_token\":\"$1\"}" "${GATEWAY_HEADERS[@]}"
+}
 
 # resend_verification <email> — POST /auth/resend-verification (public). Echoes body.
 resend_verification() {
