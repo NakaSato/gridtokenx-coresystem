@@ -71,7 +71,7 @@ Unset `NATS_URL` (or `MINT_VIA_CHAIN_BRIDGE`) on the aggregator ⇒ surplus mint
 
 ## Flow 6 — Notifications (`tests/e2e/60_noti`)
 
-- Service → Notification Service: `noti.NotificationService/SendNotification` (ConnectRPC :5060). Channel EMAIL, template_id, variables, idempotency_key.
+- Service → Notification Service: `noti.v1.NotificationService/SendNotification` (ConnectRPC :5060). Channel EMAIL, template_id, variables, idempotency_key.
 - Noti → email provider (internal).
 
 ## Flow 7 — Blockchain Reads

@@ -156,7 +156,7 @@ Depends Phase 1 (verified+funded user) + Phase 3 (settlement).
 **Exit:** §8 + §9 + §11 green.
 
 > **[BUILT 2026-06-06]** All compile/syntax-clean; NOT run live.
-> - **Noti** `60_noti/test_noti.py` (3 cases): SendNotification accepted, GetNotificationStatus, idempotency_key dedup. Noti is a **synchronous ConnectRPC dispatcher** (`noti.NotificationService`, no queue consumer) → call via HTTP+JSON `:5050/noti.NotificationService/SendNotification`. Channels: EMAIL/SMS/PUSH/WEBHOOK/WEBSOCKET. Req: `{channel, recipient, template_id, variables_json, user_id, idempotency_key}`.
+> - **Noti** `60_noti/test_noti.py` (3 cases): SendNotification accepted, GetNotificationStatus, idempotency_key dedup. Noti is a **synchronous ConnectRPC dispatcher** (`noti.v1.NotificationService`, no queue consumer) → call via HTTP+JSON `:5050/noti.v1.NotificationService/SendNotification`. Channels: EMAIL/SMS/PUSH/WEBHOOK/WEBSOCKET. Req: `{channel, recipient, template_id, variables_json, user_id, idempotency_key}`.
 > - **Anchor** `70_anchor/run.sh`: wraps existing TS tests (`anchor test tests/registry_sharding.ts` for register_user/register_meter PDAs). Opt-in via `E2E_RUN_ANCHOR=1` (slow, needs Solana toolchain + validator; ulimit raised).
 > - **Gateways** `80_gateways/run.sh` (3 cases): API orchestrator :4000 health, APISIX :4001 routing, gateway-secret enforcement on privileged path. Gateways are **out-of-repo** (infra configs were removed) → all checks skip loudly if down. _(Envoy :4002 reachability case removed 2026-06-14 with the edge.)_
 

@@ -1,4 +1,4 @@
-"""Suite 60 — Noti Service (:5050). ConnectRPC noti.NotificationService.
+"""Suite 60 — Noti Service (:5050). ConnectRPC noti.v1.NotificationService.
 
 Noti is a synchronous gRPC dispatcher (SendNotification / GetNotificationStatus) — no
 queue consumer; callers invoke it directly. ConnectRPC speaks Connect protocol, so we
@@ -16,7 +16,7 @@ import crypto
 
 GRPC = os.getenv("NOTI_GRPC", "localhost:5050")
 BASE = os.getenv("NOTI_HTTP", f"http://{GRPC}")
-SVC = "noti.NotificationService"
+SVC = "noti.v1.NotificationService"
 
 # Noti's gRPC gate (crates/noti-api/src/grpc.rs) requires an HS256 bearer signed
 # with the service JWT_SECRET. Mint one with the dev secret (override via env).

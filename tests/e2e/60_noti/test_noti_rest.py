@@ -53,7 +53,7 @@ import crypto
 # gRPC (ConnectRPC) base — mirror test_noti.py / env.sh (host 5060 in compose).
 GRPC = os.getenv("NOTI_GRPC", "localhost:5060")
 GRPC_BASE = os.getenv("NOTI_HTTP", f"http://{GRPC}")
-SVC = "noti.NotificationService"
+SVC = "noti.v1.NotificationService"
 
 # REST base — noti HTTP server published on host 4060 (container 8080).
 # Derive from NOTI_GRPC host so a non-default host still resolves.

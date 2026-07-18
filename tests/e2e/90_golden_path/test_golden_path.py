@@ -295,7 +295,7 @@ def test_golden_path():
 
     # --- Stage 9: notification dispatched (best-effort) ----------------
     try:
-        r = requests.post(f"{NOTI_HTTP}/noti.NotificationService/SendNotification", timeout=6,
+        r = requests.post(f"{NOTI_HTTP}/noti.v1.NotificationService/SendNotification", timeout=6,
                           headers={"Content-Type": "application/json",
                                    "Authorization": f"Bearer {seller['jwt']}"},
                           json={"channel": "EMAIL", "recipient": seller["username"] + "@grx.test",
