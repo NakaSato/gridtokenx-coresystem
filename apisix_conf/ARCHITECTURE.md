@@ -58,6 +58,14 @@ to every authenticated route via `plugin_config_id: 1`:
    - `x-gridtokenx-gateway-secret: $GRIDTOKENX_GATEWAY_SECRET` (env, dev fallback hardcoded)
 3. **`cors`** — permissive CORS, with `expose_headers: X-Total-Count,X-Has-More` so the browser
    can read the meter-service pagination headers cross-origin.
+4. **`limit-count`** — per-consumer gateway rate limit (1200 / 60s, `429` on exceed). Keyed on
+   `$http_authorization` (the raw bearer JWT) — **not** `x-gridtokenx-user-id`, because the
+   `serverless-post-function` that sets that header runs *after* `limit-count` in the access phase
+   (empty key → one global bucket). Keying on the always-present Authorization header gives a
+   per-token (≈ per-session) bucket. `policy: local` (per-node in-memory, single data-plane node);
+   `allow_degradation: true` fails **open** so a limiter fault never 500s a legitimate request. The
+   ceiling is deliberately high so it only catches abuse, never dev/e2e bursts. Public/unauth routes
+   (login/register/verify) are **not** gateway-limited — IAM self-limits those per-IP/endpoint.
 
 The single configured consumer:
 

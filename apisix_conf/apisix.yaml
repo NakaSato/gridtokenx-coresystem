@@ -22,6 +22,26 @@ plugin_configs:
       # lib/api/meters.ts#getMyReadingsPage never sees it.
       cors:
         expose_headers: "X-Total-Count,X-Has-More"
+      # Per-consumer gateway rate limit (microservice best-practice: bound each
+      # consumer so one caller can't saturate a downstream). Keyed on the JWT
+      # itself (`$http_authorization`) — NOT x-gridtokenx-user-id, because the
+      # serverless-post-function that sets that header runs *after* limit-count
+      # in the access phase, so the header is empty at limit time and every user
+      # would collapse into one global bucket. The Authorization header is
+      # present pre-auth, so keying on it gives a per-token (≈ per-session) bucket.
+      # Ceiling is deliberately generous so it only catches abuse, never dev/e2e
+      # bursts; `policy: local` = per-node in-memory (single data-plane node);
+      # `allow_degradation: true` fails OPEN so a limiter fault never 500s a
+      # legitimate request.
+      limit-count:
+        count: 1200
+        time_window: 60
+        key_type: var
+        key: http_authorization
+        rejected_code: 429
+        rejected_msg: "rate limit exceeded — slow down"
+        policy: local
+        allow_degradation: true
 
 routes:
   - id: 10 # IAM Public REST (Auth & Config)
