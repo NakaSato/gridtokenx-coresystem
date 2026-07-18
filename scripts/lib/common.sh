@@ -69,6 +69,8 @@ solana_validator_start() {
     if [ "${SOLANA_RESET:-1}" = "0" ]; then
         reset_flag=""
         log_info "SOLANA_RESET=0 — preserving existing ledger at $ledger_dir"
+    else
+        log_warn "LEDGER WIPE: --reset is the default — deployed programs, mints, PDAs and balances are erased. Set SOLANA_RESET=0 to keep the existing ledger (needs matching TTL: SOLANA_VALIDATOR_TTL=0 to stop the 30m auto-kill)."
     fi
     if [ -z "$extra_args" ]; then
         solana-test-validator $reset_flag --limit-ledger-size 10000 --ledger "$ledger_dir" --rpc-port 8899 > "$log_file" 2>&1 &

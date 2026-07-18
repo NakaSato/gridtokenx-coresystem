@@ -23,7 +23,9 @@ cmd_seed_apikey() {
     local role="${DEV_API_KEY_ROLE:-admin}"
     local pg_container="${PG_CONTAINER:-gridtokenx-postgres}"
     local pg_user="${POSTGRES_USER:-gridtokenx_user}"
-    local pg_db="${POSTGRES_DB:-gridtokenx}"
+    # api_keys lives in the IAM service DB since the db-per-service split — NOT the
+    # legacy shared gridtokenx DB that POSTGRES_DB (via .env) still points at.
+    local pg_db="${IAM_POSTGRES_DB:-gridtokenx_iam}"
 
     show_banner
     log_info "Seeding dev API key '$name' (HMAC-SHA256 over running API_KEY_SECRET)..."
