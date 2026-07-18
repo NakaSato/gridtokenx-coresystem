@@ -4,18 +4,72 @@ set shell := ["nu", "-c"]
 
 # Default command - show help
 default:
-    @echo "Available commands:"
-    @echo "  just check-all          - Run cargo check on all microservices"
-    @echo "  just build-all          - Build all microservice binaries"
-    @echo "  just test               - Run all tests"
-    @echo "  just migrate            - Run sqlx migrations (IAM)"
-    @echo "  just db-up              - Start PostgreSQL container (OrbStack)"
-    @echo "  just db-down            - Stop PostgreSQL container"
-    @echo "  just orb-up             - Start all OrbStack services"
-    @echo "  just orb-down           - Stop all OrbStack services"
-    @echo "  just fmt                - Format all code"
-    @echo "  just clippy             - Run clippy lints on all services"
-    @echo "  just verify-conns       - Probe Trading Service dependency connections"
+    @echo "GridTokenX just recipes (run: just <recipe>)"
+    @echo ""
+    @echo "Build & Test:"
+    @echo "  check-all          - cargo check all microservices"
+    @echo "  build-all          - build all microservice binaries"
+    @echo "  build-release      - build all binaries (release)"
+    @echo "  test               - cargo test all microservices"
+    @echo "  test-all           - all tests incl. Solana integration"
+    @echo "  test-edge          - Edge/DLMS protocol test"
+    @echo "  test-registration  - IAM registration E2E"
+    @echo "  e2e                - full E2E suite (health gate -> all suites)"
+    @echo "  e2e-suite name=X   - single E2E suite by name fragment"
+    @echo "  openadr-e2e        - OpenADR/OpenLEADR VTN<->VEN test"
+    @echo "  fmt                - cargo fmt all services"
+    @echo "  clippy             - cargo clippy -D warnings all services"
+    @echo "  clean-all          - remove all build artifacts"
+    @echo ""
+    @echo "Benchmarks:"
+    @echo "  benchmark          - trading-engine matching (Criterion)"
+    @echo "  bench-ingest       - telemetry-ingest saturation"
+    @echo "  bench-settlement   - settle_offchain_match compute-unit cost"
+    @echo ""
+    @echo "Database (sqlx migrations):"
+    @echo "  migrate / migrate-new name=X / migrate-revert / migrate-info   (IAM)"
+    @echo "  noti-migrate / noti-migrate-new name=X / noti-migrate-revert / noti-migrate-info"
+    @echo "  check-ddl-sync     - guard aggregator<->meter DDL parity"
+    @echo ""
+    @echo "Docker / Infrastructure:"
+    @echo "  db-up / db-down    - PostgreSQL container"
+    @echo "  orb-up / orb-down  - all OrbStack services"
+    @echo "  orb-rebuild        - rebuild all (no cache) + recreate"
+    @echo "  dev-up / secure-up - plain dev / hardened (mTLS,AES-GCM,KEK) stack"
+    @echo "  bridge-dev / bridge-prod - aggregator-bridge cargo-watch / built image"
+    @echo "  check-drift / rebuild-stale - deploy-drift detection / fix"
+    @echo "  doctor             - system health check"
+    @echo ""
+    @echo "Orchestrator (scripts/app.sh):"
+    @echo "  run-native         - start all services natively (background)"
+    @echo "  start-infra        - start infrastructure only (docker)"
+    @echo "  stop               - stop everything"
+    @echo "  status             - process/service status"
+    @echo ""
+    @echo "Solana:"
+    @echo "  solana-up / solana-up-keep / solana-down"
+    @echo "  chain-reseed       - re-seed on-chain accounts after ledger reset"
+    @echo "  deploy-programs    - build+deploy programs, sync .env"
+    @echo "  sync-env / sync-env-check - propagate program IDs into .env"
+    @echo "  seed-apikey / check-apikey - dev API-key repair/drift guard"
+    @echo "  simnet / simnet-ci / simnet-down - Surfpool mainnet sim"
+    @echo ""
+    @echo "Certs & Security:"
+    @echo "  gen-certs          - dev mTLS CA + chain-bridge certs"
+    @echo "  provision-kek      - Vault Transit KEK for per-meter GUEKs"
+    @echo "  rotate-keys meter=X / key-status - per-meter encryption keys"
+    @echo ""
+    @echo "Smart Meter:"
+    @echo "  auto-meter-send / send-meter-reading / meter-server - sim egress"
+    @echo "  sim-ingest / sim-logs since=X - sim ingest status/logs"
+    @echo ""
+    @echo "Docs:"
+    @echo "  lint-docs / lint-docs-all / lint-docs-stale days=X"
+    @echo ""
+    @echo "Misc:"
+    @echo "  verify-conns       - probe Trading Service dependency connections"
+    @echo "  run-oracle         - run aggregator-bridge locally"
+    @echo "  session / session-pick / session-list - Claude Code session launcher"
 
 # Check all codebases
 check-all:
@@ -163,6 +217,22 @@ orb-rebuild:
 # System health check: deps, certs, APISIX upstream backends, trading connections
 doctor:
     ./scripts/app.sh doctor
+
+# Start all services natively in the background (app.sh orchestrator)
+run-native:
+    ./scripts/app.sh start --native-apps
+
+# Start infrastructure only (docker), no native apps
+start-infra:
+    ./scripts/app.sh start --docker-only
+
+# Stop everything (native apps + docker)
+stop:
+    ./scripts/app.sh stop
+
+# Process/service status
+status:
+    ./scripts/app.sh status
 
 # Flag running service containers whose image predates its source (deploy drift)
 check-drift:
