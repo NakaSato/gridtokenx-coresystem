@@ -504,11 +504,11 @@ services:
       ENCRYPTION_SECRET: ${ENCRYPTION_SECRET}
       API_KEY_SECRET: ${API_KEY_SECRET}
       ENVIRONMENT: development
-      # Dev/test faucet: airdrop this many SOL to each account's wallet right
-      # after email verification (0 disables; ignored in production — mainnet
-      # has no faucet and Chain Bridge rejects the request). Best-effort +
-      # detached, so it never blocks or fails verification.
-      IAM_VERIFY_AIRDROP_SOL: ${IAM_VERIFY_AIRDROP_SOL:-10}
+      # Welcome airdrop: grant 10 GRX on-chain (Registry claim_airdrop, signed
+      # by SOLANA_PAYER_KEY = registry authority) to each account right after
+      # email verification. Best-effort + detached, so it never blocks or fails
+      # verification; idempotent on-chain (AirdropAlreadyClaimed).
+      IAM_VERIFY_GRANT_GRX: ${IAM_VERIFY_GRANT_GRX:-true}
       # Auth rate-limit budgets ("limit,window_secs"). Dev raises the tight prod
       # register cap (5/hour) so a large simulator fleet can onboard in one boot.
       IAM_REGISTER_LIMIT: ${IAM_REGISTER_LIMIT:-20,60}
@@ -1527,6 +1527,9 @@ services:
       loki:
         condition: service_healthy
     restart: unless-stopped
+    # Alloy drains per-container log tails on SIGTERM; default 10s grace
+    # ends in SIGKILL (exit 137) that reads like an OOM. Give it time.
+    stop_grace_period: 30s
     deploy:
       resources:
         limits:
