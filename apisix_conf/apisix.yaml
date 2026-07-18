@@ -265,6 +265,21 @@ routes:
         "smartmeter-simulator:8082": 1
         "host.docker.internal:12010": 1
 
+  - id: 6 # Trading REST - Active-Order Meters (Public, no auth)
+    # Grid-map needs to hide non-trading meters for logged-out viewers. Returns
+    # only order *presence* (which meters have a resting buy/sell), strictly less
+    # than the already-public order book — no prices, amounts, or identity. Served
+    # by trading-service; backend route is literally /api/v1/public/active-order-meters
+    # so no proxy-rewrite. No plugin_config_id = no JWT/role gate.
+    uris:
+      - /api/v1/public/active-order-meters
+    plugins:
+      cors: {}
+    upstream:
+      type: roundrobin
+      nodes:
+        "trading-service:8093": 1
+
   - id: 9 # Smart Meter Simulator - WebSocket (Public)
     uris:
       - /api/market/ws
