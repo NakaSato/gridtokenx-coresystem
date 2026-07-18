@@ -108,7 +108,7 @@ Gateways: **APISIX** `:4001` (user-facing, HTTPS/WSS). IoT/edge telemetry ingres
 
 See [`CLAUDE.md`](CLAUDE.md) for the enforced conventions behind these rules.
 
-## 6. Messaging & Persistence
+## 6. Messaging, Persistence & Resilience
 
 - **Kafka** — command / market / audit event logs (event sourcing).
 - **NATS JetStream** — async on-chain tx submission.
@@ -123,6 +123,25 @@ See [`CLAUDE.md`](CLAUDE.md) for the enforced conventions behind these rules.
 - **InfluxDB v2** — Aggregator Bridge's own realtime telemetry history (async fire-and-forget; dedicated instance, not shared).
 
 Port scheme: 4000s gateways · 5000s gRPC mesh · 7000s persistence · 9000s messaging.
+
+### Resilience & Fault Tolerance
+
+Cross-cutting patterns that keep inter-service calls fault-tolerant (per the microservice
+best-practices review). Shared primitives live in the `gridtokenx-telemetry` crate so services
+share one implementation instead of reinventing it unevenly.
+
+| Pattern | Mechanism | Where |
+| :--- | :--- | :--- |
+| **Bounded outbound calls** | Every outbound gRPC/HTTP client carries a connect **and** request timeout — never unbounded, so a slow/wedged dependency can't hang the caller forever. Chain-bridge gRPC client: 5s connect / 10s request. Vault Transit + remote-embedding HTTP clients: 5s connect + tunable request budget. | `gridtokenx-blockchain-core` `rpc.rs` (channel build); `gridtokenx-chain-bridge` `vault.rs` / `agent_memory.rs`; `gridtokenx-aggregator-bridge` `vault.rs`. Env: `VAULT_HTTP_TIMEOUT_SECS`, `AGENT_MEMORY_HTTP_TIMEOUT_SECS` |
+| **Full-jitter backoff** | Reconnect/retry loops sleep a uniform-random delay in `[0, exponential-ceiling]` (AWS full jitter) instead of plain doubling, so many callers don't retry in lockstep after a dependency recovers (thundering-herd guard). | `gridtokenx-telemetry::backoff::full_jitter` — chain-bridge NATS reconnect + pull-stream reopen, trading reaper respawn, iam blockchain-register + welcome-airdrop retries |
+| **Circuit breaker** | Consecutive-failure breaker with a single half-open probe: when a downstream is failing, callers fast-fail (or take their fallback) instead of each eating the full timeout. Opt-in, default off. | `gridtokenx-telemetry::breaker::CircuitBreaker` — wired into the aggregator's IAM `VerifyApiKey` auth path (`AGGREGATOR_IAM_CIRCUIT_BREAKER_ENABLED`). A chain-bridge-client decorator is staged (`gridtokenx-blockchain-core` `rpc::circuit_breaker`), not yet on `main` |
+| **Dead-letter + durable outbox** | Async writes that can't land are parked, not dropped. Chain Bridge runs a NATS DLQ monitor (advisory). The aggregator's surplus-mint intent rides a durable Redis-backed **mint outbox**, retried until the bridge confirms on-chain. Trading relays domain events through a transactional outbox. | chain-bridge `run_dlq_monitor`; aggregator `MintOutbox`; trading `OutboxWorker` |
+| **Degraded-mode startup** | Optional edges (Redis, Kafka, RabbitMQ, InfluxDB, IAM gRPC) fall back to disabled on connect failure with a `warn!` — the process still starts — behind short connect timeouts (Redis 3s). | aggregator `src/main.rs`; trading `verify-connections` |
+| **Idempotent effects** | Retries are safe by construction: per-match `TradeNullifier` on settlement, `(meter_id, window_start_ms)` PDA + `mint:{serial}:{window}` dedup on surplus mint, effect-level `claim_or_replay` on Chain Bridge submit. | see §8 component docs |
+
+Bounded timeouts, full-jitter backoff, and the aggregator circuit breaker are live on `main`; the
+chain-bridge-client circuit-breaker decorator is implemented and tested but staged pending a feature
+branch merge.
 
 ## 7. Documentation Map
 

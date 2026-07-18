@@ -299,4 +299,4 @@ If migrating from Redis Streams to RabbitMQ:
 
 - [RabbitMQ Official Docs](https://www.rabbitmq.com/documentation.html)
 - [Lapin Rust Client](https://github.com/CleverCloud/lapin)
-- [GridTokenX Messaging Architecture](../../ARCHITECTURE.md) — §6 Messaging & Persistence
+- [GridTokenX Messaging Architecture](../../ARCHITECTURE.md) — §6 Messaging, Persistence & Resilience
