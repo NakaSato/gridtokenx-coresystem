@@ -28,7 +28,7 @@ export KAFKA_BROKER="${KAFKA_BROKER:-localhost:29001}"
 # NATS work bus. Host 9020 -> container 4222 (docker-compose). The aggregator mints
 # surplus directly on `chain.tx.mint` (the former meter.reading forward to
 # meter-service was removed); 30_settlement subscribes here to assert the mint.
-export NATS_URL_HOST="${NATS_URL_HOST:-nats://localhost:9020}"
+export NATS_URL_HOST="${NATS_URL_HOST:-nats://gridtokenx:gridtokenx_nats_dev@localhost:9020}"
 
 # --- Auth / gateway ---
 # Chain Bridge dev mode: when true the bridge grants Admin to every caller, so the

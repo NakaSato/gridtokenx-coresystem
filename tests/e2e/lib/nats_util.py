@@ -21,7 +21,10 @@ import time
 
 import nats
 
-NATS_URL = os.getenv("NATS_URL_HOST", os.getenv("E2E_NATS_URL", "nats://localhost:9020"))
+NATS_URL = os.getenv(
+    "NATS_URL_HOST",
+    os.getenv("E2E_NATS_URL", "nats://gridtokenx:gridtokenx_nats_dev@localhost:9020"),
+)
 
 
 def reachable(timeout: float = 3.0) -> bool:

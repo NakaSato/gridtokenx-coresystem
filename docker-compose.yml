@@ -331,19 +331,29 @@ services:
     security_opt:
       - no-new-privileges:true
     command:
-      - "--jetstream"
-      - "--store_dir=/data"
-      - "--http_port=8222"
+      - "-c"
+      - "/etc/nats/nats-server.conf"
+    environment:
+      # Consumed by nats_conf/nats-server.conf ($NATS_USER / $NATS_PASSWORD).
+      # Overriding these requires also overriding NATS_URL on chain-bridge /
+      # aggregator-bridge (their defaults embed the dev credentials below).
+      NATS_USER: ${NATS_USER:-gridtokenx}
+      NATS_PASSWORD: ${NATS_PASSWORD:-gridtokenx_nats_dev}
     ports:
-      - "${NATS_CLIENT_PORT:-9020}:4222" # Client connections
-      - "${NATS_MONITOR_PORT:-9021}:8222" # HTTP monitoring
+      # Loopback-only: host tools (e2e suites, scripts) connect via
+      # 127.0.0.1; nothing on the LAN can reach the broker.
+      - "127.0.0.1:${NATS_CLIENT_PORT:-9020}:4222" # Client connections
+      - "127.0.0.1:${NATS_MONITOR_PORT:-9021}:8222" # HTTP monitoring
     volumes:
       - nats_data:/data
+      - ./nats_conf/nats-server.conf:/etc/nats/nats-server.conf:ro
     networks:
       - gridtokenx-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8222/healthz"]
+      # 127.0.0.1, not localhost — busybox wget can resolve localhost to ::1
+      # while the server listens on IPv4 only.
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8222/healthz"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -431,7 +441,7 @@ services:
       # escape hatch when running without client certs.
       CHAIN_BRIDGE_REQUIRE_SIGNED_NATS: "${CHAIN_BRIDGE_REQUIRE_SIGNED_NATS:-true}"
       SOLANA_RPC_URL: ${DOCKER_SOLANA_RPC_URL:-http://host.docker.internal:8899}
-      NATS_URL: ${NATS_URL:-nats://nats:4222}
+      NATS_URL: ${NATS_URL:-nats://gridtokenx:gridtokenx_nats_dev@nats:4222}
       VAULT_ADDR: http://vault:8200
       VAULT_TOKEN: root
       # DB-per-service: Chain Bridge's own DB (audit hash-chain + effect dedup +
@@ -800,7 +810,7 @@ services:
       # to trading as an internal ApiGateway caller via x-gridtokenx-gateway-secret.
       SETTLEMENT_API_URL: http://trading-service:8093
       AGGREGATOR_BRIDGE_SIGNING_KEY: /app/aggregator-bridge-signing-key.bin
-      NATS_URL: nats://nats:4222
+      NATS_URL: ${NATS_URL:-nats://gridtokenx:gridtokenx_nats_dev@nats:4222}
       KAFKA_BOOTSTRAP_SERVERS: kafka-market:9002
       KAFKA_TOPIC_METER_READINGS: meter.readings
       # Independent realtime telemetry history — dedicated InfluxDB v2 instance
