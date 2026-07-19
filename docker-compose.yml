@@ -657,6 +657,10 @@ services:
       # is on kafka-market, so the feed runs a second consumer there.
       TRADING_READMODEL_FEED: "true"
       READMODEL_METER_BROKERS: kafka-market:9002
+      # Boot-backfill source DBs (post DB-split the source tables no longer live
+      # in gridtokenx_trading). Read-only snapshot of user_wallets / meters.
+      READMODEL_IAM_DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgdog:6432/gridtokenx_iam
+      READMODEL_METER_DATABASE_URL: postgresql://gridtokenx_user:gridtokenx_password@pgdog:6432/gridtokenx_meter
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://tempo:4318}
       NTP_SERVERS: ${NTP_SERVERS:-time.cloudflare.com:123,time.google.com:123}
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-gridtokenx}:${RABBITMQ_DEFAULT_PASS:-rabbitmq_secret_2025}@rabbitmq:5672
@@ -1128,6 +1132,12 @@ services:
       - no-new-privileges:true
     environment:
       TZ: ${TZ}
+      # Grid timezone the solar model reinterprets the sim clock-face into
+      # (devices/solar.py). Default Asia/Bangkok. Override to force the current
+      # wall-clock instant into solar daytime for a fresh-mint demo without
+      # moving the emit clock (bins stay current-dated → settlement still fires):
+      # e.g. SMARTMETER_TIMEZONE=Etc/GMT+3 maps 02:xxZ → ~noon. Revert to default.
+      TIMEZONE: ${SMARTMETER_TIMEZONE:-Asia/Bangkok}
       PORT: 8082
       LOG_LEVEL: INFO
       PYTHONPATH: /app:/app/src
