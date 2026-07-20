@@ -221,32 +221,11 @@ let service = AuthService::new(Arc::new(repo));
 
 ### Error Handling
 
-```rust
-// Use anyhow::Result for application-level errors
-use anyhow::{Result, Context};
-
-pub fn process_order(order: &Order) -> Result<Trade> {
-    let market = find_market(order.market_id)
-        .context("Failed to find market for order")?;
-    // ...
-}
-```
-
-- Use `anyhow::Result` for fallible ops in service logic.
+- Use `anyhow::Result` (with `.context()`) for fallible ops in service logic.
 - Use `thiserror` for typed errors at API boundaries where clients need structured error codes.
 - **Never `.unwrap()` in production.** Use `.context()` or `.expect("reason")` with meaningful message only in init code where failure is fatal.
 
 ### Logging
-
-```rust
-use tracing::{info, warn, error, debug, instrument};
-
-#[instrument(skip(pool), fields(user_id = %user_id))]
-pub async fn register_user(pool: &PgPool, user_id: Uuid) -> Result<User> {
-    info!("Starting user registration");
-    // ...
-}
-```
 
 - Use `tracing` (not `log`). All services use structured JSON logging.
 - `#[instrument]` on public async functions. `skip` to avoid logging sensitive data (passwords, keys, tokens).
@@ -254,33 +233,11 @@ pub async fn register_user(pool: &PgPool, user_id: Uuid) -> Result<User> {
 
 ### Axum Handlers
 
-```rust
-// Handlers extract typed state, return impl IntoResponse
-pub async fn create_order(
-    State(state): State<AppState>,
-    Json(req): Json<CreateOrderRequest>,
-) -> Result<Json<OrderResponse>, AppError> {
-    let order = state.trading_service.create_order(req).await?;
-    Ok(Json(OrderResponse::from(order)))
-}
-```
-
 - Handlers thin — validate input, call service, return response.
 - Business logic in service layer, never in handlers.
 - `State(state)` for DI, not global statics.
 
 ### Database (SQLx)
-
-```rust
-// Use compile-time checked queries
-let user = sqlx::query_as!(
-    User,
-    r#"SELECT id, email, role as "role: UserRole" FROM users WHERE id = $1"#,
-    user_id
-)
-.fetch_optional(&pool)
-.await?;
-```
 
 - `sqlx::query_as!` for compile-time verified queries.
 - Run `cargo sqlx prepare` before committing if queries change (offline mode).
