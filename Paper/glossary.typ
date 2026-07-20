@@ -18,7 +18,7 @@
   (key: "mtls", short: "mTLS", long: "Mutual TLS"),
   (key: "spiffe", short: "SPIFFE", long: "Secure Production Identity Framework for Everyone"),
   (key: "bess", short: "BESS", long: "Battery Energy Storage System"),
-  (key: "grxthbg", short: "GRX / THBG", long: "Governance token / THB-pegged stablecoin", description: [โทเคนกำกับดูแล / stablecoin ตรึงเงินบาท]),
+  (key: "grxthbc", short: "GRX / THBC", long: "Governance token / THB-pegged stablecoin", description: [โทเคนกำกับดูแล / stablecoin ตรึงเงินบาท]),
   (key: "bft", short: "BFT", long: "Byzantine Fault Tolerance"),
   (key: "cu", short: "CU", long: "Compute Unit", description: [หน่วยประมวลผลบนเชนของ Solana]),
   (key: "dvp", short: "DvP", long: "Delivery-versus-Payment", description: [การส่งมอบพร้อมชำระเงินแบบ atomic]),

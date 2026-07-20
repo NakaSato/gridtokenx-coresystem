@@ -27,7 +27,7 @@ The pricing model of this system is divided into three parts: clearing-price det
     [$phi$], [market fee rate (bps)],
     [$W$], [total wheeling charge ($q dot w$)],
     [$L$], [total loss cost ($q dot c_("loss")$)],
-    [$r$], [exchange rate, GRX atoms per THBG],
+    [$r$], [exchange rate, GRX atoms per THBC],
     [$psi$], [swap fee (bps)],
     [$A$], [reward accumulator per unit stake],
     [$s$, $s_("total")$], [staked amount and total staked amount],
@@ -51,10 +51,10 @@ where $phi$ is the market fee in basis points (the on-chain default is 25 bps, o
 
 To illustrate the use of the equations above, consider an example of intra-zone matching with sell ask price $p_s = 4.00$ baht per kWh, quantity $q = 10$ kWh, and the intra-zone defaults ($lambda = 1.01$, $w = 0$, $m = 1$, $delta = 0.95$, $phi = 25$ bps). From @eq:loss-cost we obtain $c_("loss") = 4.00(1.01 - 1) = 0.04$, and from @eq:clearing the clearing price $p^* = (4.00 + 0 + 0.04) dot 1 dot 0.95 = 3.838$ baht per kWh, which can be matched when the buy bid price $p_b >= 3.838$. The total value is then $V = 10 dot 3.838 = 38.38$ baht, the fee $f = 38.38 dot 25 slash 10000 approx 0.096$ baht, the total wheeling charge $W = 0$, and the total loss cost $L = 10 dot 0.04 = 0.40$ baht, giving the seller a net amount of $"net" = 38.38 - 0.096 - 0 - 0.40 approx 37.88$ baht. The actual computation in the code uses floor-rounded fixed-point integers, so the resulting values may differ from this example at the rounding-fraction level.
 
-The token pricing mechanism at the treasury layer covers the exchange between GRX and the THBG stablecoin pegged to the baht, using the rate $r$ (number of GRX atoms per THBG) and the swap fee $psi$ (bps)
-$ "thbg" &= (g dot r) / 10^9 dot (1 - psi slash 10000) #<eq:swap> \
-  g &= ("thbg" dot 10^9) / r #<eq:redeem> $
-where redemption per @eq:redeem incurs no fee, and the peg is maintained using a 1:1 supply-to-reserve condition, namely $"supply"_("thbg") <= "reserve"_("attested")$. Staking rewards use a MasterChef-style accumulator, where a staker's accrued reward is computed from the staked amount $s$
+The token pricing mechanism at the treasury layer covers the exchange between GRX and the THBC stablecoin pegged to the baht, using the rate $r$ (number of GRX atoms per THBC) and the swap fee $psi$ (bps)
+$ "thbc" &= (g dot r) / 10^9 dot (1 - psi slash 10000) #<eq:swap> \
+  g &= ("thbc" dot 10^9) / r #<eq:redeem> $
+where redemption per @eq:redeem incurs no fee, and the peg is maintained using a 1:1 supply-to-reserve condition, namely $"supply"_("thbc") <= "reserve"_("attested")$. Staking rewards use a MasterChef-style accumulator, where a staker's accrued reward is computed from the staked amount $s$
 $ "reward" = s dot A slash 10^12 - "debt" $ <eq:reward>
 When a reward $R$ is funded, the accumulator $A$ is updated to $A <- A + (R dot 10^12) slash s_("total")$ pro-rata by stake share, and a slash deducts the requested amount but not more than the staked principal (capped at principal), then redistributes it back to the remaining stakers through the same accumulator.
 
