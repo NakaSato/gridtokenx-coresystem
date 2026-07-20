@@ -1,6 +1,6 @@
 # GridTokenX — Token System
 
-> GRID, GRX, REC, and THBG — mint/burn mechanics, escrow, and atomic settlement.
+> GRID, GRX, REC, and THBC — mint/burn mechanics, escrow, and atomic settlement.
 > Status: **(impl)** on localnet · **(sim)** on-chain payment simulated · **(designed)** not yet built
 > Last reviewed: 2026-07-17
 
@@ -13,7 +13,7 @@
 | **GRID** | SPL Token-2022 | 6 | Energy Token program (CPI); **AggregatorBridge SPIFFE role only** | Clearing asset — 1 GRID = 1 kWh of metered generation |
 | **GRX** | SPL Token-2022 | 9 | Treasury / Registry programs | Collateral + yield staking + governance incentive |
 | **REC** | SPL Token-2022 | 0 | Energy Token program; **AggregatorBridge SPIFFE role + ERC co-sign** | Renewable Energy Certificate — 1 REC = 1 verified kWh renewable |
-| **THBG** | SPL Token-2022 | 6 | Treasury program | THB-pegged stablecoin; settlement denomination; reserve-attested |
+| **THBC** | SPL Token-2022 | 6 | Treasury program | THB-pegged stablecoin; settlement denomination; reserve-attested |
 
 > **Network access:** All token operations occur on a private consortium SVM. There are no public endpoints. Minting, transfers, and swaps are accessible only to network-admitted participants holding valid mTLS certificates. See [`blockchain-node-network.md`](blockchain-node-network.md) for the network access model.
 
@@ -82,20 +82,20 @@ Two independent staking systems share GRX as collateral — intentional, not dup
 
 A user may hold positions in both simultaneously. Separate vaults: `[b"grx_vault"]` (registry bond) vs `[b"stake_vault"]` (treasury yield).
 
-### GRX ↔ THBG Swap
+### GRX ↔ THBC Swap
 
 ```
-swap_grx_to_thbg:
+swap_grx_to_thbc:
     rate = reserve_attested_rate
-    thbg_out = grx_in × rate
-    require!(total_thbg_supply + thbg_out ≤ reserve_attested_thbg)  // peg ceiling
+    thbc_out = grx_in × rate
+    require!(total_thbc_supply + thbc_out ≤ reserve_attested_thbc)  // peg ceiling
     transfer grx_in → swap_vault
-    mint thbg_out → caller
+    mint thbc_out → caller
 
-redeem_thbg:
-    grx_out = thbg_in / rate
+redeem_thbc:
+    grx_out = thbc_in / rate
     require!(grx_out ≤ swap_vault.balance)  // collateral bound
-    burn thbg_in
+    burn thbc_in
     transfer grx_out ← swap_vault → caller
 ```
 
@@ -130,23 +130,23 @@ RETIRE   Burn REC                       → proof of renewable consumption (corp
 
 ---
 
-## 5. THBG (THB-Pegged Stablecoin)
+## 5. THBC (THB-Pegged Stablecoin)
 
-THBG is the settlement denomination — the "payment" side of the atomic energy trade.
+THBC is the settlement denomination — the "payment" side of the atomic energy trade.
 
 ```
-Peg: 1 THBG ≈ 1 THB
+Peg: 1 THBC ≈ 1 THB
 Issuer: Treasury program (reserve-attested)
 Reserve custodian: independent bank under BoT alignment (attestor role, separate from param admin)
-THBG reserve attestation: Bank / BoT only — no other party (including LA#2) can attest
+THBC reserve attestation: Bank / BoT only — no other party (including LA#2) can attest
 ```
 
 **Peg invariant (enforced on-chain):**
 ```
-total_thbg_supply ≤ reserve_attested_thbg
+total_thbc_supply ≤ reserve_attested_thbc
 ```
 
-> **Simulation note:** In this co-simulation, payment settles on-chain as a THBG swap — fully simulated on localnet. In a real deployment, fiat would settle off-chain through existing utility billing and the §97(4) fund. Both paths are architecturally supported; only the simulated on-chain path is implemented. (v3 §II.2)
+> **Simulation note:** In this co-simulation, payment settles on-chain as a THBC swap — fully simulated on localnet. In a real deployment, fiat would settle off-chain through existing utility billing and the §97(4) fund. Both paths are architecturally supported; only the simulated on-chain path is implemented. (v3 §II.2)
 
 ---
 
@@ -154,22 +154,22 @@ total_thbg_supply ≤ reserve_attested_thbg
 
 ### The Problem
 
-Two peers who do not trust each other must exchange GRID for THBG such that neither can take the other's asset without giving up their own. A naive two-step exchange (seller sends GRID, buyer sends THBG) fails: whoever moves second can defect.
+Two peers who do not trust each other must exchange GRID for THBC such that neither can take the other's asset without giving up their own. A naive two-step exchange (seller sends GRID, buyer sends THBC) fails: whoever moves second can defect.
 
 ### Escrow PDA
 
 ```
 PDA: [b"escrow", trade_id]
-Holds: seller_grid_amount · buyer_thbg_amount · seller · buyer · state
+Holds: seller_grid_amount · buyer_thbc_amount · seller · buyer · state
 ```
 
 ### Three Instructions
 
 ```
-ix 1: open_escrow(trade_id, grid_amount, thbg_amount)
+ix 1: open_escrow(trade_id, grid_amount, thbc_amount)
   - signers: matched seller AND buyer (or cleared order proves both)
   - moves seller's GRID  → escrow PDA (program-owned; neither peer controls)
-  - moves buyer's THBG   → escrow PDA
+  - moves buyer's THBC   → escrow PDA
   - state = FUNDED only when BOTH legs present
   - require!(both_legs_funded) — nothing left half-done
 
@@ -177,7 +177,7 @@ ix 2: settle_escrow(trade_id)
   - precondition: state == FUNDED
   - ONE instruction (atomic):
         escrow.GRID  → buyer
-        escrow.THBG  → seller
+        escrow.THBC  → seller
   - state = SETTLED
   - either completes fully or the entire transaction reverts
 
@@ -189,7 +189,7 @@ ix 3: cancel_escrow(trade_id)
 
 ### Why This Is Atomic
 
-Atomicity comes from Solana's transaction model: an instruction either completes fully or the entire transaction reverts and no account changes persist. In `settle_escrow`, both transfers are in **one instruction** — there is no state where GRID has moved to the buyer but THBG has not reached the seller.
+Atomicity comes from Solana's transaction model: an instruction either completes fully or the entire transaction reverts and no account changes persist. In `settle_escrow`, both transfers are in **one instruction** — there is no state where GRID has moved to the buyer but THBC has not reached the seller.
 
 The escrow PDA is **program-owned** between funding and settlement. Neither peer nor the LA can withdraw unilaterally. The LA operates the matching that produces `trade_id` but is **not a signer on the escrow**.
 
@@ -221,10 +221,10 @@ DR event (wholesale):
     REC minted → DER owner wallets (if renewable)
 
 P2P trade (retail):
-    Buyer → open_escrow (THBG leg)
+    Buyer → open_escrow (THBC leg)
     Seller → open_escrow (GRID leg)
     Both legs funded → settle_escrow (atomic)
     GRID → Buyer wallet
-    THBG → Seller wallet
+    THBC → Seller wallet
     REC → Seller wallet (if renewable generation)
 ```

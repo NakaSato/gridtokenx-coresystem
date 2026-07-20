@@ -63,7 +63,7 @@ multi-party mainnet**, it is the critical-path work.
 **Bottom line.** The right first business is **not** "launch a token." It is: become the
 **software operator of an ERC-sandbox P2P/Direct-PPA pilot** in one MEA or PEA distribution
 zone, priced as a SaaS/transaction-fee infrastructure contract, with the stablecoin
-(gTHB/THBG) run as a separately-licensed, fully-reserved issuer. Everything below builds that
+(gTHB/THBC) run as a separately-licensed, fully-reserved issuer. Everything below builds that
 case.
 
 ---
@@ -78,7 +78,7 @@ A business case is only as real as the software under it. Inventory, grounded:
 |---|---|---|
 | **Metered energy → on-chain token** | `energy-token` program; Aggregator Bridge 15-min windows; DLMS/COSEM + Ed25519 ingest | Physical kWh becomes a settleable digital asset with cryptographic provenance. This is the core "trust the meter" primitive. |
 | **P2P market clearing (CDA)** | `trading` program + Trading Service `trading-engine` | An actual order book + continuous double auction, not a toy. Supports conditional/DCA orders, VPP aggregation. |
-| **THB-pegged settlement** | `treasury` program (THBG, 6dp, reserve-attested peg) + gTHB issuer spec | Trades settle in baht, not a speculative token — the only form a utility/regulator will accept. |
+| **THB-pegged settlement** | `treasury` program (THBC, 6dp, reserve-attested peg) + gTHB issuer spec | Trades settle in baht, not a speculative token — the only form a utility/regulator will accept. |
 | **Identity + custody** | IAM Service (KYC workflow, AES-256-GCM wallet custody, argon2id, scoped JWT) | Onboarding a regulated user base; keys never in plaintext. |
 | **Institution-shaped authority** | `governance` program; ERC/EGAT/MEA/PEA role map | Maps to statutory roles, not "governance token holders." Procurement-legible. |
 | **Demand response** | Aggregator Bridge OpenADR 3 / OpenLEADR VTN↔VEN, fleet-as-frequency-sensor | A *second* revenue product (grid-services / VPP) on the same telemetry pipe. |
@@ -94,7 +94,7 @@ From [`ARCHITECTURE.md`](gridtokenx-anchor/ARCHITECTURE.md) §9 and `docs/propos
   `SettlementRecord` (Merkle root + VAT + total) but the root is **commit-only, not verified
   on-chain**. Off-chain audit consumes it; trustless fraud-proof is **proposed**.
 - **Trustless collateral slashing.** Severity-scaled slash + capped victim comp is *in code*;
-  multi-victim pro-rata, THBG bonds, and challenge-driven slashing remain design.
+  multi-victim pro-rata, THBC bonds, and challenge-driven slashing remain design.
 - **Real consensus federation.** Wholesale/retail segmentation exists at the *application*
   layer (`ZoneMarket.segment`); actual multi-operator Tower-BFT clusters with EGAT/MEA/PEA
   running real validators is an infrastructure decision, not yet done (dev keys stand in).
@@ -163,7 +163,7 @@ The platform supports **four** distinct revenue lines on **one** infrastructure.
 matters because the per-trade spread (§5) is thin — no single line carries the business alone.
 
 ### 4.1 Transaction fees (the toll)
-- **Swap fee** on GRX→THBG conversion (bps, implemented: `treasury::swap_grx_for_thbg`,
+- **Swap fee** on GRX→THBC conversion (bps, implemented: `treasury::swap_grx_for_thbc`,
   fee in bps). **Aggregator margin** taken from the price spread at clearing.
 - Together these are "the platform's revenue" per
   [`cost-fee-structure.md`](gridtokenx-anchor/docs/design/cost-fee-structure.md) §6–7 — and both
@@ -184,7 +184,7 @@ matters because the per-trade spread (§5) is thin — no single line carries th
 
 ### 4.4 Certificates & stablecoin float (adjacencies)
 - **RECs**: issuance/trading fees on the fungible REC (1 token = 1 MWh), ERC-gated.
-- **gTHB/THBG issuer**: a fully-reserved THB stablecoin (see
+- **gTHB/THBC issuer**: a fully-reserved THB stablecoin (see
   [`gTHB_ISSUER_SERVICE.md`](docs/product-specs/gTHB_ISSUER_SERVICE.md)) earns **reserve float
   / interest** on backing deposits — a regulated, separate business, but a natural adjacency
   that also removes settlement FX/volatility risk. **Run it as its own licensed entity**, not
@@ -274,7 +274,7 @@ moat. Concrete requirements:
   a real key). See [`role-map.md`](gridtokenx-anchor/docs/design/role-map.md) §2.
 - **TPA / wheeling.** Operate as a grid-access holder or under an aggregator that is; budget
   the fixed TPA fees (§4.2) and the final wheeling rate into pricing.
-- **Digital-asset & stablecoin.** gTHB/THBG must be issued by a **licensed digital-asset
+- **Digital-asset & stablecoin.** gTHB/THBC must be issued by a **licensed digital-asset
   operator** with **1:1 fully-reserved** THB backing and attestation (the issuer spec's
   invariants: mint-atomicity, burn-before-wire, supply ≤ reserves). Resolve the **BoT
   token-vs-e-money classification** early — it gates the VAT exemption *and* the licensing
@@ -356,7 +356,7 @@ commitment. This document is a strategy analysis, not investment, tax, or legal 
 ## Appendix — Verification Log (re-verified 2026-07-12)
 
 **In-repo (code/docs) — all CONFIRMED:**
-- Swap fee in bps — `treasury::compute_swap_grx_for_thbg` (`fee_bps: u16`), 25-bps unit test. ✓
+- Swap fee in bps — `treasury::compute_swap_grx_for_thbc` (`fee_bps: u16`), 25-bps unit test. ✓
 - Batch settlement Merkle root is **stored, not verified on-chain** —
   `record_settlement_batch.rs:66` `rec.merkle_root = merkle_root` (commit-only). ✓ "gap" claim holds.
 - No on-chain fraud-proof / challenge / `verify_merkle` anywhere in `programs/`. ✓ gap confirmed.

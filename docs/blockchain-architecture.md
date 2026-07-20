@@ -144,7 +144,7 @@ IV.  Ledger       → Solana programs: Registry · Governance · Trading · Orac
 |---|---|
 | Thailand regulatory context & LA hierarchy | [`blockchain-thailand-context.md`](blockchain-thailand-context.md) |
 | Anchor programs & account structures | [`blockchain-smart-contracts.md`](blockchain-smart-contracts.md) |
-| Token system — GRID, GRX, REC, THBG, escrow | [`blockchain-tokens.md`](blockchain-tokens.md) |
+| Token system — GRID, GRX, REC, THBC, escrow | [`blockchain-tokens.md`](blockchain-tokens.md) |
 | DR wholesale + P2P retail market flows | [`blockchain-market-flows.md`](blockchain-market-flows.md) |
 | Service connections, ports, protocols | [`blockchain-service-mesh.md`](blockchain-service-mesh.md) |
 | Consortium node network & Chain Bridge | [`blockchain-node-network.md`](blockchain-node-network.md) |

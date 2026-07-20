@@ -81,7 +81,7 @@ Utility (zone operator running GridTokenX — counterparty to neither service)
 | GridTokenX | — | Technology platform provider | Settlement infrastructure deployable by EGAT/MEA/PEA; holds 1 multi-sig vote; NOT an independent LA and NOT a zone operator; provides Anchor programs, Chain Bridge, Aggregator Bridge |
 | Licensed private LA#2 | — | Future extension | Bonded aggregator per zone (staked GRX, slashable); could run GridTokenX platform under MEA/PEA delegation |
 | DER owners / prosumers | — | Participants | Receive GRID tokens; hold on-chain wallets; submit orders |
-| Reserve custodian | Bank under BoT alignment | External | THBG fiat-reserve attestor (separate from param admin) |
+| Reserve custodian | Bank under BoT alignment | External | THBC fiat-reserve attestor (separate from param admin) |
 
 **The operating utility is never a counterparty.** The zone operator (MEA/PEA/EGAT running GridTokenX) operates the order book but is absent from escrow and settlement signer sets. This keeps them an infrastructure operator, not a reseller (Enhanced Single Buyer model prohibits reselling).
 

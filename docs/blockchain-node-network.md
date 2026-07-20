@@ -133,7 +133,7 @@ The word **"validator"** has two completely different meanings in this system. C
   │                          │   │                              │
   │ ERC (target: k-of-n      │   │ Cannot stake; runs no node   │
   │ multisig council)        │   │ Only token path: swap GRX    │
-  │ NOT in main data path    │   │ to THBG for settlement       │
+  │ NOT in main data path    │   │ to THBC for settlement       │
   └──────────────────────────┘   └──────────────────────────────┘
 ```
 
@@ -283,7 +283,7 @@ The consortium maps directly to Thailand's energy regulatory hierarchy.
 | GridTokenX (platform provider) | Provides settlement infrastructure; holds 1 multi-sig upgrade vote; NOT zone operator | Technology layer; 1 of 4 multisig votes |
 | Licensed private LA#2 | Bonded aggregator per zone (where utility delegates to private LA); BidEngine SPIFFE role | `registry::register_validator` |
 | Prosumers / consumers | Clients — swap/redeem only; cannot stake | `treasury` swap/redeem; `trading` orders |
-| Reserve custodian | Attestor for THBG fiat reserve (separate from param admin; Bank/BoT only) | `treasury::update_attestation` |
+| Reserve custodian | Attestor for THBC fiat reserve (separate from param admin; Bank/BoT only) | `treasury::update_attestation` |
 
 ---
 

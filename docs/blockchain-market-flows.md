@@ -153,10 +153,10 @@ Step 7   Chain Bridge pipeline
             │  4. Consortium RPC submit (:8899, mTLS)
             ▼
 Step 8   trading.settle_offchain_match → atomic on-chain settlement
-            │  open_escrow:   seller GRID + buyer THBG locked in escrow PDA
+            │  open_escrow:   seller GRID + buyer THBC locked in escrow PDA
             │  settle_escrow: both legs transferred atomically (one instruction)
             │     GRID  → Buyer wallet   (payment for energy received)
-            │     THBG  → Seller wallet  (fiat-pegged payment received)
+            │     THBC  → Seller wallet  (fiat-pegged payment received)
             │     REC   → Seller wallet  (renewable certificate, if applicable)
             └── SettlementRecord PDA written (Merkle root + VAT + total)
 ```
@@ -165,11 +165,11 @@ Step 8   trading.settle_offchain_match → atomic on-chain settlement
 
 ```
 Escrow PDA: [b"escrow", trade_id]
-    Holds seller GRID + buyer THBG (program-owned; neither peer controls)
+    Holds seller GRID + buyer THBC (program-owned; neither peer controls)
 
 settle_escrow (ONE instruction):
     escrow.GRID  → Buyer
-    escrow.THBG  → Seller
+    escrow.THBC  → Seller
 
 Either both transfers complete, or the entire transaction reverts.
 No partial settlement possible.
@@ -219,7 +219,7 @@ SettlementRecord PDA: [b"settlement", zone, batch_id]
 Fields:
     merkle_root:   Merkle root over all matches in this batch
     vat_amount:    VAT calculated per Thai revenue code
-    total_value:   total THBG transferred in this batch
+    total_value:   total THBC transferred in this batch
     settled_at:    Unix timestamp (Clock::get())
 
 ERC observer node can read any SettlementRecord (network-admitted read;
@@ -238,7 +238,7 @@ the on-chain root is the commitment — fraud proof checks inclusion.
 | Physical dispatch | Smart Grid via OpenADR BL | Smart Grid (normal distribution) |
 | Verification | M&V proof — Aggregator Bridge | Both meter readings confirmed |
 | On-chain action | Record (audit) + mint GRID | Settle (atomic swap) + mint GRID |
-| Payment path | §97(4) fund OFF-CHAIN (EPPO) | THBG on-chain (simulated) |
+| Payment path | §97(4) fund OFF-CHAIN (EPPO) | THBC on-chain (simulated) |
 | Co-sign required | MEA or PEA zone co-sign | Admitted aggregator **(gap: not yet enforced)** |
 | Who can mint | AggregatorBridge role only (MEA/PEA) | AggregatorBridge role only (MEA/PEA) |
 | LA#2 role | submit_mv_proof via BidEngine | settle_offchain_match via BidEngine |

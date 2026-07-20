@@ -21,7 +21,7 @@ Six production programs form the settlement layer. All run on Solana/Anchor (per
        │                                        │ record_settlement CPI
        │                                        ▼
        │                                   Treasury  FfxSQYKUmx9NGd...  (impl)
-       │                                   GRX↔THBG swap · SettlementRecord PDA
+       │                                   GRX↔THBC swap · SettlementRecord PDA
        │                                   yield staking · reserve attestation
        │
        ├── AggregatorEntry PDA validate ──► Oracle  64Vgos61STZ8p...    (impl)
@@ -45,7 +45,7 @@ REC-validator-gated mint · GenerationMintRecord PDA
 ```
 registry   → energy-token    (airdrop + mint on user registration)
 trading    → governance      (read PoA config + ERC certificates)
-trading    → treasury        (record_settlement_batch — mandatory for THBG markets)
+trading    → treasury        (record_settlement_batch — mandatory for THBC markets)
 oracle     → governance      (deserialize AggregatorEntry PDA — read only, no CPI invoke)
 ```
 
@@ -145,17 +145,17 @@ All other cross-program relationships are read-only (deserialize account data). 
 
 ### 3.6 Treasury `FfxSQYKUmx9NGd...` (impl)
 
-**Purpose:** GRX ↔ THBG swap; reserve attestation; yield staking; settlement records.
+**Purpose:** GRX ↔ THBC swap; reserve attestation; yield staking; settlement records.
 
 | Instruction | Authority / Who Can Call | Description |
 |---|---|---|
-| `swap_grx_to_thbg` | Any network-admitted participant (with mTLS cert) | GRX → THBG at reserve-attested rate; bounded by `swap_vault` collateral |
-| `redeem_thbg` | Any network-admitted participant | THBG → GRX redemption |
+| `swap_grx_to_thbc` | Any network-admitted participant (with mTLS cert) | GRX → THBC at reserve-attested rate; bounded by `swap_vault` collateral |
+| `redeem_thbc` | Any network-admitted participant | THBC → GRX redemption |
 | `record_settlement_batch` | Trading program (via CPI from `settle_offchain_match`) | Write `SettlementRecord` PDA: `(zone, batch) → merkle_root + vat_amount + total_value` |
 | `stake_grx` | Any network-admitted participant | Yield staking (MasterChef accumulator; separate from registry validator bond) |
 | `update_attestation` | Reserve custodian (independent bank under BoT alignment) | Reserve custodian updates fiat-reserve proof |
 
-**Peg invariant:** `total_thbg_supply ≤ reserve_attested_thbg`. Redemption bounded by `swap_vault` collateral + tracked supply.
+**Peg invariant:** `total_thbc_supply ≤ reserve_attested_thbc`. Redemption bounded by `swap_vault` collateral + tracked supply.
 
 **Two GRX staking systems (intentional):**
 - `registry::stake_grx` — validator **security bond** (no yield; `MIN_VALIDATOR_STAKE`-gated; slashable)

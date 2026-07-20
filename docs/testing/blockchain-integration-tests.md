@@ -612,7 +612,7 @@ npm run test:all                        # all programs
 | File | What it covers |
 |---|---|
 | `generation_mint_idempotency.ts` | Same `(meter, window)` → `GenerationMintRecord` PDA blocks second mint |
-| `batch_settle_thbg.ts` | `record_settlement_batch` writes `SettlementRecord` PDA with correct Merkle root + VAT |
+| `batch_settle_thbc.ts` | `record_settlement_batch` writes `SettlementRecord` PDA with correct Merkle root + VAT |
 | `energy_token_rec_guards_litesvm.ts` | REC mint gated on admitted aggregator `AggregatorEntry` |
 | `escrow_settlement.ts` | P2P atomic settlement; `settle_offchain_match` CU benchmark |
 | `governance_authority_guards_litesvm.ts` | Unauthorized callers rejected on `admit_aggregator`, `revoke_aggregator` |

@@ -145,7 +145,7 @@ This matrix shows what each participant can do on the network and on-chain. "Pub
 | `unstake_grx` | — | — | — | — | — | ⚠ blocked while Active | ❌ |
 | On-chain account read | ✅ | ✅ | ✅ | ✅ mTLS cert | ✅ | ✅ mTLS cert | ❌ no access |
 | Chain Bridge gRPC :5040 | ✅ | ✅ | ✅ | ✅ mTLS cert | ✅ | ✅ mTLS cert | ❌ |
-| THBG reserve attestation | — | — | — | — | — | ❌ | ❌ (Bank/BoT only) |
+| THBC reserve attestation | — | — | — | — | — | ❌ | ❌ (Bank/BoT only) |
 | Run Aggregator Bridge | — | ✅ | ✅ | — | — | ✅ own instance | ❌ |
 
 **Notes:**
@@ -170,7 +170,7 @@ ERC observer node reads any account (once inside the private network):
     GenerationMintRecord PDAs    — which meters were minted, when, which window
     SettlementRecord PDAs        — (zone, batch) → merkle_root + vat + total_value
     slash events                 — on registry program accounts
-    all token transfers          — GRID, GRX, THBG, REC (SPL transfer records)
+    all token transfers          — GRID, GRX, THBC, REC (SPL transfer records)
     DR event co-sign records     — which LA#1 co-signed which DR event
     governance changes           — authority updates, aggregator admissions
 ```
@@ -242,7 +242,7 @@ From `gridtokenx-anchor/docs/design/role-map.md` — the design enforces three c
 |---|---|---|
 | **1. Governance ≠ Settlement** | ERC admits aggregators but does not settle trades. Trading program settles trades but cannot admit aggregators. | ERC cannot manipulate prices; the trading engine cannot self-authorize. |
 | **2. Zone Operator ≠ Custodian** | The zone operator key (MEA/PEA running GridTokenX, or delegated aggregator) is absent from the escrow signer set. The operator matches orders but never holds the traded asset. | Zone operator cannot steal peer assets; platform can be upgraded without freezing settled funds. |
-| **3. Reserve Custodian ≠ Param Admin** | THBG fiat-reserve attestation is held by an independent bank under BoT alignment, not by the `treasury::update_attestation` parameter admin. | No single party can both control the peg rate and attest the reserve backing it. |
+| **3. Reserve Custodian ≠ Param Admin** | THBC fiat-reserve attestation is held by an independent bank under BoT alignment, not by the `treasury::update_attestation` parameter admin. | No single party can both control the peg rate and attest the reserve backing it. |
 
 ---
 

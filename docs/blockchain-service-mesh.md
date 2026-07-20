@@ -180,7 +180,7 @@
 | JSON-RPC HTTP :8899 | Submit + query | Behind mTLS; NOT public; Chain Bridge only |
 | Tower BFT | Consensus | n=7, f=2, 2f+1=5 (designed topology); PoH SHA-256 VDF |
 | Anchor IDL | Program interface | Anchor 1.0.0; programs on private network only |
-| SPL Token-2022 | Token standard | GRID / GRX / THBG / REC |
+| SPL Token-2022 | Token standard | GRID / GRX / THBC / REC |
 | WebSocket :8900 | Subscriptions | Admitted nodes only; mTLS required |
 
 ---
