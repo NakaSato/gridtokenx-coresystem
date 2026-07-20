@@ -224,3 +224,17 @@ bench-ingest-results.csv
 .claude/skills/telemetry-hops/scripts/.scale-state/
 # Onboarding output — contains plaintext credentials, never commit
 scripts/registered_users_meters.txt
+
+# Submodule build/deps belt-and-suspenders — each submodule self-ignores via its
+# own .gitignore, so these only bite if a submodule boundary breaks. Redundant but safe.
+# gips (Next.js EIP site)
+gips/node_modules/
+gips/.next/
+gips/out/
+gips/coverage/
+gips/temp/
+gips/.env
+gips/.env.local
+# UTCC_paper (Typst/DOCX paper) generated exports
+UTCC_paper/*.docx
+UTCC_paper/**/*.tmp

@@ -40,3 +40,4 @@
 [submodule "gips"]
 	path = gips
 	url = https://github.com/NakaSato/gips.git
+	branch = main
