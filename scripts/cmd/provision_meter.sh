@@ -134,13 +134,32 @@ _pm_map_meter() {
     # Postgres fallback only resolves meters that exist as a PG row, which these
     # Redis-mapped meters do not. Without this key mints are skipped ("no wallet
     # registered for meter ..."). Resolve the user's wallet from the IAM DB.
+    # DB-per-service split: `users` moved from the shared `gridtokenx` DB to
+    # `gridtokenx_iam`. Probe both unless IAM_PG_DB is set explicitly — hardcoding
+    # the old default made every lookup fail with `relation "users" does not exist`,
+    # which the old `2>/dev/null` swallowed, so meters mapped with a user_id but no
+    # wallet and every surplus mint was skipped, misreported as "no wallet_address
+    # for user yet".
     local pg="${IAM_PG_CONTAINER:-gridtokenx-postgres}"
-    local wallet; wallet=$(docker exec "$pg" psql -U "${IAM_PG_USER:-gridtokenx_user}" \
-        -d "${IAM_PG_DB:-gridtokenx}" -tAc \
-        "SELECT wallet_address FROM users WHERE id='$uid'" 2>/dev/null | tr -d '[:space:]')
+    local pguser="${IAM_PG_USER:-gridtokenx_user}"
+    local candidates="${IAM_PG_DB:-gridtokenx_iam gridtokenx}"
+    local wallet="" found_users_table=0 db err
+    for db in $candidates; do
+        err=$(docker exec "$pg" psql -U "$pguser" -d "$db" -tAc \
+            "SELECT wallet_address FROM users WHERE id='$uid'" 2>&1)
+        case "$err" in
+            *'does not exist'*|*'FATAL'*) continue ;;
+        esac
+        found_users_table=1
+        wallet=$(printf '%s' "$err" | tr -d '[:space:]')
+        [ -n "$wallet" ] && break
+    done
+
     if [ -n "$wallet" ]; then
         docker exec "$PM_REDIS" redis-cli SET "gridtokenx:meters:${meter_id}:wallet" "$wallet" >/dev/null 2>&1
         log_success "mapped $key = $uid (wallet $wallet)" >&2
+    elif [ "$found_users_table" -eq 0 ]; then
+        log_error "$meter_id: no reachable IAM \`users\` table (tried: $candidates) — set IAM_PG_DB. Wallet NOT mapped; mints will skip." >&2
     else
         log_warn "mapped $key = $uid — no wallet_address for user yet (mint will skip until set)" >&2
     fi

@@ -41,7 +41,7 @@
 
 - [x] thread NATS envelope `correlation_id` into audit entries (was `""`). `sign_and_submit` + `record_audit` gained a `correlation_id: &str` param; NATS path threads `envelope.correlation_id`, gRPC path passes `""` (no envelope id). Tests updated, 97 passed / 12 ignored.
 - [x] apply `migrations/0001_audit_log.sql` to shared IAM DB — folded into IAM migration set as `gridtokenx-iam-service/migrations/20260620000000_add_chain_bridge_audit_log.sql` (idempotent `CREATE TABLE IF NOT EXISTS`); `sqlx migrate run` applied + recorded in `_sqlx_migrations` (success, 2026-06-20). Reproducible on fresh deploys.
-- [x] `git add gridtokenx-telemetry/` in superproject — tracked (`ARCHITECTURE.md`, `Cargo.toml`, `src/lib.rs`, `src/time.rs`); plain dir, not a submodule.
+- [x] `git add gridtokenx-telemetry/` in superproject — tracked (`ARCHITECTURE.md`, `Cargo.toml`, `src/lib.rs`, `src/time.rs`); plain dir, not a submodule. *(Superseded: it was later extracted to its own repo and is now a submodule — `.gitmodules` → `NakaSato/gridtokenx-telemetry`. Commit changes in the submodule and bump the pointer.)*
 - [x] commit `gridtokenx-refactor-plan.md` + this checklist in the superproject. *(committed, `20bc5a3`)*
 - [ ] optional: clippy sweep of chain-bridge root crate to pass `cargo clippy -- -D warnings` (many pre-existing warns: `field_reassign_with_default`, deref-refs).
 

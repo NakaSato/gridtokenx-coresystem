@@ -49,7 +49,7 @@ This rule overrides any tendency to report completion before tests run.
 - **DB-per-service split is mid-flight.** Trading is live on `gridtokenx_trading`; metering rolled back to shared `gridtokenx` (meter-service still JOINs `users`); `gridtokenx_noti` already isolated. Don't add new cross-service JOINs — check [docs/design-docs/db-per-service-migration.md](docs/design-docs/db-per-service-migration.md) before touching DB wiring.
 - IAM Service = **modular monolith** with 6 sub-crates. Others: layered modules, single crate.
 - Two interconnected platforms: **Exchange** (IAM + Trading, direct blockchain) and **Infrastructure** (Aggregator Bridge + edge, produces validated telemetry). Gateway: **APISIX** (`:4001`, user-facing); **API orchestrator** at `:4000`. IoT/edge telemetry ingresses directly to the Aggregator Bridge IoT gateway (Ed25519-signed payloads; no separate edge proxy).
-- **Not every submodule is a Rust backend.** `gridtokenx-trading-service` (Rust, `crates/`) = the matching/settlement backend; `gridtokenx-trading` (Next.js, `app/`) = its **Trading UI frontend** — different repos, easy to confuse. `gridtokenx-explorer` (Next.js) = block/chain explorer frontend. The Rust→WASM client crate lives at `gridtokenx-trading/wasm/` (inside the Trading frontend submodule) — there is no top-level `gridtokenx-wasm` submodule. `gridtokenx-telemetry` is a **plain dir, not a submodule** (Rust crate, no `.gitmodules` entry). `infra/` (untracked) holds local-dev assets: `aggregator-bridge/`, `certs/`, `solana/`.
+- **Not every submodule is a Rust backend.** `gridtokenx-trading-service` (Rust, `crates/`) = the matching/settlement backend; `gridtokenx-trading` (Next.js, `app/`) = its **Trading UI frontend** — different repos, easy to confuse. `gridtokenx-explorer` (Next.js) = block/chain explorer frontend. The Rust→WASM client crate lives at `gridtokenx-trading/wasm/` (inside the Trading frontend submodule) — there is no top-level `gridtokenx-wasm` submodule. `gridtokenx-telemetry` **is a submodule** (shared Rust observability crate, `.gitmodules` → `NakaSato/gridtokenx-telemetry`) — change it in the submodule and bump the pointer here, like any other. `infra/` (untracked) holds local-dev assets: `aggregator-bridge/`, `certs/`, `solana/`.
 - **`papers/` is research-only — never implementation.** See [Research Reference](#research-reference-papers) below.
 - **`Paper/` (capital P) ≠ `papers/` (lowercase).** `Paper/` is the project's **Typst academic paper** (Thai-language IEEE-style, documents this system) — its own build, own `Paper/CLAUDE.md`. Build: `cd Paper && typst compile main.typ --font-path font/ main.pdf` (the `--font-path` is mandatory — Thai/Times glyphs are vendored in `Paper/font/`). Sections in `Paper/sections/*.typ`, included by `Paper/main.typ` in reading order; bib in `Paper/references.bib`. The `doc-paper` skill drives writing/verifying/reviewing it against the real code.
 
@@ -174,6 +174,25 @@ just send-meter-reading meters="1" interval="15"
 ```
 
 > **macOS Apple Silicon Warning**: Running `solana-test-validator` natively on M-series chips will panic with a "Too many open files" error under load. The `app.sh` scripts handle this automatically via `ulimit -n 65536`. If you run the validator manually outside these scripts, you MUST tune the system limits first.
+
+> **The validator self-terminates after 30 minutes, and the obvious restart wipes your chain.**
+> Both `app.sh init` and `app.sh solana start` schedule an auto-kill
+> (`solana_validator_schedule_kill "${SOLANA_VALIDATOR_TTL:-1800}"`,
+> `scripts/cmd/init.sh:127` · `scripts/cmd/solana.sh:25`). When it fires, nothing
+> says "validator stopped" — it surfaces downstream as Chain Bridge logging
+> `Solana RPC get_latest_blockhash error … Connection refused`, which reads like a
+> Chain Bridge fault. Worse, restarting normally uses `--reset` **by default**
+> (`scripts/lib/common.sh:69`), which erases every deployed program, mint, PDA and
+> balance — so the "fix" silently destroys the state `init` just built. To restart
+> and keep the chain:
+>
+> ```bash
+> SOLANA_RESET=0 SOLANA_VALIDATOR_TTL=0 ./scripts/app.sh solana start
+> ```
+>
+> Use `SOLANA_VALIDATOR_TTL=0` on the initial `init` too if you want a long-lived
+> dev chain. The ledger survives in `test-ledger/`, so `SOLANA_RESET=0` recovers a
+> TTL-killed validator with programs intact.
 
 ---
 
