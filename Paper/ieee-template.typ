@@ -17,8 +17,24 @@
   authors: (),
   abstract: [],
   keywords: (),
+  lang: "th",   // "th" (default) or "en" — selects localized template labels
   body,
 ) = {
+
+  // ── LOCALIZED LABELS ──────────────────────────────────────────────────────
+  // Supplements/labels the template renders itself (not section prose). Thai is
+  // the default; main-en.typ passes lang: "en" for the English build.
+  let L = if lang == "en" {
+    (
+      fig: [Fig.], table: [Table], section: [Section],
+      abstract: [_Abstract_], keywords: [_Index Terms_],
+    )
+  } else {
+    (
+      fig: [รูปที่], table: [ตารางที่], section: [หัวข้อ],
+      abstract: [_บทคัดย่อ (Abstract)_], keywords: [_คำสำคัญ (Index Terms)_],
+    )
+  }
 
   // ── PDF METADATA ──────────────────────────────────────────────────────────
   // Populates the PDF title/author fields (was empty) for accessibility + outline.
@@ -39,8 +55,10 @@
   set text(
     font: ("TH Sarabun New", "Times New Roman"),
     size: 12pt,
-    lang: "th",
-    region: "TH",
+    // Document language drives Typst's bibliography localization (IEEE connectives:
+    // "and"/"vol."/"no."/"pp." vs "และ"/"ปี"/"ฉบับที่"/"น."). lang-selected.
+    lang: if lang == "en" { "en" } else { "th" },
+    region: if lang == "en" { "US" } else { "TH" },
     hyphenate: auto,   // English hyphenates ที่ขอบ column, Thai ไม่กระทบ
   )
 
@@ -137,13 +155,13 @@
 
   // ── FIGURES ───────────────────────────────────────────────────────────────
   set figure(numbering: "1")
-  // Thai-localized cross-reference supplements (was English "Fig."/"Table"/"Section").
-  show figure.where(kind: image): set figure(supplement: [รูปที่])
-  show figure.where(kind: table): set figure(supplement: [ตารางที่])
+  // Localized cross-reference supplements (lang-selected; see L above).
+  show figure.where(kind: image): set figure(supplement: L.fig)
+  show figure.where(kind: table): set figure(supplement: L.table)
   show figure.where(kind: table): set figure(numbering: "I")
   show figure.where(kind: table): set figure.caption(position: top)
-  // Heading refs (@sec:…) render "หัวข้อ N"; figures/tables/equations keep their own supplement.
-  set ref(supplement: it => if it.func() == heading { [หัวข้อ] } else { it.supplement })
+  // Heading refs (@sec:…) render "<section> N"; figures/tables/equations keep their own supplement.
+  set ref(supplement: it => if it.func() == heading { L.section } else { it.supplement })
 
   show figure.where(kind: table): it => [
     #v(1em, weak: true)
@@ -234,10 +252,10 @@
     #set par(first-line-indent: 0pt, justify: true)
     #block(inset: (x: 3em))[
       #set text(size: 12pt, weight: "regular")
-      #h(1em) _บทคัดย่อ (Abstract)_ --- #abstract
+      #h(1em) #L.abstract --- #abstract
       #if keywords.len() > 0 [
         #v(0.5em)
-        #h(1em) _คำสำคัญ (Index Terms)_ --- #keywords.join(", ")
+        #h(1em) #L.keywords --- #keywords.join(", ")
       ]
     ]
   ]

@@ -2,6 +2,9 @@
 
 = EXPERIMENTAL SETUP <sec:experimental-setup>
 
+_The simulation testbed, meter-fleet workload harness, and hardware — a simulation, not a live power system, stated up front._
+
+
 This section summarizes the implementation details, the version of the artifact, the workload parameters, and the definitions of the metrics, so that the evaluation in @sec:evaluation is reproducible. We state the remaining reproducibility limitations candidly at the end of this section.
 
 == Implementation and Artifact

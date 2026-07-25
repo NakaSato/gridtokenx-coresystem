@@ -1,4 +1,7 @@
 = EVALUATION <sec:evaluation>
+
+_On the ingest path, 80 meters sustain the 5.33 rec/s design rate with zero loss, and a step-ramp to 640 meters holds loss ≤ 0.03% — the measured rate being a single-sender lower bound._
+
 This section presents an architectural evaluation of the prototype system, covering the telemetry ingest rate, the off-chain order-matching rate, and the cost and throughput of on-chain transaction settlement, in order to reflect the suitability of the architecture for Peer-to-Peer energy trading at the microgrid level. In the Performance dimension, this section reports measurements of the ingest rate along the telemetry ingest path, both from a single real run (see @sec:ingest-throughput) and from a step-load experiment that measures the loss ratio and single-sender cost (see @sec:ingest-saturation). It also reports the on-chain processing cost of the settlement path directly, expressed as compute-units per settled order pair (see @sec:settlement-cost). In addition, it reports on-chain transaction throughput using standard database benchmark workloads (Blockbench, TPC-C, and SmallBank ported onto the Solana-compatible network) together with measurements of the real settlement path in @sec:onchain-throughput. The evaluation is a characterization of a single system, not a head-to-head quantitative comparison against other platforms. Measuring the end-to-end latency and throughput of the settlement path, as well as field-level testing of the grid-stability model, remains future work.
 
 == Performance

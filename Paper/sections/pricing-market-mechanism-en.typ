@@ -1,5 +1,7 @@
 = PRICING AND MARKET MECHANISM <sec:pricing-market-mechanism>
 
+_A Continuous Double Auction clears trades transparently, with fee, seller-net, and treasury token-pricing computed at settlement._
+
 == Pricing and Settlement Model <sec:pricing-model>
 The pricing model of this system is divided into three parts: clearing-price determination in the CDA mechanism, fee and seller-net computation at settlement, and the token pricing mechanism at the treasury layer. The symbols used in the equations are summarized in @tbl:nomenclature.
 

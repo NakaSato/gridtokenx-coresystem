@@ -1,5 +1,7 @@
 = SYSTEM MODEL AND THREAT MODEL <sec:threat-model>
 
+_Actors, trust assumptions, and adversaries — forged meter readings, replay, and unauthorized mint or settlement — with residual trust made explicit before the settlement model._
+
 This section defines the system model, the actors, the trust assumptions, and the adversary model of the simulated system, so that the security boundaries of the layered architecture are clear before the discussion of the settlement model in @sec:settlement-model. Since the scope of this work is a design on a simulated system, the analysis below states, in a straightforward manner, both the threats that the current mechanisms mitigate and the trust that still remains (residual trust).
 
 == System Model and Actors

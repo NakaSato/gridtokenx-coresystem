@@ -1,5 +1,7 @@
 = DISCUSSION AND LIMITATIONS <sec:discussion_limitations>
 
+_Layer separation yields a verifiable, extensible structure; results are simulation-derived and single-run for exploratory experiments, not field-measured on a real grid or devices._
+
 == Discussion
 The results of the simulated system design indicate that the approach of separating the operational layers between the Smart Meter Simulator, Backend Service, and Solana Smart Contract enables the Peer-to-Peer energy trading system to have a verifiable structure with clearer points for system expansion. The Backend Service acts as the primary control layer for validating data, managing permissions, and evaluating grid-stability conditions before submitting transactions to the blockchain, so that the Smart Contract does not have to bear the entire processing burden of the microgrid system.
 

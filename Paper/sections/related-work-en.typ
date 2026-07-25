@@ -1,5 +1,7 @@
 = RELATED WORK <sec:related-work>
 
+_Prior P2P-market and blockchain-settlement work leaves one gap: none cleanly separate data verification from settlement while keeping on-chain cost bounded and governable._
+
 Blockchain technology originated with Bitcoin @nakamoto2008bitcoin as a decentralized ledger system that requires no intermediary, and was extended to Smart Contract execution with Ethereum @buterin2014ethereum @wood2014ethereum. An overview of the technology and the classification of networks into permissionless and permissioned types was summarized by NIST @yaga2018blockchain, which serves as a reference framework for selecting a network architecture suited to governance requirements.
 
 In the context of Peer-to-Peer energy markets, a large body of research has studied market mechanisms and auction design. Mengelkamp et al. @mengelkamp2018blockchain compared local energy market designs and bidding strategies, while Munsing et al. @munsing2017blockchains proposed using blockchain for decentralized optimization of energy resources in microgrid networks. These works highlight the potential of blockchain to support direct energy trading between users, but most still evaluate on public networks that are constrained by transaction cost and block-confirmation latency. A recent concrete example is the decentralized trading platform of Esmat et al. @esmat2021decentralized, which develops a market mechanism and settlement on a public blockchain (Ethereum) but does not clearly separate the off-chain data-verification layer from on-chain settlement.
