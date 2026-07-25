@@ -109,11 +109,17 @@ owns and migrates (aggregator `migrations/0006`/`0007`).
   two aggregator-owned tables) plus the feed's transient-fault surface (observed live: the IAM
   consumer logged `AllBrokersDown` and self-healed — a longer broker outage stalls owner updates
   until recovery + backfill).
-- **Residual / pay-down:** either (a) validate the enabled feed under fault (broker restart, replay)
-  and cut the legacy `meters ⋈ users` reads (see
-  `gridtokenx-aggregator-bridge/docs/db-split-phase2.md` §5), or (b) give meter-service its own
-  owner/wallet projection instead of reading aggregator-owned tables. Must be resolved before the feed
-  becomes the sole owner path at prod cutover.
+- **Broker-restart fault validated** (2026-07-25): restarted `kafka-cmd`, published a synthetic
+  `UserWalletLinked` for a test user across the outage. The IAM consumer logged `AllBrokersDown`
+  (2/2 down) without crashing, reconnected on broker return, and applied the event ~1 min later
+  (`update_wallet_by_user` → row landed in `user_wallet_read_model`; aggregator stayed `healthy`
+  throughout). No loss — the event rode Kafka's durable log + `earliest`-offset replay. Confirms the
+  self-heal loop (`OwnerReadModelConsumer::run`) and durability backstop.
+- **Residual / pay-down:** either (a) cut the legacy `meters ⋈ users` reads (see
+  `gridtokenx-aggregator-bridge/docs/db-split-phase2.md` §5) — restart fault now validated; still
+  untested: a broker outage longer than retention, and cross-topic replay ordering — or (b) give
+  meter-service its own owner/wallet projection instead of reading aggregator-owned tables. Must be
+  resolved before the feed becomes the sole owner path at prod cutover.
 
 ## How to use
 
