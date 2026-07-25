@@ -35,7 +35,7 @@ The adversary model considers an attacker who can craft, intercept, or replay me
     inset: (x: 4pt, y: 3pt),
     align: (left + horizon, left + horizon, left + horizon),
     table.header([Threat], [Description], [Mitigation]),
-    [T1 Forged/replayed reading], [Forge or replay a meter reading], [Per-reading Ed25519 signature verification (fail-closed) + order nullifier in the settlement layer],
+    [T1 Forged/replayed reading], [Forge or replay a meter reading], [Per-reading Ed25519 signature verification (fail-closed) + the per-`(meter_id, window)` `gen_mint` PDA, which absorbs a replayed reading into the window it belongs to],
     [T2 Service impersonation], [Impersonate a service in the mesh], [mTLS + SPIFFE identity → service role; unverified callers get `Unknown`],
     [T3 Forged publisher / mint], [Submit a forged chain-write command over NATS], [Signed envelope bound to the certificate; mint subjects require a signature],
     [T4 Replayed on-chain order pair], [Settle the same order pair twice], [Order nullifier account (PDA) — settle only once],
