@@ -379,6 +379,29 @@ scanning cannot.
 
 Fall back to Grep/Glob/Read **only** when the graph doesn't cover what you need.
 
+### One graph per repo — pass `repo_root` for service code
+
+**The superproject graph does not contain the services.** Submodules are separate
+git repos, so a build at the root indexes only the superproject's own ~137 files
+(`scripts/`, `tests/e2e/`, SQL, terraform) — of the 580 `.rs` files in this tree,
+579 live in submodules and are invisible to it. Searching the root graph for a
+service symbol returns 0 results and looks like "the graph is useless"; it isn't,
+you're just querying the wrong one.
+
+Each submodule has its own graph and is registered (`code-review-graph repos`).
+**Pass `repo_root` explicitly** when the code you want lives in a service:
+
+```
+semantic_search_nodes(query="MatcherService")                      # 0 results
+semantic_search_nodes(query="MatcherService",
+    repo_root=".../gridtokenx-trading-service")                    # finds it
+```
+
+Rebuild one with `code-review-graph build --repo <path>`. The DB lands in
+`<repo>/.code-review-graph/`, which self-ignores via its own `.gitignore`, so
+building never dirties a submodule. Don't pipe `build`'s stdout — doing so has
+produced silently empty graphs.
+
 > **Search tooling: use `rg` (ripgrep), never `grep`.** When shelling out to search
 > files, run `rg` — it respects `.gitignore`, skips binaries, and is far faster than
 > `grep`/`find -exec grep`. Reserve plain `grep` only for piping non-file streams.
