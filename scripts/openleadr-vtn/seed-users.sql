@@ -1,8 +1,13 @@
 -- Default OAuth clients for the local OpenADR VTN (openleadr-vtn).
--- Mirrors upstream openleadr-rs fixtures/users.sql AT TAG v0.2.3 (the scope
+-- Mirrors upstream openleadr-rs fixtures/users.sql AT TAG v0.2.4 (the scope
 -- enum differs between releases — keep this in sync with the tag pinned in
 -- docker-compose.yml), made idempotent so the one-shot seed container can run
 -- on every `docker compose up`.
+--
+-- NOTE (v0.2.3 -> v0.2.4): the `write_subscriptions` scope was split into
+-- `write_subscriptions_bl` / `write_subscriptions_ven`. Using the old name
+-- aborts the INSERT with `invalid input value for enum scope`, which silently
+-- leaves ven-client unseeded.
 --
 -- bl-client  / bl-client  : business-logic side (the aggregator bridge) —
 --                           write_programs + write_events.
@@ -22,7 +27,7 @@ ON CONFLICT (client_id) DO NOTHING;
 
 INSERT INTO "user" (id, reference, description, scopes, created, modified)
 VALUES ('ven-client', 'ven-client-ref', 'desc',
-        '{"read_targets", "read_ven_objects", "write_reports", "write_subscriptions", "write_vens_ven"}',
+        '{"read_targets", "read_ven_objects", "write_reports", "write_subscriptions_ven", "write_vens_ven"}',
         '2024-07-25 08:31:10.776000 +00:00', '2024-07-25 08:31:10.776000 +00:00')
 ON CONFLICT (id) DO NOTHING;
 
