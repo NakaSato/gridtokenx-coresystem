@@ -9,7 +9,8 @@ Status legend: 🔴 blocking · 🟠 should-fix · 🟢 nice-to-have · ✅ paid
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | TD-001 | _example_ — direct DB call bypassing repository layer | trading | 🟠 | before next settlement refactor | open |
 | TD-002 | Settlement settles a freshly-completed bin before late readings arrive → strands energy | aggregator | 🟢 | before onboarding intermittent/offline-buffered meters | mitigated (boundary case) |
-| TD-003 | IoT edge has no transport-level mTLS — Envoy `:4002` edge removed 2026-06-14; device auth is Ed25519-only at the Aggregator | edge | 🟡 | before any IoT device traffic needs a transport-mTLS boundary | reopened (no edge mTLS; Ed25519-at-Aggregator only) |
+| TD-003 | IoT edge has no transport-level mTLS — Envoy `:4002` edge removed 2026-06-14; device auth is Ed25519-only at the Aggregator | edge | 🟡 | before any IoT device traffic needs a transport-mTLS boundary | graduated → [`active/0001-iot-edge-mtls.md`](active/0001-iot-edge-mtls.md) |
+| TD-004 | meter-service reads aggregator-owned read-model tables directly; owner feed off by default forced a register-time wallet fallback | meter / aggregator | 🟠 | before the aggregator owner read-model feed becomes the sole owner path (prod cutover) | mitigated (fallback landed `c6aa96b`) |
 
 ### TD-003 — Envoy `:4002` mTLS edge is an unenforced plaintext stub
 
@@ -46,6 +47,15 @@ replace before relying on the `:4002` edge path."
   Aggregator's API-key + Ed25519 signature verification is now the *sole* device-auth boundary. If a
   transport-mTLS boundary for IoT traffic is later required, it must be re-introduced (terminate at the
   Aggregator itself, or a replacement edge proxy) — the prior Envoy mTLS listener + routing work is gone.
+  **Correction (2026-07-22):** "no transport-mTLS **at all**" is now stale — it described the deleted
+  Envoy edge. The "terminate at the Aggregator itself" option has since **landed but is disabled**:
+  `build_mtls_server_config` (WebPkiClientVerifier, requires+verifies client certs,
+  `gridtokenx-aggregator-bridge/src/main.rs:59-101`) is wired (`src/main.rs:1377-1394`) and gated on
+  `IOT_GATEWAY_TLS_CLIENT_CA`, which compose leaves empty (`docker-compose.yml:849`). Server-auth TLS
+  on `:4010` **is** live. gen-certs already emits the server cert + 9 SPIFFE client certs
+  (`scripts/gen-certs.sh:97,104-126`). Real residual = (1) enforcement off in every profile, (2) no
+  SAN→identity propagation (TLS path uses `into_make_service()`, drops the peer cert), (3) no e2e.
+  **Graduated:** scoped into [`active/0001-iot-edge-mtls.md`](active/0001-iot-edge-mtls.md).
 
 ### TD-002 — partial-bin settlement strands energy on late telemetry
 
@@ -72,6 +82,32 @@ re-creates the bin, but the mint is a PDA no-op (`init_if_needed`) → that ener
   *truly-late* replay (an offline meter resending hours after the window already settled) re-creates a
   bin whose mint is a PDA no-op → that energy is still stranded. Severity dropped 🟠→🟢; full close
   needs the late-reading-correction routing above.
+
+### TD-004 — register-time wallet leans on a fallback; owner read-model feed is off by default
+
+meter-service resolves a meter's owner wallet by reading two **aggregator-owned** read-model tables
+in `meter_select` (`gridtokenx-meter-service/crates/meter-persistence/src/repository/meter.rs:33`):
+`meter_owner_read_model` (serial→wallet) and, since `c6aa96b`, `user_wallet_read_model` (user→wallet).
+Cross-domain table coupling in the DB-per-service split — meter-service reads tables another service
+owns and migrates (aggregator `migrations/0006`/`0007`).
+
+- **Symptom paid down:** the serial→wallet row is populated **asynchronously** by the aggregator's
+  Kafka owner read-model feed, which is **gated off by default** (`AGGREGATOR_OWNER_READMODEL_FEED`,
+  `gridtokenx-aggregator-bridge/crates/aggregator-persistence/src/infra/owner_read_model.rs:373`). So
+  a freshly registered meter had **no** serial row and surfaced a blank `wallet_address` in the
+  register response, `/me/meters`, and the emitted `MeterRegistered` event.
+- **Mitigation landed** (`c6aa96b`): `meter_select` falls back to the durable user→primary-wallet
+  edge (`user_wallet_read_model`, written by IAM events independent of meter ownership) via a second
+  `LEFT JOIN` + `COALESCE(serial_wallet, user_wallet, '')`. Verified live — DB-gated e2e
+  `http_e2e_register_surfaces_wallet_from_user_edge` (17/17 e2e green against `gridtokenx_meter`).
+- **Blast radius:** none today (fallback covers the register-time gap). Debt is the **coupling** +
+  the fact that the intended primary path (serial→wallet feed) is disabled, so the user-edge fallback
+  is the de-facto owner resolver.
+- **Residual / pay-down:** either (a) enable + validate the aggregator owner feed so the serial→wallet
+  path is real and cut the legacy `meters ⋈ users` reads (see
+  `gridtokenx-aggregator-bridge/docs/db-split-phase2.md` §5), or (b) give meter-service its own
+  owner/wallet projection instead of reading aggregator-owned tables. Must be resolved before the feed
+  becomes the sole owner path at prod cutover.
 
 ## How to use
 
