@@ -16,7 +16,7 @@ PLANS.md (this file)        → directions, themes, "we should eventually…"
 
 | Theme | Intent | Status |
 | :--- | :--- | :--- |
-| DB-per-service split | Isolate each service's schema into its own database. Noti already isolated; Phase 1 (Trading → `gridtokenx_trading`) live and e2e-validated; Phase 2 (Metering → `gridtokenx_meter`) rolled back — meter-service still JOINs `users`; Phase 3 (Chain) authored, not cut over. See [`design-docs/db-per-service-migration.md`](design-docs/db-per-service-migration.md) §5d. | in progress |
+| DB-per-service split | Isolate each service's schema into its own database. All cut over live (2026-07-17): Noti isolated; Phase 1 Trading → `gridtokenx_trading` (e2e-validated); Phase 2 Metering → `gridtokenx_meter` (meter JOINs repointed to `meter_owner_read_model`; aggregator shares via `METER_DATABASE_URL` seam — deliberate one-context exception); Phase 3 IAM → `gridtokenx_iam`; Phase 3b Chain-bridge → `gridtokenx_chain`. See [`design-docs/db-per-service-migration.md`](design-docs/db-per-service-migration.md) §5d. | done |
 
 _Keep themes coarse; detail belongs in exec-plans._
 
