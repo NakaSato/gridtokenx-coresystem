@@ -79,7 +79,14 @@ Rules that keep the harness trustworthy:
 
 - **Cite, don't assert.** Back architectural claims with `path:line` (e.g. Chain Bridge binds `0.0.0.0`, verified `crates/chain-bridge-api/src/main.rs:251`). A claim with no citation is a hypothesis.
 - **Edit the doc next to the code you change.** Submodule docs live in the submodule — commit there, bump the pointer here.
-- **The doc-lint gate is enforced.** `just lint-docs` (CI: `.github/workflows/docs.yml`) fails on broken relative links and stale `path:line` citations. Run it before committing doc changes.
+- **Run the doc-lint gate yourself — nothing else will.** `just lint-docs`
+  (`scripts/lint-docs.py:1`) fails on broken relative links and stale `path:line`
+  citations. Run it before committing doc changes.
+- **There is no CI in this repo.** All 9 GitHub Actions workflows — including the
+  `docs.yml` that used to enforce the gate above, and `e2e.yml` — were deliberately
+  deleted in `dfde2d8` (2026-07-01), and no `.github/` directory exists. Every gate
+  is manual: a green local run is the only signal you get. Don't cite a workflow as
+  enforcing anything, and don't assume a check ran because a doc says it does.
 
 ---
 

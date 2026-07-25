@@ -203,7 +203,9 @@ First live bring-up surfaced **environment prereqs not in CLAUDE.md** (fixed in-
 | 80_gateways | run.sh | 3P | ✓ |
 | 90_golden_path | test_golden_path.py | 1P (10 stages, platform hops skip) | ✓ |
 
-**CI:** `.github/workflows/e2e.yml` — `lint` tier (PR, always) + `full` tier (dispatch/nightly).
+**CI:** none. `.github/workflows/e2e.yml` (`lint` tier on PR + `full` tier
+dispatch/nightly) was deleted in `dfde2d8` (2026-07-01) along with the other 8
+workflows; there is no `.github/` directory. Run `just e2e` manually.
 
 **Next action for a live run:** bring up stack, `pip install -r tests/e2e/requirements.txt`, then `just e2e`. First-run fixes (ConnectRPC field casing, reject codes, log-needles) all resolved — suite is green from a clean bring-up. Remaining non-passes are all out-of-repo platform `:4000` (30_settlement, 80_gateways orch) or by-design insecure-mode isolation (50_chain_bridge py 2skip).
 
@@ -231,7 +233,8 @@ IAM (1) + Oracle (2) parallel-able after scaffold (independent inputs).
 - [x] Per-service log artifacts on failure.
 - [ ] Gate PRs on Phase 7 golden path + changed-service suite.
 
-> **[BUILT 2026-06-06]** `.github/workflows/e2e.yml` — two tiers:
+> **[BUILT 2026-06-06 — REMOVED 2026-07-01 in `dfde2d8`]** `.github/workflows/e2e.yml`
+> described below no longer exists; none of it runs. Kept as a record of what was built:
 > - **`lint` (suite-integrity)** runs on every PR touching `tests/e2e/**`: `bash -n` all `*.sh`, shellcheck (advisory), `py_compile`, `pytest --collect-only`. No stack/secrets → matches exactly what's been validated locally. This is the real always-on gate.
 > - **`full` (live-suite)** runs on `workflow_dispatch` + nightly cron `0 2 * * *`: checkout `submodules: recursive`, rust+python+just+nu, `ulimit -n 65536`, `app.sh start && init`, `CHAIN_BRIDGE_INSECURE=true just e2e`, teardown `always()`, upload `tests/e2e/artifacts/`. Anchor opt-in via dispatch input `run_anchor`→`E2E_RUN_ANCHOR`.
 > **TODO (3rd box):** PR gate on golden-path + changed-service suite needs path-filter→suite mapping (e.g. `dorny/paths-filter`) so a Trading PR runs `40_trading`+`90_golden_path` only. Deferred — needs the `full` tier proven green once on a real runner first.

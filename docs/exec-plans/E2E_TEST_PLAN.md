@@ -173,4 +173,9 @@ tests/e2e/
 
 ## CI
 
+> **[REMOVED 2026-07-01]** `.github/workflows/e2e.yml` no longer exists. All 9
+> GitHub Actions workflows were deleted in `dfde2d8`, and the superproject has no
+> `.github/` directory. The description below is retained as a record of what the
+> workflow did; **nothing in it runs today** — run `just e2e` manually instead.
+
 `.github/workflows/e2e.yml` — `lint` tier (PR, always: `bash -n`, shellcheck, `py_compile`, `pytest --collect-only`) + `full` tier (dispatch/nightly: real stack, `CHAIN_BRIDGE_INSECURE=true just e2e`, artifacts on `always()`). PR gate on golden-path + changed-service suite still TODO (needs path-filter→suite mapping).
