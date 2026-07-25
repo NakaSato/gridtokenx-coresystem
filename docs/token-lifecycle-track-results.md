@@ -77,3 +77,26 @@ scripts/token_lifecycle_track.sh burn <ata> <amount> <owner_keypair>   # supply-
 
 > Sigs above are pruned from the local ledger over time (`--limit-ledger-size`);
 > re-run to capture fresh ones.
+
+## Run log
+
+### Clean-slate register→trading E2E (via `scripts/cleanup_and_e2e.sh`)
+
+Full reset (6 DBs truncated, Redis flushed, services restarted, api key re-seeded)
+then a fresh register→trading run. IAM users 0→2.
+
+- SETTLE sig `EkV3wWGw5xz1hLvnRn7MJW89WdZYuLuo4nqAcRWGu2sZj6WTELqPdpf2ThgQ1VC6tSjdmnEAn8xUy8vh7qncobG`, slot 78930, `err None`
+
+| mint | owner | delta |
+|---|---|---|
+| `GktSLt9d` (GRID) | `EzudwoHv` (escrow) | **−5.0000** |
+| `GktSLt9d` (GRID) | `C4Po6vue` (buyer) | **+5.0000** |
+| `AzFyFd4G` (currency) | `EzudwoHv` (escrow) | **−19.4900** |
+| `AzFyFd4G` (currency) | `GpudHmH3` (seller) | **+19.4400** |
+| `AzFyFd4G` (currency) | `BT9ESAZo` (fee) | **+0.0500** |
+
+Same supply-neutral swap shape as above. On a cold post-wipe read-model the
+consumer's wallet row was absent; resolution **self-healed** via the lazy
+IAM-source reconcile (`trading-infra`, submodule `690c4da`) — order still got a
+PDA and settled, no manual step. Fresh-DB counts after: iam.users=2, orders=2,
+settlements completed=1.
