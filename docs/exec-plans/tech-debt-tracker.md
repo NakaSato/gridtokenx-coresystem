@@ -10,7 +10,7 @@ Status legend: 🔴 blocking · 🟠 should-fix · 🟢 nice-to-have · ✅ paid
 | TD-001 | _example_ — direct DB call bypassing repository layer | trading | 🟠 | before next settlement refactor | open |
 | TD-002 | Settlement settles a freshly-completed bin before late readings arrive → strands energy | aggregator | 🟢 | before onboarding intermittent/offline-buffered meters | mitigated (boundary case) |
 | TD-003 | IoT edge has no transport-level mTLS — Envoy `:4002` edge removed 2026-06-14; device auth is Ed25519-only at the Aggregator | edge | 🟡 | before any IoT device traffic needs a transport-mTLS boundary | graduated → [`active/0001-iot-edge-mtls.md`](active/0001-iot-edge-mtls.md) |
-| TD-004 | meter-service reads aggregator-owned read-model tables directly (cross-domain coupling); register-time wallet leans on a user-edge fallback to cover async feed lag | meter / aggregator | 🟠 | before the aggregator owner read-model feed becomes the sole owner path (prod cutover) | mitigated (fallback `c6aa96b`; feed enabled live) |
+| TD-004 | meter-service reads aggregator-owned read-model tables directly (cross-domain coupling); register-time wallet leans on a user-edge fallback to cover async feed lag | meter / aggregator | 🟢 | before rec-A (one shared `gridtokenx_meter`) is revisited — see rec-B | narrowed to one contract table (2026-07-27); circular read removed |
 
 ### TD-003 — Envoy `:4002` mTLS edge is an unenforced plaintext stub
 
@@ -83,9 +83,14 @@ re-creates the bin, but the mint is a PDA no-op (`init_if_needed`) → that ener
   bin whose mint is a PDA no-op → that energy is still stranded. Severity dropped 🟠→🟢; full close
   needs the late-reading-correction routing above.
 
-### TD-004 — register-time wallet leans on a fallback; owner read-model feed is off by default
+### TD-004 — meter-service reads read-model tables another service owns and migrates
 
-meter-service resolves a meter's owner wallet by reading two **aggregator-owned** read-model tables
+> **Superseded in part (2026-07-27).** The history below is kept as written — it was accurate at the
+> time and explains why the fallback exists. What changed: the circular `meter_owner_read_model` read
+> is gone and the remaining coupling is one explicit contract table. Read the **Narrowed** bullet at
+> the end of this section for the current state.
+
+meter-service resolved a meter's owner wallet by reading two **aggregator-owned** read-model tables
 in `meter_select` (`gridtokenx-meter-service/crates/meter-persistence/src/repository/meter.rs:33`):
 `meter_owner_read_model` (serial→wallet) and, since `c6aa96b`, `user_wallet_read_model` (user→wallet).
 Cross-domain table coupling in the DB-per-service split — meter-service reads tables another service
@@ -115,11 +120,44 @@ owns and migrates (aggregator `migrations/0006`/`0007`).
   (`update_wallet_by_user` → row landed in `user_wallet_read_model`; aggregator stayed `healthy`
   throughout). No loss — the event rode Kafka's durable log + `earliest`-offset replay. Confirms the
   self-heal loop (`OwnerReadModelConsumer::run`) and durability backstop.
-- **Residual / pay-down:** either (a) cut the legacy `meters ⋈ users` reads (see
-  `gridtokenx-aggregator-bridge/docs/db-split-phase2.md` §5) — restart fault now validated; still
-  untested: a broker outage longer than retention, and cross-topic replay ordering — or (b) give
-  meter-service its own owner/wallet projection instead of reading aggregator-owned tables. Must be
-  resolved before the feed becomes the sole owner path at prod cutover.
+- **Narrowed (2026-07-27).** The two pay-down options this entry used to name were both wrong:
+  (a) "cut the legacy `meters ⋈ users` reads" was already done — the swap landed flag-gated on
+  `own_meter_db` (`gridtokenx-aggregator-bridge/src/main.rs:193`) and is live in compose
+  (`docker-compose.yml:795`); (b) "give meter-service its own projection" would not have decoupled
+  anything, because the aggregator is the only migration applier
+  (`sqlx::migrate!("../../migrations")`,
+  `gridtokenx-aggregator-bridge/crates/aggregator-persistence/src/infra/db.rs:23`) — meter-service's
+  `migrations/0001_meter_registry.sql` is applied by nothing. A "meter-service-owned" table would
+  still need its DDL in the aggregator's set, plus a second Kafka consumer building a near-identical
+  projection of the same IAM events. That is duplication, not decoupling.
+- **What was actually wrong:** of the two joins, only one was debt. `meter_owner_read_model` is the
+  aggregator's private serial→(user, wallet) projection, which it builds by consuming the very
+  `MeterRegistered` events meter-service emits — so meter-service reading it was **circular**: asking
+  another service to re-derive its own `meters.user_id`, which it is the sole writer of. Removed
+  (`gridtokenx-meter-service/crates/meter-persistence/src/repository/meter.rs`). Owner wallets now
+  resolve through `user_wallet_read_model` keyed on the local `meters.user_id`, at both read sites —
+  `list_map_meters` previously had **no** fallback at all, so it blanked the wallet on the map for any
+  meter whose serial row the async feed had not yet written.
+- **Writer-side hole this exposed:** both backfills only ever flowed serial-ward
+  (`meters ⋈ users` / `meters ⋈ user_wallet_read_model` → `meter_owner_read_model`), and
+  `repair_missing_wallets` only targets NULL wallets. So an owner whose wallet arrived via a backfill
+  rather than a live IAM event had a wallet on the serial row and **no** `user_wallet_read_model` row
+  — permanently invisible, and now blanking. Closed by `backfill_user_edge`
+  (`crates/aggregator-persistence/src/infra/owner_read_model.rs`), a non-regressing
+  `ON CONFLICT DO NOTHING` seed of the reverse edge; pinned by
+  `tests/owner_read_model_repo.rs::backfill_seeds_the_reverse_user_wallet_edge` (verified to fail
+  without the fix).
+- **Residual — this is the rec-A ceiling, not an oversight.** meter-service now reads exactly one
+  table it does not own: `user_wallet_read_model`. IAM owns wallets, both metering services need
+  user→wallet, and under rec-A (§3.5: ONE shared `gridtokenx_meter`) the alternative is two consumers
+  maintaining two copies of the same projection. It is now an explicit **contract**: writer-side DDL
+  mirrored at `gridtokenx-meter-service/contracts/user_wallet_read_model.sql` and guarded against
+  drift by `scripts/check-metering-ddl-sync.sh` (`just check-ddl-sync`), so a writer-side shape change
+  fails a check instead of breaking a service that never migrates. **Full closure requires rec-B**
+  (separate physical DBs per service) — a deliberate re-opening of the resolved rec-A decision, not
+  in scope here.
+- **Still untested (unchanged):** a broker outage longer than Kafka retention, and cross-topic replay
+  ordering. The broker-restart fault is validated (above).
 
 ## How to use
 
