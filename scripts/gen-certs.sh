@@ -109,6 +109,7 @@ IDENTITIES=(
     "aggregator-bridge:spiffe://gridtokenx.th/prod/aggregator-bridge"
     "smartmeter-simulator:spiffe://gridtokenx.th/prod/smartmeter-simulator"
     "settlement-service:spiffe://gridtokenx.th/prod/settlement-service"
+    "thbc-service:spiffe://gridtokenx.th/prod/thbc-service"
     "reporting-service:spiffe://gridtokenx.th/prod/reporting-service"
     "admin:spiffe://gridtokenx.th/prod/admin"
 )

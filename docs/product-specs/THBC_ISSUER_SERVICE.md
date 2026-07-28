@@ -58,7 +58,7 @@ These are the contract. A change that breaks one is a defect regardless of how c
 |---|---|---|---|---|
 | **F1** | Reserve sufficiency | `thbc_supply ≤ attested_reserve` at all times | on-chain, `issue_thbc` | implemented |
 | **F2** | Issuance conservation | `Σ issued − Σ redeemed = thbc_supply` | on-chain accounting | implemented |
-| **F3** | Deposit idempotency | one confirmed `bank_ref` ⇒ at most one issuance | nullifier PDA | **not implemented** |
+| **F3** | Deposit idempotency | one confirmed `bank_ref` ⇒ at most one issuance | nullifier PDA | implemented |
 | **F4** | Burn-before-wire | on-chain burn confirmed **≺** fiat payout enqueued | issuer state machine | design only |
 | **F5** | Attestation freshness | `now − attestation_ts ≤ attestation_ttl`, else issuance halts | on-chain | implemented |
 | **F6** | Backing-set purity | collateral backing THBC is fiat only | exchange path holds inventory, does not mint | **fix pending** |
@@ -66,8 +66,8 @@ These are the contract. A change that breaks one is a defect regardless of how c
 | **F8** | Non-custody | no GridTokenX key appears in a signer set that can move user THBC | escrow PDA design | implemented |
 | **F9** | Attestation independence | the attestor key ≠ the parameter-admin key | on-chain key separation | implemented |
 
-F1 and F5 are already enforced in `programs/treasury`. **F3, F4, F6, F7 are not yet satisfied and
-are disclosed in `KNOWN_LIMITATIONS.md`.** Do not claim them.
+F1, F3 and F5 are enforced in `programs/treasury`, all three on `issue_thbc`. **F2, F4, F6 and F7
+are not yet satisfied and are disclosed in `KNOWN_LIMITATIONS.md`.** Do not claim them.
 
 > **Implementation note (2026-07-29, revised after the F6 fix).** The status column above is
 > the *design* target. The authoritative runtime status is
@@ -81,22 +81,37 @@ are disclosed in `KNOWN_LIMITATIONS.md`.** Do not claim them.
 > It is still `Partial`, not `Enforced` — code vs *state*: THBC minted by the old swap is
 > still outstanding on any chain that ran it, and that supply is GRX-backed.
 >
-> **That fix made F1 and F5 unenforceable, and this is the important consequence.** Both
-> guards lived on the minting swap — the `attested_reserve` ceiling (`PegBreach`) and the
-> attestation-freshness check (`StaleAttestation`). With the swap gone, both error codes have
-> **zero call sites**, and `attested_reserve` is written by `update_attestation` but never
-> read for a check. Nothing mints THBC at all now, so neither invariant can be *violated* —
-> but "vacuously true because the operation does not exist" is not a guarantee. **`issue_thbc`
-> must carry both**, F1 as `attested_reserve − reserve_encumbered`.
+> **That fix briefly made F1 and F5 unenforceable, and `issue_thbc` restored them.** Both
+> guards had lived on the minting swap — the `attested_reserve` ceiling (`PegBreach`) and the
+> attestation-freshness check (`StaleAttestation`). With the swap gone they had zero call
+> sites, and `attested_reserve` was written by `update_attestation` but never read for a
+> check. Nothing minted THBC at all, so neither invariant could be *violated* — but
+> "vacuously true because the operation does not exist" is not a guarantee.
 >
-> Consequence for §2's table: **F1 and F5 are `DesignOnly`**, F2 and F4 are `Partial`, and
-> only **F8 and F9** may be stated as guarantees today — down from three. Both survivors are
-> structural rather than instruction-level, which is why they survived.
+> `issue_thbc` (gridtokenx-anchor `a554499`) is now the only instruction that increases
+> supply, and it carries **F5 then F1** in that order — a stale `attested_reserve` makes the
+> F1 comparison meaningless rather than merely conservative, so freshness is checked first.
+> It also carries **F3**: the `[b"deposit", H(bank_ref)]` nullifier is created with Anchor
+> `init` in the *same instruction* as the mint, so a replay is rejected by the Solana runtime
+> at the account level before any program code runs. That is why F3 is `Enforced` with
+> enforcement `Runtime` rather than `OnChain` — the guarantee comes from account existence,
+> not from a `require!` the program could get wrong.
 >
-> **There is also no THBC mint path left anywhere.** THBC supply is frozen until `issue_thbc`
-> lands; the inventory vault is funded only by transferring existing THBC in. That is the
-> intended end state — THBC should come into existence only against fiat — but it means the
-> localnet demo can no longer conjure THBC.
+> Consequence for §2's table: **F1 is `Partial`, F3, F5, F8 and F9 are guarantees today.**
+> F1 stays `Partial` because the on-chain ceiling is `attested_reserve`, not
+> `attested_reserve − reserve_encumbered` as §4.1 specifies — `reserve_encumbered` does not
+> fit in the 14 spare padding bytes on the zero-copy `Treasury`. The service enforces the
+> tighter ceiling off-chain and is therefore *stricter than the chain*; a caller that
+> bypasses it gets the looser one. F2 and F4 remain `Partial`.
+>
+> **The mint path is reachable off-chain as of this change.** `issue_thbc` is routed over
+> `chain.tx.issuethbc`, so `LedgerPort::issue` no longer returns 501. `update_attestation`
+> is routed too — it had been published to `chain.tx.attest` since before any consumer
+> pulled that subject, so every attestation was captured by the bridge's stream and silently
+> aged out. An instruction existing on-chain was never sufficient; it needed a route.
+>
+> THBC still comes into existence only against fiat: the inventory vault the exchange path
+> pays out of is funded by transferring existing THBC in, never by minting.
 
 ---
 
@@ -455,14 +470,16 @@ Consequences for this specification:
 
 | Component | Status |
 |---|---|
-| `attested_reserve` ceiling (F1) | implemented |
-| Attestation freshness (F5) | implemented |
+| `attested_reserve` ceiling (F1) | implemented on `issue_thbc`, against `attested_reserve` — **not** minus `reserve_encumbered` |
+| Attestation freshness (F5) | implemented on `issue_thbc`, checked *before* F1 |
 | Attestor / authority key separation (F9) | implemented |
-| GRX↔THBC exchange | implemented, **but mints** — F6 fix pending |
+| GRX↔THBC exchange | implemented — transfers from a `[b"thbc_inventory"]` vault, does not mint (F6 fixed) |
 | Settlement accounting (`record_settlement*`) | implemented |
 | GRX staking | implemented |
-| `issue_thbc` / `redeem_thbc_for_fiat` | **not implemented** |
-| Deposit nullifier (F3) | **not implemented** |
+| `issue_thbc` | implemented on-chain **and routed** — `chain.tx.issuethbc` |
+| `update_attestation` | implemented on-chain **and routed** — `chain.tx.attest` |
+| `redeem_thbc_for_fiat` | on-chain; **no Chain Bridge route** — still 501 |
+| Deposit nullifier (F3) | implemented — Anchor `init` on `[b"deposit", H(bank_ref)]`, same instruction as the mint |
 | Redemption escrow + reclaim (F7) | **not implemented** |
 | `reserve_encumbered` accounting | **not implemented** |
 | Bank adapter, KYC adapter | **not implemented** |
@@ -481,20 +498,26 @@ running code.**
 > | `reserve_encumbered` accounting | implemented **off-chain only** — the field is not on the treasury account |
 > | Inventory exchange (F6 fix) | implemented **on-chain and off-chain** (2026-07-29) — no program mints or burns THBC any more |
 > | Simulated ledger (the §12 prototype) | implemented — models §4 including the missing instructions |
-> | Chain Bridge adapter | connects; `update_attestation` publishes; everything else returns `501 not_implemented` |
+> | Chain Bridge adapter | `issue` and `update_attestation` are live request/reply over JetStream; the three redemption methods and `snapshot` return `501 not_implemented` |
 > | Bank adapter, KYC adapter, payout queue | **not implemented** — refuse in non-simulated mode |
 > | Hash-chained audit log | **not implemented** |
 >
-> On-chain, the §12 table above is now stale in three places, all a consequence of the F6 fix
-> landing on 2026-07-29:
+> The §12 table above has been corrected for both changes that landed on 2026-07-29 — the F6
+> fix (exchange transfers from an inventory vault, mints nothing) and `issue_thbc` (which
+> re-attached F1 and F5 to the one instruction that increases supply, and added F3).
 >
-> - "GRX↔THBC exchange — implemented, **but mints** — F6 fix pending" → the fix landed; the
->   exchange transfers from an inventory vault and mints nothing.
-> - "`attested_reserve` ceiling (F1) — implemented" → the ceiling's only call site was the
->   minting swap. `PegBreach` is now unreachable.
-> - "Attestation freshness (F5) — implemented" → same; `StaleAttestation` is now unreachable.
+> **Two things are worth keeping separate when reading it.** An instruction existing on-chain
+> and an instruction being *reachable* are different claims, and this document conflated them
+> once already: `update_attestation` had existed for a long time and the adapter published to
+> `chain.tx.attest`, but no Chain Bridge consumer pulled that subject, so every attestation
+> was captured by the stream and silently aged out at `max_age`. Nothing logged it. The table
+> now states routing separately from implementation, and the bridge fails at boot if a
+> subject with a handler is pulled by no worker.
 >
-> `issue_thbc` must re-attach F1 and F5. Everything else in the table still holds.
+> The remaining honest gaps: F1's on-chain ceiling is `attested_reserve`, not
+> `attested_reserve − reserve_encumbered` (no room on the zero-copy `Treasury`), so the
+> service is stricter than the chain and a caller bypassing it gets the looser bound; and the
+> redemption instructions have no route, so the off-ramp is still 501.
 
 ---
 
