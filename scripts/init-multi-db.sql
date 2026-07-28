@@ -41,3 +41,6 @@ WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'gridtokenx_chain')\ge
 -- authority (iam-service, chain-bridge and noti-service migrate at boot;
 -- gridtokenx_meter is migrated by the aggregator's dedicated `migrate` bin;
 -- gridtokenx_trading is provisioned from gridtokenx-iam-service/migrations/).
+
+SELECT 'CREATE DATABASE gridtokenx_thbc'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'gridtokenx_thbc')\gexec

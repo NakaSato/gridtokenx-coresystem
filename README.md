@@ -251,6 +251,18 @@ flowchart LR
 ### Notification Service (`gridtokenx-noti-service`)
 - **Ports**: 4060 (HTTP) / 5060 (gRPC) · Email pipeline (register → verify → welcome) over RabbitMQ task queues + DLQ for guaranteed delivery. Own physical database (`gridtokenx_noti`) with its own migrations (`just noti-migrate`).
 
+### THBC Settlement Service (`gridtokenx-thbc-service`)
+- **Port**: 4070 (HTTP) · The payment leg — how Thai baht enters and leaves the ledger.
+  Own physical database (`gridtokenx_thbc`), migrated at boot through a session-mode
+  pgdog alias. Reads `THBC_DATABASE_URL`, **not** `DATABASE_URL`, and refuses to start
+  if pointed at the shared `gridtokenx` database.
+- **Design + simulation. No fiat is held and no fiat rail exists.** `issue_thbc`,
+  `redeem_thbc_for_fiat`, the deposit nullifier and the redemption escrow do not exist
+  in the treasury program, so `THBC_LEDGER_MODE=chain-bridge` returns 501 for most of
+  the payment leg; compose defaults to `simulated`. Of nine invariants only F5, F8 and
+  F9 may be described as guarantees — `GET /v1/admin/invariants` is authoritative, and
+  [`KNOWN_LIMITATIONS.md`](KNOWN_LIMITATIONS.md) states the gaps.
+
 ### Demand Response (VPP flex dispatch)
 
 Autonomous, fleet-driven demand response inside the Aggregator Bridge — no external SCADA feed; the meter fleet is itself the frequency sensor.
@@ -406,6 +418,7 @@ A deliberately layered protocol stack: standard meter/IoT protocols at the physi
 | **Chain Bridge** | — | `5040` | Solana Signing Authority |
 | **Noti Service** | `4060` | `5060` | Notifications Dispatcher |
 | **Meter Service** | `4062` | — | Smart Meter Dashboard Read API |
+| **THBC Settlement** | `4070` | — | Payment leg — fiat on/off-ramp *(design + simulation)* |
 | **Simulator API** | `12010` | — | IoT Simulation Backend |
 | **Trading UI** | `11001` | — | Exchange Web App |
 | **Explorer UI** | `11002` | — | Block Explorer UI |

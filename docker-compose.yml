@@ -1008,6 +1008,76 @@ services:
       retries: 3
       start_period: 15s
 
+  # THBC Settlement Service — the payment leg (fiat on/off-ramp, inventory exchange).
+  #
+  # DESIGN + SIMULATION. No fiat is held and no fiat rail exists. Defaults to
+  # THBC_LEDGER_MODE=simulated because `chain-bridge` would return 501 for most of
+  # the payment leg — issue_thbc, redeem_thbc_for_fiat, the deposit nullifier and
+  # the redemption escrow do not exist in the treasury program (spec §12). The
+  # service reports `simulated_ledger: true` on /health and on every response, and
+  # logs its posture at startup, so simulated state can't be mistaken for live.
+  # Authoritative invariant status: GET /v1/admin/invariants.
+  thbc-service:
+    build:
+      # Self-contained, unlike most services here: no sibling-submodule paths in
+      # Cargo.toml, so the context is the service directory rather than the repo root.
+      context: ./gridtokenx-thbc-service
+      dockerfile: Dockerfile
+    container_name: gridtokenx-thbc-service
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      # Host port follows the 4000s gateway scheme; the container always binds 4008.
+      - "${THBC_HTTP_PORT:-4070}:4008"
+    environment:
+      THBC_HTTP_PORT: 4008
+      THBC_LEDGER_MODE: ${THBC_LEDGER_MODE:-simulated}
+      # Own physical database — NOT the shared `gridtokenx`. Deliberately named
+      # THBC_DATABASE_URL, not DATABASE_URL: the root .env sets DATABASE_URL to the
+      # shared database, and the service refuses to start if pointed at it.
+      THBC_DATABASE_URL: postgres://${POSTGRES_USER:-gridtokenx_user}:${POSTGRES_PASSWORD:-gridtokenx_password}@pgdog:6432/gridtokenx_thbc
+      # sqlx::migrate! holds a session-scoped advisory lock, which the transaction-mode
+      # pool above would break. Session-mode alias, same physical DB.
+      THBC_MIGRATION_DATABASE_URL: postgres://${POSTGRES_USER:-gridtokenx_user}:${POSTGRES_PASSWORD:-gridtokenx_password}@pgdog:6432/gridtokenx_thbc_migrate
+      # Chain Bridge is the only route to Solana; no service holds an RPC client.
+      NATS_URL: ${NATS_URL:-nats://gridtokenx:gridtokenx_nats_dev@nats:4222}
+      CHAIN_BRIDGE_GRPC_URL: http://chain-bridge:5040
+      # Δ — reclaim window for an unconfirmed redemption (F7).
+      THBC_REDEMPTION_DELTA_SECS: ${THBC_REDEMPTION_DELTA_SECS:-86400}
+      # F5 — attestation age past which issuance halts.
+      THBC_ATTESTATION_TTL_SECS: ${THBC_ATTESTATION_TTL_SECS:-3600}
+      # Simulation only. 1_000_000_000_000 minor units = 1,000,000 THB.
+      THBC_SIMULATED_RESERVE_MINOR: ${THBC_SIMULATED_RESERVE_MINOR:-1000000000000}
+      # Stub screener ceiling — deposits above it fail KYC, so the §5.4 encumbrance
+      # path is reachable. There is no real KYC adapter.
+      THBC_STUB_KYC_CEILING_MINOR: ${THBC_STUB_KYC_CEILING_MINOR:-500000000000}
+      RUST_LOG: ${THBC_RUST_LOG:-info,thbc_service=debug,thbc_logic=debug}
+      TZ: ${TZ}
+    depends_on:
+      pgdog:
+        condition: service_healthy
+      nats:
+        condition: service_started
+    networks:
+      - gridtokenx-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+    healthcheck:
+      # /health is liveness only. /ready reports issuance_open, which is false on a
+      # stale attestation or exhausted headroom — expected operating states, not
+      # faults, so gating readiness on it would take the regulator read surface down
+      # along with issuance.
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:4008/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
   # Trading Platform (Next.js)
   trading-ui:
     build:

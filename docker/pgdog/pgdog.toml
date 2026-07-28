@@ -135,3 +135,24 @@ role = "primary"
 pooler_mode = "session"
 pool_size = 3
 min_pool_size = 1
+
+# THBC settlement service DB (deposits, redemptions, reconciliation_runs).
+# Greenfield — this service never used the shared `gridtokenx` database, and
+# refuses to start if pointed at it (bin/thbc-service/src/config.rs).
+[[databases]]
+name = "gridtokenx_thbc"
+host = "postgres"
+port = 5432
+role = "primary"
+pooler_mode = "transaction"
+# Session-mode alias for `sqlx::migrate!`, whose advisory lock is session-scoped
+# and would be broken by the transaction-mode pool above.
+[[databases]]
+name = "gridtokenx_thbc_migrate"
+database_name = "gridtokenx_thbc"
+host = "postgres"
+port = 5432
+role = "primary"
+pooler_mode = "session"
+pool_size = 3
+min_pool_size = 1
