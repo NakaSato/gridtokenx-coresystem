@@ -17,8 +17,8 @@ claims otherwise.
 ### The one-line version
 
 **No fiat is held. No licence is held. No fiat rail of any kind exists.** Most of the
-payment leg is design and simulation. Of nine invariants, **four** may be described as
-guarantees.
+payment leg is design and simulation. Of nine invariants, **five** may be described as
+guarantees, and none is design-only.
 
 The authoritative, machine-readable status is
 [`gridtokenx-thbc-service/crates/thbc-core/src/invariant.rs`](gridtokenx-thbc-service/crates/thbc-core/src/invariant.rs),
@@ -31,6 +31,7 @@ registry is right.
 | :-- | :-- | :-- |
 | **F3** | Deposit idempotency — one `bank_ref`, at most one issuance | the Solana **runtime**: `[b"deposit", H(bank_ref)]` is created with `init` in the same instruction as the mint, so a replay is rejected at the account level before any program code runs |
 | **F5** | Attestation freshness — issuance halts past the TTL | `issue_thbc`, checked before the F1 ceiling |
+| **F7** | Redemption liveness — an honest holder recovers THBC within Δ | the escrow + Δ timelock; both terminal instructions `close` the record, so double-confirm and confirm-after-reclaim fail at the account level. **Token side only** — see §6.4 |
 | **F8** | Non-custody — no GridTokenX key can move user THBC | structural; no port accepts a user key |
 | **F9** | Attestation independence — attestor key ≠ parameter admin | the treasury program, at `initialize` |
 
@@ -45,7 +46,6 @@ lived on the minting swap that F6 deleted. That window is closed.
 | **F2** | Issuance conservation | partial | **Detective, not preventive.** Nothing rejects a write for breaking `Σ issued − Σ redeemed = supply`; the reconciler reports drift after the fact. It reconciles against the simulated ledger in simulation mode, and against the chain only once Chain Bridge routes `issue_thbc` — the instruction exists but the bridge has no handler for it yet. |
 | **F4** | Burn-before-wire | partial | The ordering is enforced by the redemption state machine, which is the only route to a payout. But **there is no fiat rail behind it**, so the barrier has never been tested against a real payout queue. |
 | **F6** | Backing-set purity | partial *(code fixed)* | `swap_grx_for_thbc`/`redeem_thbc_for_grx` were replaced by `exchange_grx_for_thbc`/`exchange_thbc_for_grx`, which transfer against a `[b"thbc_inventory"]` vault. **No program mints or burns THBC any more.** Still not claimable, and the distinction is code vs *state*: THBC already minted by the old swap is still outstanding on any chain that ran it, and that supply is GRX-backed. Retiring or re-initialising it is what turns this Enforced. |
-| **F7** | Redemption liveness | **design only** | The Δ-timelocked redemption escrow **does not exist on-chain**. Modelled in the service and the simulator only. See §6.4 below — the fiat side is unsolved even in design. |
 
 ### §6.4 — the gap that is not an implementation bug
 
@@ -104,9 +104,10 @@ program, in-process, no validator. It is mutation-checked — deleting the F5 gu
 exactly the three F5 cases — so it demonstrably catches a regression rather than merely
 passing.
 
-**F7 is still simulator-only.** The Δ-timelocked escrow does not exist on-chain, so
-there is nothing for LiteSVM to run. The service and its domain model are correct about
-it; the chain implements nothing. Do not report F7 as covered.
+**F7 now has it too** — reclaim fails at Δ−1 and succeeds at Δ, confirm blocks reclaim
+forever, double-confirm and confirm-after-reclaim are both rejected, and pausing cannot
+trap escrowed tokens. Also mutation-checked: deleting the timelock guard kills exactly
+the Δ-boundary case.
 
 §13 also asks for a CI grep for `mint_to` in `exchange_*.rs`. **There is no CI in this
 repo** — all nine GitHub Actions workflows were deleted in `dfde2d8` (2026-07-01) and no
