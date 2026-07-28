@@ -98,10 +98,15 @@ auto-pass, so these gaps fail loudly instead of looking like working integration
 
 ### Test coverage is partial, and here is how
 
-Spec §13 asks for LiteSVM on F3, F5 and F7. What runs is `SimulatedLedger` — a model of
-the treasury *as specified*. That demonstrates the service and the domain model are
-correct; it demonstrates nothing about the chain, and for F3 and F7 the chain implements
-nothing to demonstrate.
+Spec §13 asks for LiteSVM on F3, F5 and F7. **F3, F5, F1 and F6 now have it**:
+`gridtokenx-anchor/tests/treasury_thbc_litesvm.ts`, 14 cases against the compiled
+program, in-process, no validator. It is mutation-checked — deleting the F5 guard kills
+exactly the three F5 cases — so it demonstrably catches a regression rather than merely
+passing.
+
+**F7 is still simulator-only.** The Δ-timelocked escrow does not exist on-chain, so
+there is nothing for LiteSVM to run. The service and its domain model are correct about
+it; the chain implements nothing. Do not report F7 as covered.
 
 §13 also asks for a CI grep for `mint_to` in `exchange_*.rs`. **There is no CI in this
 repo** — all nine GitHub Actions workflows were deleted in `dfde2d8` (2026-07-01) and no
