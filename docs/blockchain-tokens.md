@@ -10,10 +10,20 @@
 
 | Token | Standard | Decimals | Mint authority | Role |
 |---|---|---|---|---|
-| **GRID** | SPL Token-2022 | 6 | Energy Token program (CPI); **AggregatorBridge SPIFFE role only** | Clearing asset — 1 GRID = 1 kWh of metered generation |
-| **GRX** | SPL Token-2022 | 9 | Treasury / Registry programs | Collateral + yield staking + governance incentive |
+| **GRID / GRX**<br>(one mint) | SPL Token-2022 | 9 | Energy Token program (CPI); **AggregatorBridge SPIFFE role only** | Clearing asset — 1 GRID = 1 kWh of metered generation. The same mint is called **GRX** in the treasury/registry programs (`grx_mint`) for its collateral/staking role. |
 | **REC** | SPL Token-2022 | 0 | Energy Token program; **AggregatorBridge SPIFFE role + ERC co-sign** | Renewable Energy Certificate — 1 REC = 1 verified kWh renewable |
 | **THBC** | SPL Token-2022 | 6 | Treasury program | THB-pegged stablecoin; settlement denomination; reserve-attested |
+
+> **GRID and GRX are one SPL mint, not two.** The treasury derives its `grx_mint` from the
+> energy-token program's canonical `[b"mint_2022"]` PDA — see
+> [`scripts/init-treasury.ts:25`](../gridtokenx-anchor/scripts/init-treasury.ts) and the
+> field comment at
+> [`programs/treasury/src/state.rs:33`](../gridtokenx-anchor/programs/treasury/src/state.rs)
+> ("GRX SPL mint (energy-token program)"). The two names mark two *roles* of one asset:
+> **GRID** when it denominates kWh in the energy/clearing path, **GRX** when it is locked as
+> collateral or staked. It carries **9 decimals** in both roles
+> ([`initialize_token.rs:22`](../gridtokenx-anchor/programs/energy-token/src/instructions/initialize_token.rs)),
+> so a kWh amount converts to atomic units with `× 1e9` — never `1e6`.
 
 > **Network access:** All token operations occur on a private consortium SVM. There are no public endpoints. Minting, transfers, and swaps are accessible only to network-admitted participants holding valid mTLS certificates. See [`blockchain-node-network.md`](blockchain-node-network.md) for the network access model.
 
@@ -64,14 +74,28 @@ Energy Token program
 
 ```
 EARN    DER delivers kWh in DR event    → distribute_tokens mints GRID proportional to kWh
-EARN    DER sells P2P energy            → buyer pays GRID · seller receives GRID
-SPEND   Buy energy in P2P market        → GRID transferred buyer → seller (via escrow)
-BURN    Settlement vault                → escrowed GRID burned after atomic swap settles
+EARN    DER sells P2P energy            → seller delivers GRID · receives THBC
+SPEND   Buy energy in P2P market        → GRID transferred seller → buyer (via escrow);
+                                          THBC transferred buyer → seller (same instruction)
 ```
+
+> **Energy moves seller → buyer; payment moves buyer → seller.** A P2P trade is one atomic
+> two-leg swap, not a GRID-for-GRID transfer: the currency leg debits the buyer's THBC escrow
+> and the energy leg credits the buyer's GRID escrow, in a single instruction. Verified in
+> both settlement paths —
+> [`settle_offchain.rs:853`](../gridtokenx-anchor/programs/trading/src/instructions/settle_offchain.rs)
+> (`settle_offchain_match`) and
+> [`programs/trading/src/lib.rs:724`](../gridtokenx-anchor/programs/trading/src/lib.rs)
+> (`execute_atomic_settlement`). Settlement **transfers** GRID between escrows; it does not
+> burn it — there is no `burn` in the trading program.
 
 ---
 
-## 3. GRX Token
+## 3. GRX — the Energy Mint in its Collateral Role
+
+**GRX is not a second token.** It is the GRID mint (§1) under the name the treasury and
+registry programs use for it. Staking or swapping "GRX" locks the very same asset that
+denominates kWh.
 
 Two independent staking systems share GRX as collateral — intentional, not duplication:
 
@@ -84,20 +108,35 @@ A user may hold positions in both simultaneously. Separate vaults: `[b"grx_vault
 
 ### GRX ↔ THBC Swap
 
+Because GRX is the energy mint, this swaps the **energy token for baht**. The rate field is
+`grx_per_thbc_rate`, documented in-code as "THBC minor units issued per 1 whole GRX"
+([`programs/treasury/src/state.rs:41`](../gridtokenx-anchor/programs/treasury/src/state.rs)),
+i.e. a **baht-per-kWh** price. ⚠️ The identifier reads *GRX per THBC* but its comment and use
+are *THBC per GRX* — trust the comment and the arithmetic below, not the name. Note also the
+decimal asymmetry: GRX is 9-dec, THBC is 6-dec.
+
 ```
 swap_grx_to_thbc:
-    rate = reserve_attested_rate
-    thbc_out = grx_in × rate
+    rate = reserve_attested_rate            // THBC minor units per 1 WHOLE GRX
+    gross    = grx_in × rate / 1e9          // ÷ GRX_ATOMS_PER_WHOLE (GRX is 9-dec)
+    fee      = gross × swap_fee_bps / 10_000
+    thbc_out = gross − fee
     require!(total_thbc_supply + thbc_out ≤ reserve_attested_thbc)  // peg ceiling
     transfer grx_in → swap_vault
     mint thbc_out → caller
 
 redeem_thbc:
-    grx_out = thbc_in / rate
+    grx_out = thbc_in × 1e9 / rate          // × GRX_ATOMS_PER_WHOLE, inverse of above
     require!(grx_out ≤ swap_vault.balance)  // collateral bound
     burn thbc_in
     transfer grx_out ← swap_vault → caller
 ```
+
+> The `1e9` factor is **not** cosmetic — it is the 9-decimal GRX atom normalization
+> (`GRX_ATOMS_PER_WHOLE`, [`programs/treasury/src/lib.rs:41`](../gridtokenx-anchor/programs/treasury/src/lib.rs)).
+> Omitting it misprices the swap by 10⁹. See
+> [`compute_swap_grx_for_thbc`](../gridtokenx-anchor/programs/treasury/src/lib.rs) (lib.rs:67)
+> and `compute_redeem_thbc_for_grx` (lib.rs:100).
 
 ---
 
