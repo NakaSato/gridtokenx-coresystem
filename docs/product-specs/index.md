@@ -16,5 +16,5 @@ not "how is it coded." Implementation lives in design docs and exec plans.
 | Spec | Summary |
 | :--- | :--- |
 | [new-user-onboarding.md](new-user-onboarding.md) | First-run journey: signup → wallet → on-chain registration |
-| [gTHB_ISSUER_SERVICE.md](gTHB_ISSUER_SERVICE.md) | gTHB issuer behavior |
+| [THBC_ISSUER_SERVICE.md](THBC_ISSUER_SERVICE.md) | THBC payment leg: fiat on/off-ramp, inventory exchange, invariants F1–F9. Supersedes `gTHB_ISSUER_SERVICE.md`. Implemented (off-chain) in `gridtokenx-thbc-service/`. |
 | [National.md](National.md) | Deployment tiers / national-scale context |

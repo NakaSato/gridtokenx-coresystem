@@ -575,7 +575,7 @@ grx orb-up | orb-down         # All Docker services
 - [Glossary](docs/glossary.md) — domain terms (GRID, GRX, REC, VPP, CDA, PDA, …)
 - [Database-per-Service Migration](docs/design-docs/db-per-service-migration.md)
 - [National Control Plane Design](docs/product-specs/National.md)
-- [gTHB Issuer Service Spec](docs/product-specs/gTHB_ISSUER_SERVICE.md)
+- [THBC Settlement Service Spec](docs/product-specs/THBC_ISSUER_SERVICE.md)
 - [Documentation Map](docs/DESIGN.md)
 - [Benchmark Best-Practices](docs/benchmark-best-practices.md)
 

@@ -191,6 +191,7 @@ submodule; commit them there, then bump the pointer here.
 | Noti Service | [`gridtokenx-noti-service/ARCHITECTURE.md`](gridtokenx-noti-service/ARCHITECTURE.md) | Rust service |
 | Aggregator Bridge | [`gridtokenx-aggregator-bridge/ARCHITECTURE.md`](gridtokenx-aggregator-bridge/ARCHITECTURE.md) | Rust service |
 | Trading Service | [`gridtokenx-trading-service/ARCHITECTURE.md`](gridtokenx-trading-service/ARCHITECTURE.md) | Rust service |
+| THBC Settlement Service | [`gridtokenx-thbc-service/ARCHITECTURE.md`](gridtokenx-thbc-service/ARCHITECTURE.md) | Rust service — **design + simulation, no fiat rail** |
 | Smartmeter Simulator | [`gridtokenx-smartmeter-simulator/ARCHITECTURE.md`](gridtokenx-smartmeter-simulator/ARCHITECTURE.md) | Python |
 | Trading frontend | [`gridtokenx-trading/ARCHITECTURE.md`](gridtokenx-trading/ARCHITECTURE.md) | Next.js |
 | WASM module | [`gridtokenx-trading/wasm/ARCHITECTURE.md`](gridtokenx-trading/wasm/ARCHITECTURE.md) | Rust→WASM (in trading frontend) |

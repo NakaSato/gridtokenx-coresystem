@@ -17,7 +17,7 @@
 > [`gridtokenx-anchor/docs/design/role-map.md`](gridtokenx-anchor/docs/design/role-map.md),
 > [`gridtokenx-anchor/docs/design/thailand-market-context.md`](gridtokenx-anchor/docs/design/thailand-market-context.md),
 > [`docs/product-specs/National.md`](docs/product-specs/National.md),
-> [`docs/product-specs/gTHB_ISSUER_SERVICE.md`](docs/product-specs/gTHB_ISSUER_SERVICE.md).
+> [`docs/product-specs/THBC_ISSUER_SERVICE.md`](docs/product-specs/THBC_ISSUER_SERVICE.md).
 
 ---
 
@@ -184,8 +184,8 @@ matters because the per-trade spread (§5) is thin — no single line carries th
 
 ### 4.4 Certificates & stablecoin float (adjacencies)
 - **RECs**: issuance/trading fees on the fungible REC (1 token = 1 MWh), ERC-gated.
-- **gTHB/THBC issuer**: a fully-reserved THB stablecoin (see
-  [`gTHB_ISSUER_SERVICE.md`](docs/product-specs/gTHB_ISSUER_SERVICE.md)) earns **reserve float
+- **THBC issuer**: a fully-reserved THB settlement token (see
+  [`THBC_ISSUER_SERVICE.md`](docs/product-specs/THBC_ISSUER_SERVICE.md)) earns **reserve float
   / interest** on backing deposits — a regulated, separate business, but a natural adjacency
   that also removes settlement FX/volatility risk. **Run it as its own licensed entity**, not
   bundled into the energy platform's risk surface.

@@ -41,3 +41,6 @@
 	path = gips
 	url = https://github.com/NakaSato/gips.git
 	branch = main
+[submodule "gridtokenx-thbc-service"]
+	path = gridtokenx-thbc-service
+	url = https://github.com/NakaSato/gridtokenx-thbc-service.git

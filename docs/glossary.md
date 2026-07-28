@@ -39,7 +39,7 @@
 | **GRID** | GridTokenX energy token — an SPL Token-2022 on Solana representing tokenized energy (1 GRID = 1 kWh), **9 decimals**. The *same mint* is called **GRX** in the treasury/registry programs; see below and [`blockchain-tokens.md`](blockchain-tokens.md) §1. |
 | **GRX** | The **same SPL mint as GRID**, not a second token — the name the treasury/registry programs use for it (`grx_mint`) in its collateral, staking, and governance-incentive role. 9 decimals. Staking "GRX" locks the very asset that denominates kWh. |
 | **THBC** | THB-pegged stablecoin minted by the `treasury` program, **6 decimals** — the settlement denomination for P2P energy trades (the buyer pays THBC, the seller delivers GRID). The on-chain mint name for the asset the product docs call **gTHB**. |
-| **gTHB** | Thai Baht stablecoin — a 1:1 reserve-backed digital representation of THB for on-chain settlement. Issuer/product name for the same baht-pegged asset that the treasury program mints as **THBC**; see [`product-specs/gTHB_ISSUER_SERVICE.md`](product-specs/gTHB_ISSUER_SERVICE.md). |
+| ~~**gTHB**~~ | **Retired.** Was the issuer/product name for the fiat-reserved baht token. The only baht symbol is now **THBC**; see [`product-specs/THBC_ISSUER_SERVICE.md`](product-specs/THBC_ISSUER_SERVICE.md) §14. |
 | **PDA** | Program Derived Address — a deterministic Solana account address derived from seeds and a program ID. Used for user accounts and market state. |
 | **ATA** | Associated Token Account — the canonical SPL token account for a given wallet and mint combination. |
 | **SPL Token** | Solana Program Library Token — the standard token program on Solana. GridTokenX uses SPL Token-2022 (with extensions). |
