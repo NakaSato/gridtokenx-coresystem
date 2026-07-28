@@ -134,9 +134,14 @@ redeem_thbc:
 
 > The `1e9` factor is **not** cosmetic — it is the 9-decimal GRX atom normalization
 > (`GRX_ATOMS_PER_WHOLE`, [`programs/treasury/src/lib.rs:41`](../gridtokenx-anchor/programs/treasury/src/lib.rs)).
-> Omitting it misprices the swap by 10⁹. See
-> [`compute_swap_grx_for_thbc`](../gridtokenx-anchor/programs/treasury/src/lib.rs) (lib.rs:67)
-> and `compute_redeem_thbc_for_grx` (lib.rs:100).
+> Omitting it misprices the exchange by 10⁹. See
+> [`compute_exchange_grx_for_thbc`](../gridtokenx-anchor/programs/treasury/src/lib.rs)
+> and `compute_exchange_thbc_for_grx` in the same file — formerly
+> `compute_swap_grx_for_thbc` / `compute_redeem_thbc_for_grx`, renamed when the F6 fix
+> made the exchange path a transfer against inventory instead of a mint/burn. **The
+> pricing arithmetic is unchanged**; only the bound moved (from
+> `new_supply <= attested_reserve` to `net <= inventory`), so the factor above still
+> applies exactly as written.
 
 ---
 
