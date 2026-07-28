@@ -259,7 +259,7 @@ flowchart LR
 - **Design + simulation. No fiat is held and no fiat rail exists.** `issue_thbc`,
   `redeem_thbc_for_fiat`, the deposit nullifier and the redemption escrow do not exist
   in the treasury program, so `THBC_LEDGER_MODE=chain-bridge` returns 501 for most of
-  the payment leg; compose defaults to `simulated`. Of nine invariants only F5, F8 and
+  the payment leg; compose defaults to `simulated`. Of nine invariants only F8 and
   F9 may be described as guarantees — `GET /v1/admin/invariants` is authoritative, and
   [`KNOWN_LIMITATIONS.md`](KNOWN_LIMITATIONS.md) states the gaps.
 

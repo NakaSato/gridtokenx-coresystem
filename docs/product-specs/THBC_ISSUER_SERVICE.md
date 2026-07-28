@@ -69,17 +69,34 @@ These are the contract. A change that breaks one is a defect regardless of how c
 F1 and F5 are already enforced in `programs/treasury`. **F3, F4, F6, F7 are not yet satisfied and
 are disclosed in `KNOWN_LIMITATIONS.md`.** Do not claim them.
 
-> **Implementation note (2026-07-29).** The status column above is the *design* target. The
-> authoritative runtime status is
+> **Implementation note (2026-07-29, revised after the F6 fix).** The status column above is
+> the *design* target. The authoritative runtime status is
 > [`gridtokenx-thbc-service/crates/thbc-core/src/invariant.rs`](../../gridtokenx-thbc-service/crates/thbc-core/src/invariant.rs),
-> served at `GET /v1/admin/invariants`, and it is stricter than this table on three rows:
-> **F1 and F2 are `Partial`** (the on-chain F1 ceiling is `attested_reserve`, not
-> `attested_reserve − reserve_encumbered`, because that field does not exist on-chain; F2 is
-> detective, not preventive), and **F6 is `Violated`** rather than "fix pending" — the live
-> `swap_grx_for_thbc` calls `mint_to`
-> (`gridtokenx-anchor/programs/treasury/src/instructions/swap_grx_for_thbc.rs:97`) and
-> `redeem_thbc_for_grx` calls `burn` (`redeem_thbc_for_grx.rs:71`). Only **F5, F8, F9** may be
-> stated as guarantees today. When this table and the registry disagree, the registry is right.
+> served at `GET /v1/admin/invariants`. When this table and the registry disagree, the
+> registry is right.
+>
+> **F6 is fixed in code.** `swap_grx_for_thbc` / `redeem_thbc_for_grx` were replaced by
+> `exchange_grx_for_thbc` / `exchange_thbc_for_grx`, which transfer against a
+> `[b"thbc_inventory"]` vault. There is no `mint_to` or `burn` of THBC left in any program.
+> It is still `Partial`, not `Enforced` — code vs *state*: THBC minted by the old swap is
+> still outstanding on any chain that ran it, and that supply is GRX-backed.
+>
+> **That fix made F1 and F5 unenforceable, and this is the important consequence.** Both
+> guards lived on the minting swap — the `attested_reserve` ceiling (`PegBreach`) and the
+> attestation-freshness check (`StaleAttestation`). With the swap gone, both error codes have
+> **zero call sites**, and `attested_reserve` is written by `update_attestation` but never
+> read for a check. Nothing mints THBC at all now, so neither invariant can be *violated* —
+> but "vacuously true because the operation does not exist" is not a guarantee. **`issue_thbc`
+> must carry both**, F1 as `attested_reserve − reserve_encumbered`.
+>
+> Consequence for §2's table: **F1 and F5 are `DesignOnly`**, F2 and F4 are `Partial`, and
+> only **F8 and F9** may be stated as guarantees today — down from three. Both survivors are
+> structural rather than instruction-level, which is why they survived.
+>
+> **There is also no THBC mint path left anywhere.** THBC supply is frozen until `issue_thbc`
+> lands; the inventory vault is funded only by transferring existing THBC in. That is the
+> intended end state — THBC should come into existence only against fiat — but it means the
+> localnet demo can no longer conjure THBC.
 
 ---
 
@@ -320,13 +337,27 @@ A constant-product pool holding THBC would put a fiat-referenced liability into 
 mechanism the platform does not control, making the reference rate a market outcome. Quoted rate
 against bounded inventory only.
 
-> **Implementation note.** The off-chain half is done:
-> `crates/thbc-core/src/exchange.rs` prices identically to the on-chain
-> `compute_swap_grx_for_thbc` (`programs/treasury/src/lib.rs:67`) so quotes match execution to the
-> minor unit, but checks `thbc_out ≤ inventory` instead of `new_supply ≤ attested_reserve`, and
-> never consumes reserve headroom. `ExchangeQuote` carries no field that could express a supply
-> change, so no caller can request one. **The on-chain half is not done** — F6 stays `Violated`
-> until `swap_grx_for_thbc` and `redeem_thbc_for_grx` are rewritten as inventory transfers.
+> **Implementation note (2026-07-29). Both halves are now done.**
+>
+> Off-chain, `crates/thbc-core/src/exchange.rs` prices identically to the on-chain math so
+> quotes match execution to the minor unit, checks `thbc_out ≤ inventory` instead of
+> `new_supply ≤ attested_reserve`, and never consumes reserve headroom. `ExchangeQuote` carries
+> no field that could express a supply change, so no caller can request one.
+>
+> On-chain, `compute_exchange_grx_for_thbc` / `compute_exchange_thbc_for_grx` replaced the
+> minting pair. Pricing is unchanged; the bound moved from reserve headroom to
+> `inventory_vault.amount`, and the `new_supply` return is **gone rather than zeroed** — the
+> function cannot tell a caller what supply to write because there is none. The inventory vault
+> is `[b"thbc_inventory"]`, created by `initialize_thbc_inventory`; its **balance is the
+> inventory**, with no mirrored `thbc_inventory: u64` counter that could drift from it. The
+> bump was carved out of `Treasury._padding`, so the account is still 272 bytes and **no
+> migration or re-init was needed**.
+>
+> Two deliberate deviations from this section as written: the attestation-freshness check is
+> **absent** from the exchange path (F5 guards issuance; exchange issues nothing, so keeping it
+> would cost liveness for no safety), and the reverse direction now **charges the same
+> `swap_fee_bps` spread** as the forward one — the old `redeem_thbc_for_grx` was free, which
+> made a round trip cost the forward fee only.
 
 ---
 
@@ -448,13 +479,22 @@ running code.**
 > | Domain model — money, F1–F9 registry, state machines, exchange math, reconciliation | implemented, 149 tests |
 > | §9 services — issuance, redemption, reserve, reconciliation, treasury | implemented |
 > | `reserve_encumbered` accounting | implemented **off-chain only** — the field is not on the treasury account |
-> | Inventory exchange (F6 fix) | implemented **off-chain only** — the on-chain instructions still mint |
+> | Inventory exchange (F6 fix) | implemented **on-chain and off-chain** (2026-07-29) — no program mints or burns THBC any more |
 > | Simulated ledger (the §12 prototype) | implemented — models §4 including the missing instructions |
 > | Chain Bridge adapter | connects; `update_attestation` publishes; everything else returns `501 not_implemented` |
 > | Bank adapter, KYC adapter, payout queue | **not implemented** — refuse in non-simulated mode |
 > | Hash-chained audit log | **not implemented** |
 >
-> Every on-chain row in the table above is unchanged. Nothing in the treasury program was modified.
+> On-chain, the §12 table above is now stale in three places, all a consequence of the F6 fix
+> landing on 2026-07-29:
+>
+> - "GRX↔THBC exchange — implemented, **but mints** — F6 fix pending" → the fix landed; the
+>   exchange transfers from an inventory vault and mints nothing.
+> - "`attested_reserve` ceiling (F1) — implemented" → the ceiling's only call site was the
+>   minting swap. `PegBreach` is now unreachable.
+> - "Attestation freshness (F5) — implemented" → same; `StaleAttestation` is now unreachable.
+>
+> `issue_thbc` must re-attach F1 and F5. Everything else in the table still holds.
 
 ---
 

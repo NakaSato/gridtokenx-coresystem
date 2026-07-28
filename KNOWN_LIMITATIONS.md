@@ -17,7 +17,7 @@ claims otherwise.
 ### The one-line version
 
 **No fiat is held. No licence is held. No fiat rail of any kind exists.** Most of the
-payment leg is design and simulation. Of nine invariants, three may be described as
+payment leg is design and simulation. Of nine invariants, **two** may be described as
 guarantees.
 
 The authoritative, machine-readable status is
@@ -29,19 +29,22 @@ registry is right.
 
 | | Invariant | Enforced by |
 | :-- | :-- | :-- |
-| **F5** | Attestation freshness — issuance halts past the TTL | the treasury program |
 | **F8** | Non-custody — no GridTokenX key can move user THBC | structural; no port accepts a user key |
 | **F9** | Attestation independence — attestor key ≠ parameter admin | the treasury program, at `initialize` |
+
+Both survivors are **structural** rather than instruction-level, which is exactly why
+they survived the F6 fix below while F1 and F5 did not.
 
 ### What may not
 
 | | Invariant | Status | The gap |
 | :-- | :-- | :-- | :-- |
-| **F1** | Reserve sufficiency | partial | The on-chain ceiling is `attested_reserve`, **not** `attested_reserve − reserve_encumbered`. `reserve_encumbered` is not a field on the treasury account, so fiat that cleared the bank and then failed KYC keeps counting as free backing on-chain. `gridtokenx-thbc-service` enforces the tighter ceiling from its own records — making it *stricter than the chain*. A caller that bypasses the service gets the looser ceiling. |
+| **F1** | Reserve sufficiency | **design only** | **Vacuous, not enforced.** The ceiling lived in `compute_swap_grx_for_thbc`; the F6 fix removed that instruction and `PegBreach` now has **zero call sites**. `attested_reserve` is written by `update_attestation` and never read for a check. No program mints THBC at all, so supply cannot grow past anything — but "nothing can violate it because the operation does not exist" is not a guarantee. `issue_thbc` must re-attach the ceiling, as `attested_reserve − reserve_encumbered`. |
 | **F2** | Issuance conservation | partial | **Detective, not preventive.** Nothing rejects a write for breaking `Σ issued − Σ redeemed = supply`; the reconciler reports drift after the fact. It currently reconciles against the simulated ledger, because `issue_thbc` and `redeem_thbc_for_fiat` do not exist. |
 | **F3** | Deposit idempotency | **design only** | The `[b"deposit", H(bank_ref)]` nullifier PDA **does not exist**. The service enforces a `PRIMARY KEY` on the reference digest, which stops replays *through this service* and nothing else — not a second issuer path, not a manual transaction, not two deployments against two databases. The account-level guarantee needs the on-chain nullifier. **Do not report F3 as covered.** |
 | **F4** | Burn-before-wire | partial | The ordering is enforced by the redemption state machine, which is the only route to a payout. But **there is no fiat rail behind it**, so the barrier has never been tested against a real payout queue. |
-| **F6** | Backing-set purity | **violated** | `swap_grx_for_thbc` calls `mint_to` (`gridtokenx-anchor/programs/treasury/src/instructions/swap_grx_for_thbc.rs:97`) and `redeem_thbc_for_grx` calls `burn` (`redeem_thbc_for_grx.rs:71`). A volatile asset is in the backing set of a fiat-referenced token, and the peg is a governance parameter. The off-chain inventory exchange is written and supply-preserving by construction, but the on-chain instructions it would have to call are still the minting ones. |
+| **F5** | Attestation freshness | **design only** | **Unreachable, not enforced.** The freshness check lived on the minting swap and was removed with it — deliberately, since F5 guards *issuance* and the replacement `exchange_*` path issues nothing. `StaleAttestation` now has zero call sites. Must be re-attached to `issue_thbc`. F5 was claimable before 2026-07-29 and is not any more. |
+| **F6** | Backing-set purity | partial *(code fixed)* | `swap_grx_for_thbc`/`redeem_thbc_for_grx` were replaced by `exchange_grx_for_thbc`/`exchange_thbc_for_grx`, which transfer against a `[b"thbc_inventory"]` vault. **No program mints or burns THBC any more.** Still not claimable, and the distinction is code vs *state*: THBC already minted by the old swap is still outstanding on any chain that ran it, and that supply is GRX-backed. Retiring or re-initialising it is what turns this Enforced. |
 | **F7** | Redemption liveness | **design only** | The Δ-timelocked redemption escrow **does not exist on-chain**. Modelled in the service and the simulator only. See §6.4 below — the fiat side is unsolved even in design. |
 
 ### §6.4 — the gap that is not an implementation bug
