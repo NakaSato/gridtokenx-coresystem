@@ -967,6 +967,9 @@ services:
       PORT: 8080
       RUST_LOG: debug
       JWT_SECRET: ${JWT_SECRET}
+      # Honour the dev gateway secret injected by APISIX; without this the
+      # blockchain-auth RBAC fails closed and denies every ApiGateway request.
+      CHAIN_BRIDGE_INSECURE: "${CHAIN_BRIDGE_INSECURE:-false}"
       SMTP_HOST: mailpit
       SMTP_PORT: 1025
       SMTP_TLS_MODE: none
