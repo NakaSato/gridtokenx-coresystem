@@ -623,17 +623,13 @@ npm run test:all                        # all programs
 
 These measure performance characteristics, not correctness.
 
-### Settlement Compute Units (`just bench-settlement`)
+### Settlement Compute Units — removed
 
-Measures on-chain compute units consumed by `settle_offchain_match`. The meaningful metric is CU cost — not localnet latency.
-
-```bash
-just bench-settlement
-# Grep output for: BENCH_SETTLE_CU=<number>
-# Expected range: 3,000 – 20,000 CU (well under 200k default / 1.4M max)
-```
-
-Requires: Anchor + local validator (or Surfpool `just simnet`).
+The `just bench-settlement` recipe has been removed. It drove
+`gridtokenx-anchor/tests/escrow_settlement.ts`, which was deleted in `b2021fb`
+along with the rest of that suite, so the recipe could not run. Nothing currently
+measures `settle_offchain_match` compute units; restoring the benchmark means
+restoring a CU probe test first.
 
 ### Telemetry Ingest Saturation (`just bench-ingest`)
 

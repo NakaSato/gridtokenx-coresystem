@@ -24,7 +24,6 @@ default:
     @echo "Benchmarks:"
     @echo "  benchmark          - trading-engine matching (Criterion)"
     @echo "  bench-ingest       - telemetry-ingest saturation"
-    @echo "  bench-settlement   - settle_offchain_match compute-unit cost"
     @echo ""
     @echo "Database (sqlx migrations):"
     @echo "  migrate / migrate-new name=X / migrate-revert / migrate-info   (IAM)"
@@ -105,9 +104,53 @@ test:
     (cd gridtokenx-noti-service; cargo test)
     (cd gridtokenx-blockchain-core; cargo test)
 
-# Run all tests including integration tests requiring solana validator
-test-all:
-    ./scripts/run_integration_tests.sh
+# Run all tests including integration tests requiring solana validator: every
+# microservice suite (via `test`), then build the Anchor programs and run the
+# on-chain TS suites in gridtokenx-anchor/tests/.
+#
+# Invokes mocha directly rather than `anchor test`: `b2021fb` deliberately removed
+# the `[scripts] test` entry from Anchor.toml, so `anchor test` would BUILD ONLY and
+# silently exit 0 without running a single test. Calling mocha keeps Anchor.toml as
+# it is while still exercising the suites.
+#
+# Requires a healthy localnet validator on :8899 (`just solana-up`, or
+# `./scripts/app.sh init`). Most suites are LiteSVM and need no validator, but the
+# provider-based ones do — and mocha, unlike `anchor test`, does not set the
+# provider env vars, so they are exported here to match Anchor.toml [provider].
+test-all: test
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # Put the rustup shim ahead of Homebrew's cargo, which cannot handle anchor's
+    # `+<sbpf-toolchain>` directives ("no such command: +1.89.0-sbpf-solana-v1.52").
+    # Same prepend as scripts/cmd/init.sh:117 and scripts/app.sh:3.
+    export PATH="$HOME/.cargo/bin:$PATH"
+    cd gridtokenx-anchor
+    if ! curl -s -m 5 -X POST http://127.0.0.1:8899 \
+           -H 'Content-Type: application/json' \
+           -d '{"jsonrpc":"2.0","id":1,"method":"getHealth"}' 2>/dev/null | grep -q '"result":"ok"'; then
+        echo "[test-all] no healthy validator on :8899 — start one first:" >&2
+        echo "           just solana-up   (or: SOLANA_RESET=0 SOLANA_VALIDATOR_TTL=0 ./scripts/app.sh solana start)" >&2
+        exit 1
+    fi
+    echo "[test-all] validator healthy on :8899 — building programs, then running the TS suites"
+    # Build so target/idl + target/types the suites import are current.
+    anchor build
+    # `anchor build` emits each .so under programs/<name>/target/deploy, NOT the
+    # workspace target/deploy that the LiteSVM suites load via
+    # `addProgramFromFile("target/deploy/<name>.so")` — same quirk handled in
+    # scripts/cmd/init.sh:139-143. Stage them, or every suite fails in `before all`
+    # with "Failed to add program: No such file or directory".
+    mkdir -p target/deploy
+    for so in programs/*/target/deploy/*.so; do
+        [ -f "$so" ] && cp "$so" "target/deploy/$(basename "$so")"
+    done
+    export ANCHOR_PROVIDER_URL="${ANCHOR_PROVIDER_URL:-http://127.0.0.1:8899}"
+    export ANCHOR_WALLET="${ANCHOR_WALLET:-$HOME/.config/solana/id.json}"
+    # tests/batch_settle_tps.ts is excluded: it is a TPS sweep BENCHMARK (§2b, tuned
+    # via BENCH_TPS_*), not a correctness test, and it needs bootstrap state that
+    # `app.sh init` does not create — gridtokenx-anchor/scripts/init-treasury.ts must
+    # have run, or it dies fetching the Treasury PDA. Run it deliberately, not here.
+    npx mocha -r tsx 'tests/**/*.ts' --ignore 'tests/batch_settle_tps.ts' --timeout 1000000
 
 # Run Edge Protocol integration test
 test-edge:
@@ -295,20 +338,9 @@ benchmark:
 bench-ingest:
     bash scripts/bench-ingest.sh
 
-# Settlement compute-unit benchmark (paper review #3): runs the golden escrow
-# settlement test and logs `BENCH_SETTLE_CU {compute_units}` for the
-# settle_offchain_match instruction. CU is the meaningful, validator-independent
-# on-chain cost metric (localnet latency is not representative). Needs anchor +
-# a validator/surfpool. Grep output for BENCH_SETTLE_CU.
-bench-settlement:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    cd gridtokenx-anchor
-    # pipefail makes anchor's exit status govern (tee would otherwise mask a failed
-    # test); the grep just extracts the CU line and must not fail the recipe.
-    anchor test tests/escrow_settlement.ts 2>&1 | tee /tmp/bench-settlement.log
-    grep -E 'BENCH_SETTLE_CU|settles a signed' /tmp/bench-settlement.log || \
-      echo "(no BENCH_SETTLE_CU — test did not reach the settle path)"
+# NOTE: `bench-settlement` (settlement compute-unit benchmark) was removed — the
+# test it drove, `tests/escrow_settlement.ts`, was deleted in `b2021fb` along with
+# the rest of that suite, so the recipe could never run.
 
 # --- Solana Localnet ---
 

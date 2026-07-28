@@ -320,8 +320,6 @@ just bench-ingest       # telemetry-ingest saturation: ramp meter load, measure 
                         #   throughput + loss (needs orb-up: bridge + Redis, no validator).
                         #   Tune via env RAMP/DURATION/REPEATS; summarize with
                         #   scripts/bench-ingest-summary.py bench-ingest-results.csv
-just bench-settlement   # settle_offchain_match compute-unit cost (needs anchor + validator;
-                        #   greps BENCH_SETTLE_CU from the escrow_settlement test)
 
 # Cross-service E2E and protocol suites (scripts/, tests/e2e/)
 just e2e                # tests/e2e/run.sh — full cross-service flow
