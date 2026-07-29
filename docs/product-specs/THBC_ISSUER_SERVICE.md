@@ -56,18 +56,19 @@ These are the contract. A change that breaks one is a defect regardless of how c
 
 | # | Name | Statement | Enforced | Status |
 |---|---|---|---|---|
-| **F1** | Reserve sufficiency | `thbc_supply ≤ attested_reserve` at all times | on-chain, `issue_thbc` | implemented |
+| **F1** | Reserve sufficiency | `thbc_supply ≤ attested_reserve − reserve_encumbered` at all times | on-chain, `issue_thbc` | implemented |
 | **F2** | Issuance conservation | `Σ issued − Σ redeemed = thbc_supply` | on-chain accounting | implemented |
 | **F3** | Deposit idempotency | one confirmed `bank_ref` ⇒ at most one issuance | nullifier PDA | implemented |
 | **F4** | Burn-before-wire | on-chain burn confirmed **≺** fiat payout enqueued | issuer state machine | design only |
 | **F5** | Attestation freshness | `now − attestation_ts ≤ attestation_ttl`, else issuance halts | on-chain | implemented |
 | **F6** | Backing-set purity | collateral backing THBC is fiat only | exchange path holds inventory, does not mint | **fix pending** |
-| **F7** | Redemption liveness | an honest holder obtains fiat or recovers THBC within Δ | timelocked redemption escrow | **open — see §6.4** |
+| **F7** | Redemption liveness | an honest holder obtains fiat or recovers THBC within Δ | timelocked redemption escrow | implemented *(token side; see §6.4)* |
 | **F8** | ~~Non-custody~~ | ~~no GridTokenX key appears in a signer set that can move user THBC~~ | — | **retired — never held** |
-| **F9** | Attestation independence | the attestor key ≠ the parameter-admin key | on-chain key separation | implemented |
+| **F9** | Attestation independence | the attestor key ≠ the parameter-admin key | — | **not implemented** — nothing compares them, and the live treasury has them equal |
 
-F1, F3 and F5 are enforced in `programs/treasury`, all three on `issue_thbc`. **F2, F4, F6 and F7
-are not yet satisfied and are disclosed in `KNOWN_LIMITATIONS.md`.** Do not claim them.
+F1, F3 and F5 are enforced in `programs/treasury`, all three on `issue_thbc`; F7 is enforced by
+the redemption escrow. **F2, F4, F6 and F9 are not yet satisfied, and F8 is retired — all are
+disclosed in `KNOWN_LIMITATIONS.md`.** Do not claim them.
 
 > **Implementation note (2026-07-29, revised after the F6 fix).** The status column above is
 > the *design* target. The authoritative runtime status is
@@ -97,11 +98,18 @@ are not yet satisfied and are disclosed in `KNOWN_LIMITATIONS.md`.** Do not clai
 > enforcement `Runtime` rather than `OnChain` — the guarantee comes from account existence,
 > not from a `require!` the program could get wrong.
 >
-> Consequence for §2's table: **F1 is `Partial`, F3, F5, F8 and F9 are guarantees today.**
-> F1 stays `Partial` because the on-chain ceiling is `attested_reserve`, not
-> `attested_reserve − reserve_encumbered` as §4.1 specifies — `reserve_encumbered` does not
-> fit in the 14 spare padding bytes on the zero-copy `Treasury`. The service enforces the
-> tighter ceiling off-chain and is therefore *stricter than the chain*; a caller that
+> Consequence for §2's table: **F1, F3, F5 and F7 are guarantees today.**
+>
+> **F1 became a guarantee on 2026-07-29.** It had been `Partial` because the on-chain
+> ceiling was `attested_reserve`, not `attested_reserve − reserve_encumbered`, on the
+> grounds that the field did not fit the spare padding on the zero-copy `Treasury`. That
+> was wrong in one specific way: a `Pubkey` (32 bytes) does not fit, but
+> `reserve_encumbered` is a `u64`. The stored bumps end at offset 259, the next 8-aligned
+> offset is 264, and 264 + 8 = 272 — so it lands in the tail of the old `_padding` without
+> moving a single existing field. **The struct is still 272 bytes, so no re-init or realloc
+> was needed** and every deployed PDA kept deserializing. `ReserveService::attest` now
+> publishes `total_encumbered()` with every attestation, so the chain enforces the same
+> ceiling the service does. The service is no longer *stricter than the chain*; a caller that
 > bypasses it gets the looser one. F2 and F4 remain `Partial`.
 >
 > **The mint path is reachable off-chain as of this change.** `issue_thbc` is routed over
@@ -495,9 +503,9 @@ Consequences for this specification:
 
 | Component | Status |
 |---|---|
-| `attested_reserve` ceiling (F1) | implemented on `issue_thbc`, against `attested_reserve` — **not** minus `reserve_encumbered` |
+| `attested_reserve` ceiling (F1) | implemented on `issue_thbc`, against `attested_reserve − reserve_encumbered` as §4.1 specifies (2026-07-29) |
 | Attestation freshness (F5) | implemented on `issue_thbc`, checked *before* F1 |
-| Attestor / authority key separation (F9) | implemented |
+| Attestor / authority key separation (F9) | **not implemented** — nothing compares the two keys, and the live treasury has them equal |
 | GRX↔THBC exchange | implemented — transfers from a `[b"thbc_inventory"]` vault, does not mint (F6 fixed) |
 | Settlement accounting (`record_settlement*`) | implemented |
 | GRX staking | implemented |
@@ -505,8 +513,8 @@ Consequences for this specification:
 | `update_attestation` | implemented on-chain **and routed** — `chain.tx.attest` |
 | `redeem_thbc_for_fiat` | on-chain; **no Chain Bridge route** — still 501 |
 | Deposit nullifier (F3) | implemented — Anchor `init` on `[b"deposit", H(bank_ref)]`, same instruction as the mint |
-| Redemption escrow + reclaim (F7) | **not implemented** |
-| `reserve_encumbered` accounting | **not implemented** |
+| Redemption escrow + reclaim (F7) | implemented — Δ-timelocked `[b"redeem_escrow"]`, both terminal instructions `close` the record |
+| `reserve_encumbered` accounting | implemented — on the `Treasury` account at offset 264, written by `update_attestation` |
 | Bank adapter, KYC adapter | **not implemented** |
 | Fiat rail of any kind | **does not exist** |
 
@@ -520,7 +528,7 @@ running code.**
 > |---|---|
 > | Domain model — money, F1–F9 registry, state machines, exchange math, reconciliation | implemented, 149 tests |
 > | §9 services — issuance, redemption, reserve, reconciliation, treasury | implemented |
-> | `reserve_encumbered` accounting | implemented **off-chain only** — the field is not on the treasury account |
+> | `reserve_encumbered` accounting | implemented **on-chain and off-chain** (2026-07-29) — carved from `_padding`, so the account is still 272 bytes |
 > | Inventory exchange (F6 fix) | implemented **on-chain and off-chain** (2026-07-29) — no program mints or burns THBC any more |
 > | Simulated ledger (the §12 prototype) | implemented — models §4 including the missing instructions |
 > | Chain Bridge adapter | `issue` and `update_attestation` are live request/reply over JetStream; the three redemption methods and `snapshot` return `501 not_implemented` |

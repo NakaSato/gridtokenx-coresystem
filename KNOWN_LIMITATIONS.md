@@ -32,9 +32,9 @@ registry is right.
 | | Invariant | Enforced by |
 | :-- | :-- | :-- |
 | **F3** | Deposit idempotency — one `bank_ref`, at most one issuance | the Solana **runtime**: `[b"deposit", H(bank_ref)]` is created with `init` in the same instruction as the mint, so a replay is rejected at the account level before any program code runs |
+| **F1** | Reserve sufficiency — `thbc_supply ≤ attested_reserve − reserve_encumbered` | `issue_thbc`, checked after F5. `reserve_encumbered` landed on-chain 2026-07-29 in the tail of the old `_padding` (offset 264), so the `Treasury` account is **still 272 bytes** and needed no re-init. Four litesvm cases cover it; three die if the subtraction is removed |
 | **F5** | Attestation freshness — issuance halts past the TTL | `issue_thbc`, checked before the F1 ceiling |
 | **F7** | Redemption liveness — an honest holder recovers THBC within Δ | the escrow + Δ timelock; both terminal instructions `close` the record, so double-confirm and confirm-after-reclaim fail at the account level. **Token side only** — see §6.4 |
-| **F9** | Attestation independence — attestor key ≠ parameter admin | the treasury program, at `initialize` |
 
 F1 and F5 were enforced by nothing between the F6 fix and `issue_thbc` — both guards
 lived on the minting swap that F6 deleted. That window is closed.
@@ -107,9 +107,9 @@ F8 fix.
 
 | | Invariant | Status | The gap |
 | :-- | :-- | :-- | :-- |
-| **F1** | Reserve sufficiency | partial | Re-attached to `issue_thbc`, so `PegBreach` has a call site again. Still checked against `attested_reserve`, **not** `attested_reserve − reserve_encumbered` as §4.1 specifies — a `Pubkey`-sized field does not fit in the 14 spare padding bytes on the zero-copy `Treasury`. Fiat that cleared the bank then failed KYC still counts as free backing on-chain, so `gridtokenx-thbc-service` enforces the tighter ceiling from its own records and is **stricter than the chain**. |
 | **F2** | Issuance conservation | partial | **Detective, not preventive.** Nothing rejects a write for breaking `Σ issued − Σ redeemed = supply`; the reconciler reports drift after the fact. It now runs on an interval (`THBC_RECONCILE_INTERVAL_SECS`, default hourly per §9) and appends every run to `reconciliation_runs`, so a breach that was later resolved stays visible. **Until 2026-07-29 there was no scheduler at all** and nothing wrote that table — §9's "checked hourly and daily" was true of no deployment. |
 | **F4** | Burn-before-wire | partial | The ordering is enforced by the redemption state machine, which is the only route to a payout. But **there is no fiat rail behind it**, so the barrier has never been tested against a real payout queue. |
+| **F9** | Attestation independence | **design only** | The registry claimed this `Enforced`, citing a check in `initialize` that rejects `attestor == authority`. **No such check exists anywhere in the program**, and the deployed treasury has the two keys equal — the bridge signs both roles with `platform_admin`. Enforcing it needs `require!(attestor != authority)` on-chain AND a separate Vault key for attestation; the on-chain half alone would brick the current deployment. |
 | **F6** | Backing-set purity | partial *(code fixed)* | `swap_grx_for_thbc`/`redeem_thbc_for_grx` were replaced by `exchange_grx_for_thbc`/`exchange_thbc_for_grx`, which transfer against a `[b"thbc_inventory"]` vault. **No program mints or burns THBC any more.** Still not claimable, and the distinction is code vs *state*: THBC already minted by the old swap is still outstanding on any chain that ran it, and that supply is GRX-backed. Retiring or re-initialising it is what turns this Enforced. |
 
 ### §6.4 — the gap that is not an implementation bug
