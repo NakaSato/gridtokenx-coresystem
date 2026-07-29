@@ -1,0 +1,35 @@
+# Config for the DEV-ONLY APISIX UI mirror (compose service `apisix-ui`,
+# profile `ui`) — NOT the real gateway. The real gateway runs file-driven
+# standalone mode, which disables the Admin API and therefore the embedded
+# Dashboard (see ../ARCHITECTURE.md §3). This instance runs traditional mode
+# against a throwaway etcd purely so the Dashboard has something to serve;
+# scripts/sync-apisix-ui.sh pushes a mirror of ../apisix.yaml into it.
+# Nothing routes production traffic through this instance.
+deployment:
+  role: traditional
+  role_traditional:
+    config_provider: etcd
+  etcd:
+    host:
+      - "http://apisix-ui-etcd:2379"
+    prefix: /apisix
+    timeout: 30
+  admin:
+    # Same internal-network gate as the real gateway's PRIVATE routes; the
+    # host port is additionally bound to 127.0.0.1 only in docker-compose.yml.
+    allow_admin:
+      - 127.0.0.1/32
+      - 10.0.0.0/8
+      - 172.16.0.0/12
+      - 192.168.0.0/16
+    admin_key:
+      # Dev-tier secret (same tier as the dev TLS key in ../apisix.yaml).
+      # The Dashboard login prompt asks for this value.
+      - name: admin
+        key: gridtokenx-ui-admin-dev
+        role: admin
+
+apisix:
+  node_listen: 9080
+  enable_admin_ui: true
+#END

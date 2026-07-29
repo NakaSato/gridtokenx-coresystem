@@ -373,10 +373,14 @@ services:
       - no-new-privileges:true
     environment:
       APISIX_STAND_ALONE: "true"
+      # Consumed by apisix.yaml's jwt-auth consumer via ${{JWT_SECRET}} — same
+      # value IAM signs with, so the gateway can verify IAM-issued tokens.
+      JWT_SECRET: ${JWT_SECRET}
     ports:
       - "4001:9080" # User Proxy HTTP
       - "8443:9443" # User Proxy HTTPS (self-signed dev cert, see apisix.yaml ssl)
-      - "8001:9180" # Admin HTTP
+      # No 9180 mapping: file-driven standalone disables the Admin API — nothing
+      # listens there (see apisix_conf/ARCHITECTURE.md §3).
     volumes:
       - ./apisix_conf/apisix.yaml:/usr/local/apisix/conf/apisix.yaml:ro
       - ./apisix_conf/config.yaml:/usr/local/apisix/conf/config.yaml:ro
@@ -400,6 +404,60 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+
+  # --- Dev-only APISIX Dashboard mirror (profile: ui, off by default) --------
+  # The embedded Dashboard cannot run on the real gateway: file-driven
+  # standalone mode disables the Admin API (apisix_conf/ARCHITECTURE.md §3).
+  # This pair — traditional-mode APISIX + throwaway etcd — exists ONLY to serve
+  # the Dashboard over a *mirror* of apisix_conf/apisix.yaml. No production
+  # traffic routes through it; Dashboard edits touch only the mirror.
+  #   docker compose --profile ui up -d      # start
+  #   ./scripts/sync-apisix-ui.sh            # push current apisix.yaml
+  #   http://localhost:8001/ui/              # key: gridtokenx-ui-admin-dev
+  apisix-ui:
+    image: apache/apisix:3.15.0-debian
+    container_name: gridtokenx-apisix-ui
+    profiles: ["ui"]
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "127.0.0.1:8001:9180" # Dashboard + Admin API — mirror only, localhost only
+    volumes:
+      - ./apisix_conf/ui/config.yaml:/usr/local/apisix/conf/config.yaml:ro
+    networks:
+      - gridtokenx-network
+    depends_on:
+      apisix-ui-etcd:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  apisix-ui-etcd:
+    image: quay.io/coreos/etcd:v3.5.21
+    container_name: gridtokenx-apisix-ui-etcd
+    profiles: ["ui"]
+    command:
+      - etcd
+      - --data-dir=/tmp/etcd
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --advertise-client-urls=http://apisix-ui-etcd:2379
+    # No volume on purpose: the mirror is ephemeral — after a restart just
+    # re-run scripts/sync-apisix-ui.sh.
+    networks:
+      - gridtokenx-network
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
 
   chain-bridge:
     build:

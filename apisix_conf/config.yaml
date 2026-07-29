@@ -6,6 +6,22 @@ deployment:
 apisix:
   node_listen: 9080
   enable_websocket: true
+  # Cap how long a resolved upstream address is trusted (default: the record's own
+  # TTL, which Docker's embedded DNS hands out as 600s).
+  #
+  # Why: upstream nodes here are container NAMES, and `compose up` recreates a
+  # container on a NEW IP. APISIX re-resolves per request (apisix/init.lua:246), but
+  # when resolution fails it stores an EMPTY node list rather than erroring
+  # (apisix/utils/upstream.lua:83) — every subsequent request then 503s with
+  # "no valid upstream node" until something re-resolves successfully. On 2026-07-28
+  # a trading-service recreate left the gateway serving 503s on every trading route
+  # for ~70min; only an APISIX restart cleared it. Active health checks do NOT cover
+  # this (zero resolved nodes = nothing to probe) — this setting does, by bounding
+  # the stale window to 30s.
+  #
+  # Reaches the Lua DNS client as opts.validTtl (apisix/core/utils.lua:101; schema at
+  # apisix/cli/schema.lua:200). Cost is one query per upstream per 30s to 127.0.0.11.
+  dns_resolver_valid: 30
   ssl:
     enable: true
     listen:

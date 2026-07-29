@@ -37,6 +37,7 @@ default:
     @echo "  dev-up / secure-up - plain dev / hardened (mTLS,AES-GCM,KEK) stack"
     @echo "  bridge-dev / bridge-prod - aggregator-bridge cargo-watch / built image"
     @echo "  check-drift / rebuild-stale - deploy-drift detection / fix"
+    @echo "  apisix-ui / apisix-ui-sync / apisix-ui-down - dev APISIX Dashboard mirror"
     @echo "  doctor             - system health check"
     @echo ""
     @echo "Orchestrator (scripts/app.sh):"
@@ -256,6 +257,22 @@ orb-down:
 orb-rebuild:
     docker compose build --no-cache
     docker compose up -d --force-recreate
+
+# Start the dev APISIX Dashboard mirror + sync config -> http://localhost:8001/ui/
+apisix-ui:
+    # Dev-only mirror of apisix.yaml; the real gateway can't serve the Dashboard
+    # (standalone mode disables the Admin API) — see apisix_conf/ARCHITECTURE.md §3.
+    # Admin key: gridtokenx-ui-admin-dev. apisix.yaml stays the source of truth.
+    docker compose --profile ui up -d apisix-ui apisix-ui-etcd
+    ./scripts/sync-apisix-ui.sh
+
+# Re-push apisix_conf/apisix.yaml into the running Dashboard mirror (after edits)
+apisix-ui-sync:
+    ./scripts/sync-apisix-ui.sh
+
+# Stop the Dashboard mirror. Its etcd is ephemeral — `just apisix-ui` restores it.
+apisix-ui-down:
+    docker compose --profile ui down apisix-ui apisix-ui-etcd
 
 # System health check: deps, certs, APISIX upstream backends, trading connections
 doctor:

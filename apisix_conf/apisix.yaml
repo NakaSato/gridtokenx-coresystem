@@ -43,6 +43,124 @@ plugin_configs:
         policy: local
         allow_degradation: true
 
+# Shared upstreams. Routes reference these by `upstream_id` instead of repeating an
+# inline `upstream:` block (they were duplicated 25 times, so health-check policy had
+# nowhere single to live).
+#
+# WHY THE ACTIVE CHECKS: a node that resolves is not a node that works. Two concrete
+# failures these cover:
+#   1. Container up, service dead — roundrobin kept sending traffic regardless.
+#   2. The `host.docker.internal:*` dev fallbacks are permanent members of the iam /
+#      simulator pools. When nothing is listening on the host port, roundrobin still
+#      handed them ~50% of requests and every other call failed. They now drop out of
+#      rotation on their own and rejoin when a local dev server appears.
+#
+# WHAT THEY DO NOT COVER: the 2026-07-28 incident, where every trading route 503'd with
+# "no valid upstream node" for ~70min after a `compose up` recreated the container. That
+# is a DNS-layer fault, not a node-health one — apisix/init.lua:246 re-resolves per
+# request, apisix/utils/upstream.lua:83 returns an EMPTY node list (not an error) when
+# resolution fails, and the caller persists that empty list. With zero resolved nodes
+# there is nothing for a health checker to probe. The mitigation for that is
+# `apisix.dns_resolver_valid` in config.yaml — see the comment there.
+#
+# http_path must be a route the upstream actually serves; a 404 here marks every node
+# down and takes the whole service off the gateway. Verified 200 on each node before
+# enabling — the simulator's is NOT /health (it 404s), it's /api/v1/quality/health,
+# matching that container's own docker healthcheck.
+upstreams:
+  - id: iam
+    type: roundrobin
+    nodes:
+      "iam-service:8080": 1
+      "host.docker.internal:4010": 1
+    checks: &http_health_checks
+      active:
+        type: http
+        http_path: /health
+        timeout: 2
+        concurrency: 4
+        healthy:
+          interval: 5
+          successes: 1
+        unhealthy:
+          interval: 3
+          http_failures: 2
+          timeouts: 2
+
+  - id: trading
+    type: roundrobin
+    nodes:
+      "trading-service:8093": 1
+    checks: *http_health_checks
+
+  - id: meter
+    type: roundrobin
+    nodes:
+      "meter-service:8080": 1
+    checks: *http_health_checks
+
+  - id: noti
+    type: roundrobin
+    nodes:
+      "noti-service:8080": 1
+    checks: *http_health_checks
+
+  - id: simulator
+    type: roundrobin
+    nodes:
+      "smartmeter-simulator:8082": 1
+      "host.docker.internal:12010": 1
+    checks:
+      active:
+        type: http
+        # NOT /health — that 404s on this service. Same path its container
+        # healthcheck uses (docker inspect .Config.Healthcheck).
+        http_path: /api/v1/quality/health
+        # timeout 5, NOT 2 — this endpoint has a long latency tail. Measured
+        # 2026-07-29 from inside the container: 330 probes over 45s, median well
+        # under 100ms but the tail reached 1.75s / 1.99s / 2.08s. At timeout 2 the
+        # slow tail alone tripped the unhealthy counter and APISIX flapped both
+        # nodes (alternating "healthy SUCCESS (1/1)" / "unhealthy TIMEOUT (2/2)"
+        # in the error log) even though every probe eventually returned 200. The
+        # service was never down — the deadline was just under its own tail.
+        # Re-measure before lowering this.
+        timeout: 5
+        concurrency: 4
+        healthy:
+          interval: 5
+          successes: 1
+        unhealthy:
+          # interval >= timeout so a slow probe can't overlap the next round.
+          interval: 5
+          http_failures: 2
+          # 3 (not 2) so one tail-latency blip is absorbed rather than counting
+          # halfway to ejection. Real outages still eject in ~15s.
+          timeouts: 3
+
+  # No active checks below: these expose no HTTP health path to probe. A check
+  # against the wrong path is worse than none — it marks healthy nodes down.
+  - id: iam-grpc # ConnectRPC, not plain HTTP
+    type: roundrobin
+    nodes:
+      "iam-service:8090": 1
+      "host.docker.internal:5010": 1
+
+  - id: trading-grpc # ConnectRPC, not plain HTTP
+    type: roundrobin
+    nodes:
+      "trading-service:8092": 1
+      "host.docker.internal:8092": 1
+
+  - id: solana-rpc # solana-test-validator JSON-RPC — POST-only, no health route
+    type: roundrobin
+    nodes:
+      "host.docker.internal:8899": 1
+
+  - id: solana-ws # solana-test-validator PubSub — websocket only
+    type: roundrobin
+    nodes:
+      "host.docker.internal:8002": 1
+
 routes:
   - id: 10 # IAM Public REST (Auth & Config)
     uris:
@@ -62,11 +180,7 @@ routes:
             x-gridtokenx-role: "api-gateway"
             x-gridtokenx-gateway-secret: "gridtokenx-gateway-secret-2025"
       cors: {}
-    upstream:
-      type: roundrobin
-      nodes:
-        "iam-service:8080": 1
-        "host.docker.internal:4010": 1
+    upstream_id: iam
 
   - id: 11 # IAM Private REST — user-self surface (/api/v1/me/*)
     # IAM serves these natively (see iam-service startup.rs: get_me, registration,
@@ -86,25 +200,22 @@ routes:
       - /api/v1/identity
       - /api/v1/identity/*
     plugin_config_id: 1
-    upstream:
-      type: roundrobin
-      nodes:
-        "iam-service:8080": 1
-        "host.docker.internal:4010": 1
+    upstream_id: iam
 
   - id: 12 # Meter Service — Smart Energy Dashboard (user meter read API)
     # Owns meters + meter_readings (shared gridtokenx DB). Higher priority than
-    # route 11's /api/v1/me/* so /api/v1/me/meters lands here, not on IAM.
+    # route 11's /api/v1/me/* so /api/v1/me/meters* lands here, not on IAM.
+    # Caller-scoped routes are canonical under /api/v1/me/meters*; the bare
+    # /api/v1/meters* forms are dual-served legacy aliases (same handlers) plus
+    # the grid-wide /api/v1/meters/map, which is deliberately not under /me.
     priority: 20
     uris:
       - /api/v1/meters
       - /api/v1/meters/*
       - /api/v1/me/meters
+      - /api/v1/me/meters/*
     plugin_config_id: 1
-    upstream:
-      type: roundrobin
-      nodes:
-        "meter-service:8080": 1
+    upstream_id: meter
 
   - id: 2 # Trading REST (Direct / Legacy Routes)
     uris:
@@ -124,6 +235,7 @@ routes:
       - /api/v1/settlement/*
       - /api/v1/wallets/*/balance
       - /api/v1/markets/config
+      - /api/v1/markets/price
       - /api/v1/markets/matching-status
       - /api/v1/markets/settlement-stats
       - /api/v1/markets/orderbook
@@ -131,10 +243,7 @@ routes:
       - /api/v1/markets/active-order-meters
       - /api/v1/markets/p2p/*
     plugin_config_id: 1
-    upstream:
-      type: roundrobin
-      nodes:
-        "trading-service:8093": 1
+    upstream_id: trading
 
   - id: 20 # Trading REST - User Private Routes Rewrite
     # Carve-out of the /api/v1/me/* namespace owned by Trading. priority 20 so
@@ -154,10 +263,7 @@ routes:
     plugins:
       proxy-rewrite:
         regex_uri: ["^/api/v1/me/(orders|trades|futures|analytics|transactions|carbon|wallets)(.*)", "/api/v1/$1$2"]
-    upstream:
-      type: roundrobin
-      nodes:
-        "trading-service:8093": 1
+    upstream_id: trading
 
   - id: 21 # Trading REST - Market Stats Route Rewrite
     uris:
@@ -166,10 +272,7 @@ routes:
     plugins:
       proxy-rewrite:
         regex_uri: ["^/api/v1/markets/stats", "/api/v1/stats"]
-    upstream:
-      type: roundrobin
-      nodes:
-        "trading-service:8093": 1
+    upstream_id: trading
 
   - id: 22 # Trading REST - Market Zones Book Rewrite
     uris:
@@ -178,10 +281,22 @@ routes:
     plugins:
       proxy-rewrite:
         regex_uri: ["^/api/v1/markets/zones/(.*)/order-book", "/api/v1/zones/$1/book"]
-    upstream:
-      type: roundrobin
-      nodes:
-        "trading-service:8093": 1
+    upstream_id: trading
+
+  - id: 23 # Trading Service - Market Data WebSocket
+    # Same constraint as route 33 (noti /ws): plugin_config_id 1 (jwt-auth +
+    # serverless-post-function) breaks APISIX's websocket-upgrade handshake, so
+    # this route carries no plugin_config_id and the upstream authenticates
+    # itself — trading-api's ws_handler (crates/trading-api/src/websocket.rs)
+    # validates the ?token= JWT against JWT_SECRET before upgrading, because the
+    # usual x-gridtokenx-user-id header is not injected on this path.
+    # No proxy-rewrite: trading-api serves /ws/trading at the same path the
+    # browser dials, unlike routes 9 and 51 which rewrite onto a different
+    # upstream path.
+    uris:
+      - /ws/trading
+    enable_websocket: true
+    upstream_id: trading
 
   - id: 3 # Notification Service (Direct REST)
     # noti-server nests REST under /api/v1/noti/* (bin/noti-server/src/startup.rs),
@@ -194,10 +309,7 @@ routes:
     plugins:
       proxy-rewrite:
         regex_uri: ["^/api/v1/notifications(.*)", "/api/v1/noti$1"]
-    upstream:
-      type: roundrobin
-      nodes:
-        "noti-service:8080": 1
+    upstream_id: noti
 
   - id: 33 # Notification Service - WebSocket
     # Split out of route id 3: the shared plugin_config_id:1 (jwt-auth +
@@ -210,10 +322,7 @@ routes:
     uris:
       - /ws
     enable_websocket: true
-    upstream:
-      type: roundrobin
-      nodes:
-        "noti-service:8080": 1
+    upstream_id: noti
 
   - id: 30 # Notification Service - Mark All Read Rewrite
     # priority 21 > route 31 (20) so the exact mark-all-read path wins over the
@@ -225,10 +334,7 @@ routes:
     plugins:
       proxy-rewrite:
         regex_uri: ["^/api/v1/me/notifications/mark-all-read", "/api/v1/noti/read-all"]
-    upstream:
-      type: roundrobin
-      nodes:
-        "noti-service:8080": 1
+    upstream_id: noti
 
   - id: 31 # Notification Service - User Notification Route Rewrite
     # priority 20 carve-out of /api/v1/me/* (IAM route 11 does not list
@@ -241,10 +347,7 @@ routes:
     plugins:
       proxy-rewrite:
         regex_uri: ["^/api/v1/me/notifications(.*)", "/api/v1/noti$1"]
-    upstream:
-      type: roundrobin
-      nodes:
-        "noti-service:8080": 1
+    upstream_id: noti
 
   - id: 32 # Notification Service - Frontend /noti Alias (pass-through)
     # Upstream REST already lives at /api/v1/noti/* — pass through unchanged.
@@ -253,10 +356,7 @@ routes:
       - /api/v1/noti
       - /api/v1/noti/*
     plugin_config_id: 1
-    upstream:
-      type: roundrobin
-      nodes:
-        "noti-service:8080": 1
+    upstream_id: noti
 
   - id: 4 # Smart Meter Simulator - Grid (Public)
     uris:
@@ -265,11 +365,7 @@ routes:
       proxy-rewrite:
         regex_uri: ["^/api/v1/public/grid-(.*)", "/api/v1/grid/$1"]
       cors: {}
-    upstream:
-      type: roundrobin
-      nodes:
-        "smartmeter-simulator:8082": 1
-        "host.docker.internal:12010": 1
+    upstream_id: simulator
 
   - id: 5 # Smart Meter Simulator - Meters (Public)
     uris:
@@ -279,11 +375,7 @@ routes:
       proxy-rewrite:
         regex_uri: ["^/api/v1/public/meters(.*)", "/api/v1/meters$1"]
       cors: {}
-    upstream:
-      type: roundrobin
-      nodes:
-        "smartmeter-simulator:8082": 1
-        "host.docker.internal:12010": 1
+    upstream_id: simulator
 
   - id: 6 # Trading REST - Active-Order Meters (Public, no auth)
     # Grid-map needs to hide non-trading meters for logged-out viewers. Returns
@@ -295,10 +387,7 @@ routes:
       - /api/v1/public/active-order-meters
     plugins:
       cors: {}
-    upstream:
-      type: roundrobin
-      nodes:
-        "trading-service:8093": 1
+    upstream_id: trading
 
   - id: 9 # Smart Meter Simulator - WebSocket (Public)
     uris:
@@ -308,11 +397,7 @@ routes:
       proxy-rewrite:
         regex_uri: ["^/api/market/ws", "/ws"]
       cors: {}
-    upstream:
-      type: roundrobin
-      nodes:
-        "smartmeter-simulator:8082": 1
-        "host.docker.internal:12010": 1
+    upstream_id: simulator
 
   - id: 8 # Health, Metrics & API-docs — PRIVATE (ops only, no public internet)
     # Ops/observability surface. Reachable only from private/cluster networks
@@ -331,11 +416,7 @@ routes:
           - 10.0.0.0/8
           - 172.16.0.0/12
           - 192.168.0.0/16
-    upstream:
-      type: roundrobin
-      nodes:
-        "iam-service:8080": 1
-        "host.docker.internal:4010": 1
+    upstream_id: iam
 
   - id: 13 # IAM System Config — PRIVATE (ops only, no public internet)
     # Service bootstrap config (program IDs, cluster, infra). Pulled out of the
@@ -359,29 +440,35 @@ routes:
       # ip-restriction still gates network access, cors only lets the browser
       # JS read the response. Without it the fetch fails with "Failed to fetch".
       cors: {}
-    upstream:
-      type: roundrobin
-      nodes:
-        "iam-service:8080": 1
-        "host.docker.internal:4010": 1
+    upstream_id: iam
 
-  - id: 100 # IAM gRPC (ConnectRPC)
+  - id: 100 # IAM gRPC (ConnectRPC) — PRIVATE (mesh/dev only, no public internet)
+    # Browser clients use REST via routes 10/11; mesh services call iam-service:8090
+    # directly. This APISIX path is for local ConnectRPC probes only — same
+    # ip-restriction gate as route 8 (health/metrics/docs).
     uris:
       - /identity.IdentityService/*
-    upstream:
-      type: roundrobin
-      nodes:
-        "iam-service:8090": 1
-        "host.docker.internal:5010": 1
+    plugins:
+      ip-restriction:
+        whitelist:
+          - 127.0.0.1/32
+          - 10.0.0.0/8
+          - 172.16.0.0/12
+          - 192.168.0.0/16
+    upstream_id: iam-grpc
 
-  - id: 101 # Trading gRPC (ConnectRPC)
+  - id: 101 # Trading gRPC (ConnectRPC) — PRIVATE (mesh/dev only, no public internet)
+    # Same rationale as route 100 — trading UI uses REST; mesh hits :8092 directly.
     uris:
       - /trading.TradingService/*
-    upstream:
-      type: roundrobin
-      nodes:
-        "trading-service:8092": 1
-        "host.docker.internal:8092": 1
+    plugins:
+      ip-restriction:
+        whitelist:
+          - 127.0.0.1/32
+          - 10.0.0.0/8
+          - 172.16.0.0/12
+          - 192.168.0.0/16
+    upstream_id: trading-grpc
 
   - id: 40 # Smart Meter Simulator - Simulation Control
     uris:
@@ -389,11 +476,7 @@ routes:
       - /api/v1/simulation/*
     plugins:
       cors: {}
-    upstream:
-      type: roundrobin
-      nodes:
-        "smartmeter-simulator:8082": 1
-        "host.docker.internal:12010": 1
+    upstream_id: simulator
 
   - id: 41 # Smart Meter Simulator - Meters Admin/Direct
     uris:
@@ -401,11 +484,7 @@ routes:
       - /api/v1/meters/*
     plugins:
       cors: {}
-    upstream:
-      type: roundrobin
-      nodes:
-        "smartmeter-simulator:8082": 1
-        "host.docker.internal:12010": 1
+    upstream_id: simulator
 
   - id: 42 # Smart Meter Simulator - Microgrid endpoints
     uris:
@@ -416,11 +495,7 @@ routes:
       - /api/v1/status
     plugins:
       cors: {}
-    upstream:
-      type: roundrobin
-      nodes:
-        "smartmeter-simulator:8082": 1
-        "host.docker.internal:12010": 1
+    upstream_id: simulator
 
   - id: 50 # Solana JSON-RPC proxy (browser web3.js reads/writes)
     uris:
@@ -429,10 +504,7 @@ routes:
       proxy-rewrite:
         regex_uri: ["^/api/v1/rpc$", "/"]
       cors: {}
-    upstream:
-      type: roundrobin
-      nodes:
-        "host.docker.internal:8899": 1
+    upstream_id: solana-rpc
 
   - id: 51 # Solana JSON-RPC WebSocket proxy
     uris:
@@ -442,10 +514,7 @@ routes:
       proxy-rewrite:
         regex_uri: ["^/api/v1/rpc-ws$", "/"]
       cors: {}
-    upstream:
-      type: roundrobin
-      nodes:
-        "host.docker.internal:8002": 1
+    upstream_id: solana-ws
 
 # Dev-only self-signed TLS so OrbStack can proxy https://apisix.<proj>.orb.local
 # (and wss://) to APISIX :9443. Regenerate (raw files gitignored under certs/):
@@ -518,5 +587,10 @@ consumers:
     plugins:
       jwt-auth:
         key: "gridtokenx-iam-service"
-        secret: "dev-jwt-secret-key-minimum-32-characters-long-for-development-2025"
+        # Must equal the IAM service's JWT_SECRET — IAM signs (HS256, iss =
+        # gridtokenx-iam-service) and this consumer verifies. Read from the env
+        # rather than inlined: a literal here silently drifted from .env and every
+        # gateway-authenticated route 401'd with "failed to verify jwt" while the
+        # services themselves were healthy.
+        secret: ${{JWT_SECRET}}
 #END
