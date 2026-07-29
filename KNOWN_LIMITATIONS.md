@@ -17,8 +17,9 @@ claims otherwise.
 ### The one-line version
 
 **No fiat is held. No licence is held. No fiat rail of any kind exists.** Most of the
-payment leg is design and simulation. Of nine invariants, **five** may be described as
-guarantees, and none is design-only.
+payment leg is design and simulation. Of nine invariants, **four** may be described as
+guarantees. None is design-only — but **F8 (non-custody) is violated**, and that one
+matters more than the rest combined. See below.
 
 The authoritative, machine-readable status is
 [`gridtokenx-thbc-service/crates/thbc-core/src/invariant.rs`](gridtokenx-thbc-service/crates/thbc-core/src/invariant.rs),
@@ -32,11 +33,44 @@ registry is right.
 | **F3** | Deposit idempotency — one `bank_ref`, at most one issuance | the Solana **runtime**: `[b"deposit", H(bank_ref)]` is created with `init` in the same instruction as the mint, so a replay is rejected at the account level before any program code runs |
 | **F5** | Attestation freshness — issuance halts past the TTL | `issue_thbc`, checked before the F1 ceiling |
 | **F7** | Redemption liveness — an honest holder recovers THBC within Δ | the escrow + Δ timelock; both terminal instructions `close` the record, so double-confirm and confirm-after-reclaim fail at the account level. **Token side only** — see §6.4 |
-| **F8** | Non-custody — no GridTokenX key can move user THBC | structural; no port accepts a user key |
 | **F9** | Attestation independence — attestor key ≠ parameter admin | the treasury program, at `initialize` |
 
 F1 and F5 were enforced by nothing between the F6 fix and `issue_thbc` — both guards
 lived on the minting swap that F6 deleted. That window is closed.
+
+### ⚠️ F8 — the platform IS custodial. Do not claim otherwise.
+
+**`gridtokenx-iam-service` can decrypt any user's Solana signing key unilaterally.**
+
+It generates each user's keypair and stores it encrypted
+(`gridtokenx-iam-service/crates/iam-logic/src/auth_service.rs:536`), but both KDF inputs
+are **service configuration** — `encryption_secret` and `master_secret`
+(`crates/iam-core/src/config.rs:31,45`, from `ENCRYPTION_SECRET` / `MASTER_SECRET`).
+The user's password is **not** an input, and the PBKDF2 salt is stored alongside the
+ciphertext. Anyone holding those two environment variables and the database can
+reconstruct every user's keypair and sign as them.
+
+No service decrypts today — `decrypt_private_key*` is called only from
+`gridtokenx-blockchain-core`'s own unit tests — so the capability is **latent, not
+exercised**. That is not the same as absent. F8 is a claim about what the platform
+*can* do.
+
+This falsifies two things stated as design guarantees:
+
+- Spec §3 actor table: *"`P` — GridTokenX platform … trusted for **liveness only** …
+  Can it steal? **no** (F8)"*.
+- Spec §10 threat model **T4**: *"Compromised platform `P` attempts to move user THBC →
+  F8 → `P` can censor (liveness), not steal"*. `P` can steal.
+
+What remains true, and is why this was missed: `gridtokenx-thbc-service` holds no user
+key, and no method on any port in `thbc-core/src/ports.rs` accepts a keypair or signer.
+That is a real property — of **one service**, not of GridTokenX.
+
+Fixing it is an IAM architecture decision, not a documentation change. Either derive the
+wallet key from the user's password (so the platform alone cannot decrypt — needs a
+re-encryption migration and a password-reset story, since a forgotten password would
+then mean a lost key), move signing to a client-held key, or keep custody and retire the
+non-custody claim from the spec entirely.
 
 ### What may not
 

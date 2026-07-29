@@ -122,7 +122,7 @@ are not yet satisfied and are disclosed in `KNOWN_LIMITATIONS.md`.** Do not clai
 | `U` — prosumer / consumer | holds and transfers THBC | nothing | — |
 | `B` — licensed issuer / bank | fiat custody; mint and burn authority | fiat custody, honest issuance | **yes** — can mint unbacked THBC or refuse redemption |
 | `A` — reserve attestor | writes `attested_reserve` on-chain | reporting `R(t)` honestly | **yes** — inflating `R` lifts the F1 ceiling |
-| `P` — GridTokenX platform | bridges, matcher, APIs | **liveness only** | no (F8) |
+| `P` — GridTokenX platform | bridges, matcher, APIs | **liveness only** *(see note)* | ~~no (F8)~~ **YES — see the implementation note below** |
 | `E` — ERC / regulator | read-only observer node | nothing | no |
 
 **The load-bearing trust assumption is `A`.** `attested_reserve` is a single `u64` written by a
@@ -133,6 +133,17 @@ assumption at the physical boundary and must be stated with the same candour. Se
 
 `B` and `A` should not be the same entity. In the current simulation they are, which is a further
 disclosed limitation.
+
+> **Implementation note (2026-07-29) — `P` can steal, and this table is wrong.**
+> `gridtokenx-iam-service` generates each user's Solana keypair and stores it encrypted
+> (`crates/iam-logic/src/auth_service.rs:536`) under **service-only** KDF inputs:
+> `encryption_secret` and `master_secret` (`crates/iam-core/src/config.rs:31,45`). The user's
+> password is not an input and the salt is stored beside the ciphertext, so whoever holds
+> `ENCRYPTION_SECRET` + `MASTER_SECRET` + the database can sign as any user. No service decrypts
+> today (`decrypt_private_key*` is called only from `blockchain-core`'s unit tests), so the
+> capability is latent — but F8 is a claim about what `P` *can* do. `P` is therefore trusted for
+> far more than liveness, and the same correction applies to **T4** in §10. Fixing it is an IAM
+> architecture change, not a doc edit — see `KNOWN_LIMITATIONS.md`.
 
 ---
 
@@ -430,7 +441,7 @@ service holds Solana RPC directly. No user private key is held server-side.
 | T1 | Malicious attestor `A` | inflates `attested_reserve` | key separation from `authority` (F9); attestation events public | **unmitigated** — single signer; needs threshold or proof of reserves |
 | T2 | Malicious issuer `B` | mints unbacked THBC | F1 ceiling bounds it to `attested_reserve` | collusion of `A` + `B` defeats F1 entirely |
 | T3 | Malicious issuer `B` | refuses redemption | Δ-timelock reclaim (F7); public queue | fiat still lost if `B` took it (§6.4) |
-| T4 | Compromised platform `P` | attempts to move user THBC | F8 — `P` not in any user signer set | `P` can censor (liveness), not steal |
+| T4 | Compromised platform `P` | attempts to move user THBC | ~~F8~~ **none in practice** — see §3's implementation note | **`P` can steal.** IAM holds every user's signing key, decryptable with service-only secrets. `P` can censor *and* move user funds |
 | T5 | Replayed bank webhook | double issuance | F3 nullifier at account level | none |
 | T6 | Forged bank webhook | issuance with no fiat | mTLS + signature verify; treated as untrusted input | compromised bank key defeats it |
 | T7 | Ledger observer | recovers auction clearing quantities from settlement amounts | none in current design | **accepted** — see §8.3 |
