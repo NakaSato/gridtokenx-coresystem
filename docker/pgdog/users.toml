@@ -61,3 +61,18 @@ password = "gridtokenx_password"
 name = "gridtokenx_user"
 database = "gridtokenx_chain_migrate"
 password = "gridtokenx_password"
+
+# THBC settlement service. Both entries are required: pgdog authenticates
+# per-database, so the `gridtokenx_thbc` / `gridtokenx_thbc_migrate` routes in
+# pgdog.toml are unusable without them and the service fails startup with
+# "password ... is wrong, or the database does not exist" — which reads like a
+# credential problem rather than a missing pool.
+[[users]]
+name = "gridtokenx_user"
+database = "gridtokenx_thbc"
+password = "gridtokenx_password"
+
+[[users]]
+name = "gridtokenx_user"
+database = "gridtokenx_thbc_migrate"
+password = "gridtokenx_password"
