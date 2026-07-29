@@ -18,8 +18,9 @@ claims otherwise.
 
 **No fiat is held. No licence is held. No fiat rail of any kind exists.** Most of the
 payment leg is design and simulation. Of nine invariants, **four** may be described as
-guarantees. None is design-only — but **F8 (non-custody) is violated**, and that one
-matters more than the rest combined. See below.
+guarantees. None is design-only — and **F8 (non-custody) has been retired**: the platform
+is custodial by design, so the claim was never true. That one matters more than the rest
+combined. See below.
 
 The authoritative, machine-readable status is
 [`gridtokenx-thbc-service/crates/thbc-core/src/invariant.rs`](gridtokenx-thbc-service/crates/thbc-core/src/invariant.rs),
@@ -50,10 +51,26 @@ The user's password is **not** an input, and the PBKDF2 salt is stored alongside
 ciphertext. Anyone holding those two environment variables and the database can
 reconstruct every user's keypair and sign as them.
 
-No service decrypts today — `decrypt_private_key*` is called only from
-`gridtokenx-blockchain-core`'s own unit tests — so the capability is **latent, not
-exercised**. That is not the same as absent. F8 is a claim about what the platform
-*can* do.
+Nothing decrypts those stored keys today — `decrypt_private_key*` is called only from
+`gridtokenx-blockchain-core`'s own unit tests. That made this look like a latent risk
+awaiting a decision. **It is not latent, and there is no decision to make: custody is
+the platform's settled, documented architecture.**
+
+- The IAM function is named `provision_custodial_wallet` and states the intent outright:
+  *"custody is service-side by design so IAM can sign on the user's behalf"*
+  (`crates/iam-logic/src/auth_service.rs:502,518`).
+- `gridtokenx-blockchain-core` lists *"IAM stores encrypted custodial keys"* as a
+  load-bearing invariant of the shared crate (`CLAUDE.md`, invariant 6).
+- Per-user Ed25519 signing was **removed**, not planned. IAM's `SignMessage` RPC is
+  gone, no `.proto` in the tree declares one, and `sign_message` fails loudly
+  (`gridtokenx-trading-service/.../identity/mod.rs:48`).
+
+And the platform's ability to move user assets is **exercised in production**, just with
+a different key than the stored ones: `execute_atomic_settlement` signs for every party
+with a single `platform_admin` Vault Transit key, and each escrow is
+`ATA(platform, mint)` — see [`docs/proposed/rec-production-settlement.md`](docs/proposed/rec-production-settlement.md).
+The per-user keys sitting in the IAM database are the unused residue of the capability
+that was removed; deleting them would change nothing about F8.
 
 This falsifies two things stated as design guarantees:
 
@@ -66,11 +83,25 @@ What remains true, and is why this was missed: `gridtokenx-thbc-service` holds n
 key, and no method on any port in `thbc-core/src/ports.rs` accepts a keypair or signer.
 That is a real property — of **one service**, not of GridTokenX.
 
-Fixing it is an IAM architecture decision, not a documentation change. Either derive the
-wallet key from the user's password (so the platform alone cannot decrypt — needs a
-re-encryption migration and a password-reset story, since a forgotten password would
-then mean a lost key), move signing to a client-held key, or keep custody and retire the
-non-custody claim from the spec entirely.
+**Resolution (2026-07-29): F8 is retired, not scheduled.** It described a system
+GridTokenX is not and is not becoming. Restoring it would mean reinstating per-user
+Ed25519 signing platform-wide — IAM `SignMessage` plus per-user Vault Transit keys —
+which is the same blocker already recorded against Option A in
+[`docs/proposed/rec-production-settlement.md`](docs/proposed/rec-production-settlement.md).
+That is a platform-wide re-architecture with its own key-recovery story, not a
+`gridtokenx-thbc-service` task.
+
+Two consequences follow, and neither is optional:
+
+1. **Custody must be disclosed to users**, not buried in an invariant table. A holder of
+   THBC has a claim on GridTokenX's operational security, not on a key only they hold.
+2. **Compromise of `P` is total loss of user assets.** The mitigation is operational —
+   Vault, key rotation, HSM, separation of duties, audit — because there is no
+   cryptographic barrier left to rely on.
+
+The unused per-user keys in the IAM database remain worth deleting on data-retention
+grounds (they are decryptable material serving no function), but that is hygiene, not an
+F8 fix.
 
 ### What may not
 

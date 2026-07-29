@@ -63,7 +63,7 @@ These are the contract. A change that breaks one is a defect regardless of how c
 | **F5** | Attestation freshness | `now − attestation_ts ≤ attestation_ttl`, else issuance halts | on-chain | implemented |
 | **F6** | Backing-set purity | collateral backing THBC is fiat only | exchange path holds inventory, does not mint | **fix pending** |
 | **F7** | Redemption liveness | an honest holder obtains fiat or recovers THBC within Δ | timelocked redemption escrow | **open — see §6.4** |
-| **F8** | Non-custody | no GridTokenX key appears in a signer set that can move user THBC | escrow PDA design | implemented |
+| **F8** | ~~Non-custody~~ | ~~no GridTokenX key appears in a signer set that can move user THBC~~ | — | **retired — never held** |
 | **F9** | Attestation independence | the attestor key ≠ the parameter-admin key | on-chain key separation | implemented |
 
 F1, F3 and F5 are enforced in `programs/treasury`, all three on `issue_thbc`. **F2, F4, F6 and F7
@@ -134,16 +134,30 @@ assumption at the physical boundary and must be stated with the same candour. Se
 `B` and `A` should not be the same entity. In the current simulation they are, which is a further
 disclosed limitation.
 
-> **Implementation note (2026-07-29) — `P` can steal, and this table is wrong.**
-> `gridtokenx-iam-service` generates each user's Solana keypair and stores it encrypted
-> (`crates/iam-logic/src/auth_service.rs:536`) under **service-only** KDF inputs:
-> `encryption_secret` and `master_secret` (`crates/iam-core/src/config.rs:31,45`). The user's
-> password is not an input and the salt is stored beside the ciphertext, so whoever holds
-> `ENCRYPTION_SECRET` + `MASTER_SECRET` + the database can sign as any user. No service decrypts
-> today (`decrypt_private_key*` is called only from `blockchain-core`'s unit tests), so the
-> capability is latent — but F8 is a claim about what `P` *can* do. `P` is therefore trusted for
-> far more than liveness, and the same correction applies to **T4** in §10. Fixing it is an IAM
-> architecture change, not a doc edit — see `KNOWN_LIMITATIONS.md`.
+> **F8 is retired (2026-07-29). GridTokenX is custodial by design, and this spec should never
+> have claimed otherwise.**
+> F8 was written as an aspiration and recorded as `implemented`. It was never true, and the
+> platform is deliberately moving *away* from it, not toward it:
+>
+> 1. `gridtokenx-iam-service` provisions each user's keypair encrypted under **service-only** KDF
+>    inputs — `encryption_secret` and `master_secret` (`crates/iam-core/src/config.rs:31,45`), no
+>    user password, salt beside the ciphertext. The function is called
+>    `provision_custodial_wallet` and states its intent: *"custody is service-side by design so
+>    IAM can sign on the user's behalf"* (`crates/iam-logic/src/auth_service.rs:502,518`).
+> 2. `gridtokenx-blockchain-core` lists *"IAM stores encrypted custodial keys"* as a load-bearing
+>    invariant of the shared crate (`CLAUDE.md`, invariant 6).
+> 3. Per-user Ed25519 signing was **removed**. IAM's `SignMessage` RPC no longer exists, no
+>    `.proto` in the tree declares one, and `sign_message` fails loudly
+>    (`gridtokenx-trading-service/.../identity/mod.rs:48`). Production settlement
+>    (`execute_atomic_settlement`) signs for **every** party with a single `platform_admin` Vault
+>    Transit key, and each escrow is `ATA(platform, mint)`.
+>
+> So `P`'s ability to move user assets is not a latent risk — it *is* the production settlement
+> path. Deleting the stored keys would not restore F8; only restoring per-user signing
+> platform-wide would, which is the same blocker recorded against Option A in
+> [`../proposed/rec-production-settlement.md`](../proposed/rec-production-settlement.md).
+> **`P` is trusted for custody, not merely liveness.** The same correction applies to **T4** in
+> §10. Tracked in `KNOWN_LIMITATIONS.md`.
 
 ---
 
@@ -441,7 +455,7 @@ service holds Solana RPC directly. No user private key is held server-side.
 | T1 | Malicious attestor `A` | inflates `attested_reserve` | key separation from `authority` (F9); attestation events public | **unmitigated** — single signer; needs threshold or proof of reserves |
 | T2 | Malicious issuer `B` | mints unbacked THBC | F1 ceiling bounds it to `attested_reserve` | collusion of `A` + `B` defeats F1 entirely |
 | T3 | Malicious issuer `B` | refuses redemption | Δ-timelock reclaim (F7); public queue | fiat still lost if `B` took it (§6.4) |
-| T4 | Compromised platform `P` | attempts to move user THBC | ~~F8~~ **none in practice** — see §3's implementation note | **`P` can steal.** IAM holds every user's signing key, decryptable with service-only secrets. `P` can censor *and* move user funds |
+| T4 | Compromised platform `P` | attempts to move user THBC | ~~F8~~ **none, by design** — see §3's F8 retirement note | **`P` can steal, and this is the intended architecture.** GridTokenX is custodial: IAM provisions custodial wallets so it can sign for users, and production settlement signs for every party with one `platform_admin` key. `P` can censor *and* move user funds. Compromise of `P` is a total loss of user assets — mitigate operationally (Vault, key rotation, HSM), not cryptographically |
 | T5 | Replayed bank webhook | double issuance | F3 nullifier at account level | none |
 | T6 | Forged bank webhook | issuance with no fiat | mTLS + signature verify; treated as untrusted input | compromised bank key defeats it |
 | T7 | Ledger observer | recovers auction clearing quantities from settlement amounts | none in current design | **accepted** — see §8.3 |
