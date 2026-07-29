@@ -24,7 +24,7 @@
 | **TOU** | Time-of-Use — a tariff structure where electricity prices vary based on the time of day. |
 | **Wheeling Charge** | Fee paid to a grid operator for transporting electricity through their network. |
 | **WMA** | Weighted Moving Average — a recursive filtering technique (implemented as 80/20) used to smooth temporal jitter in smart meter telemetry. |
-| **P_FiT** | Feed-in-Tariff — the base price per kWh (Default: 0.10 GRX) paid to prosumers for surplus energy exported to the grid. |
+| **P_FiT** | Feed-in-Tariff — the base price per kWh (Default: 0.10 THBC, i.e. ฿0.10/kWh) paid to prosumers for surplus energy exported to the grid. Prices are denominated in **THBC**, the settlement currency; GRX/GRID is the *traded asset* (1 token = 1 kWh), so a price "per kWh in GRX" would read as kWh-per-kWh. |
 | **M_zone** | Incentive Multiplier — a zone-specific multiplier used to programmatically incentivize generation in specific geographic areas. |
 | **Meritocratic Voting Weight** | A governance mechanism where voting power is derived from cumulative physical energy contribution ($\sum E$), not just token holdings. |
 | **FT (Ft)** | Float Tariff — a variable component of Thailand's electricity tariff that reflects fuel and policy costs. |
