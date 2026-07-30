@@ -16,7 +16,9 @@ set -euo pipefail
 API_URL="${API_URL:-http://localhost:4001}"
 DB_CONTAINER="${DB_CONTAINER:-gridtokenx-postgres}"
 DB_USER="${DB_USER:-gridtokenx_user}"
-DB_NAME="${DB_NAME:-gridtokenx}"
+# Every db_q below reads `users`, which the DB-per-service split moved to
+# gridtokenx_iam; the shared gridtokenx DB no longer has that table.
+DB_NAME="${DB_NAME:-gridtokenx_iam}"
 
 USERNAME="${USERNAME:-prosumer1}"
 EMAIL="${EMAIL:-prosumer1@grx.test}"

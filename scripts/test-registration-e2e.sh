@@ -9,7 +9,10 @@ set -e
 API_URL="${API_URL:-http://localhost:4001}"
 DB_CONTAINER="${DB_CONTAINER:-gridtokenx-postgres}"
 DB_USER="${DB_USER:-gridtokenx_user}"
-DB_NAME="${DB_NAME:-gridtokenx}"
+# IAM's `users` table, which step 2 reads the verification token from, moved to
+# gridtokenx_iam in the DB-per-service split — the shared gridtokenx DB no longer
+# has it, so the old default failed step 2 with `relation "users" does not exist`.
+DB_NAME="${DB_NAME:-gridtokenx_iam}"
 TIMESTAMP=$(date +%s)
 EMAIL="e2e_${TIMESTAMP}@grx.test"
 USERNAME="user_${TIMESTAMP}"

@@ -43,6 +43,23 @@ plugin_configs:
         policy: local
         allow_degradation: true
 
+# Attach the prometheus plugin to ALL traffic. The exporter server runs whenever the
+# plugin is loaded, but without this it only serves process-level gauges
+# (apisix_http_requests_total, apisix_upstream_status, nginx connections) — the
+# per-route families that actually answer "which route is erroring, and how slow is
+# it" (apisix_http_status, apisix_http_latency, apisix_bandwidth) are only collected
+# on routes the plugin runs on. A global rule avoids repeating it 25 times.
+#
+# Motivating incidents, both previously invisible without reading container logs:
+# the 2026-07-28 DNS fault that 503'd every trading route for ~70min (would spike
+# apisix_http_status{code="503"}), and the simulator health-check flapping (an
+# oscillating apisix_upstream_status). Scraped by docker/prometheus/prometheus.yml;
+# bind address set via plugin_attr in config.yaml.
+global_rules:
+  - id: 1
+    plugins:
+      prometheus: {}
+
 # Shared upstreams. Routes reference these by `upstream_id` instead of repeating an
 # inline `upstream:` block (they were duplicated 25 times, so health-check policy had
 # nowhere single to live).
@@ -478,13 +495,13 @@ routes:
       cors: {}
     upstream_id: simulator
 
-  - id: 41 # Smart Meter Simulator - Meters Admin/Direct
-    uris:
-      - /api/v1/meters
-      - /api/v1/meters/*
-    plugins:
-      cors: {}
-    upstream_id: simulator
+  # Route 41 (Smart Meter Simulator - Meters Admin/Direct) removed: it declared
+  # exactly /api/v1/meters and /api/v1/meters/*, both of which route 12
+  # (meter-service) also claims at priority 20 vs this route's default 0. It could
+  # never match — verified: GET /api/v1/meters returns meter-service's 401 JWT
+  # rejection, never the simulator. The simulator's meter endpoints remain reachable
+  # through route 5 (/api/v1/public/meters -> /api/v1/meters), which is how the
+  # public grid map already reads them.
 
   - id: 42 # Smart Meter Simulator - Microgrid endpoints
     uris:

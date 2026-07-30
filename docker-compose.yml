@@ -732,7 +732,12 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://tempo:4318}
       NTP_SERVERS: ${NTP_SERVERS:-time.cloudflare.com:123,time.google.com:123}
       RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER:-gridtokenx}:${RABBITMQ_DEFAULT_PASS:-rabbitmq_secret_2025}@rabbitmq:5672
-      RUST_LOG: debug,librdkafka=warn
+      # Per-crate debug, not global. A bare `debug` made 99.99% of this service's
+      # output library noise: of 43,754 DEBUG lines in one 3h run, 35,154 were
+      # sqlx::query echoing every poll of the 1s matcher / 10s settlement loops,
+      # and only 4 came from a trading_* crate. sqlx stays at warn so the genuinely
+      # useful `slow statement` alerts survive the cut.
+      RUST_LOG: ${TRADING_RUST_LOG:-info,trading_api=debug,trading_core=debug,trading_infra=debug,trading_logic=debug,trading_persistence=debug,trading_service=debug,gridtokenx_blockchain_core=debug,sqlx=warn,librdkafka=warn}
       JWT_SECRET: ${JWT_SECRET}
       ENCRYPTION_SECRET: ${ENCRYPTION_SECRET}
       SOLANA_RPC_URL: ${DOCKER_SOLANA_RPC_URL:-http://host.docker.internal:8899}
@@ -759,6 +764,10 @@ services:
       # builder fails at parse (empty pubkey). Collectors default to the platform
       # payer so their currency ATAs are platform-controlled.
       CURRENCY_TOKEN_MINT: ${CURRENCY_TOKEN_MINT:-AzFyFd4GkmjqBnJ5EYv7mkaeufAKkZffumjtDRrX425k}
+      # Which SPL program owns CURRENCY_TOKEN_MINT. Treasury THBC is Token-2022;
+      # the legacy stand-in currency mint was classic SPL. Wrong value ⇒ currency
+      # ATAs derive to different addresses and every settlement transfer fails.
+      CURRENCY_TOKEN_PROGRAM: ${CURRENCY_TOKEN_PROGRAM:-spl}
       FEE_COLLECTOR_WALLET: ${FEE_COLLECTOR_WALLET:-EzudwoHvNPAc4dpPi5ndU8MEZVHVzq3Pj3Thm9ooKmiJ}
       WHEELING_COLLECTOR_WALLET: ${WHEELING_COLLECTOR_WALLET:-EzudwoHvNPAc4dpPi5ndU8MEZVHVzq3Pj3Thm9ooKmiJ}
       LOSS_COLLECTOR_WALLET: ${LOSS_COLLECTOR_WALLET:-EzudwoHvNPAc4dpPi5ndU8MEZVHVzq3Pj3Thm9ooKmiJ}
@@ -1102,6 +1111,16 @@ services:
       # Chain Bridge is the only route to Solana; no service holds an RPC client.
       NATS_URL: ${NATS_URL:-nats://gridtokenx:gridtokenx_nats_dev@nats:4222}
       CHAIN_BRIDGE_GRPC_URL: http://chain-bridge:5040
+      # Treasury account addresses for LedgerPort::snapshot, read over
+      # chain.query.account (plain NATS request/reply). Configured rather than
+      # derived: PDA derivation needs the off-curve check and therefore
+      # curve25519, which would breach this service's chain-light property.
+      # Leaving them unset makes snapshot() Unsupported — the honest outcome,
+      # since a snapshot read from a guessed address would report a confident,
+      # wrong F1 ceiling. These are the localnet PDAs for treasury program
+      # FfxSQYKUmx9NGdCC9TDPmZSYjWYE1h4ruu3JatzHN5Tn.
+      THBC_TREASURY_PDA: ${THBC_TREASURY_PDA:-6wnBBc6MzpvwFFKEHmAZRRn4xms8WYdrHGcEEHtPLDpj}
+      THBC_INVENTORY_VAULT: ${THBC_INVENTORY_VAULT:-BwdbmMzZrjrjuyobmceiAwKkqABXrRnxM9FKEHkg8XxQ}
       # Envelope signing for chain.tx.issuethbc / chain.tx.attest. The bridge
       # force-signs both subjects (issuance moves value; attestation raises the
       # ceiling F1 enforces), verifying cert → CA → SPIFFE SAN == service_identity
