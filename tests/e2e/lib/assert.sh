@@ -62,5 +62,16 @@ suite_summary() {
 pytest_suite() {
     local dir="${1:-$HERE}"
     ls "$dir"/test_*.py >/dev/null 2>&1 || return 0
-    ( cd "$dir/.." && uv run --no-project python -m pytest "$dir" -v )
+    # `--no-project` deliberately isolates from the repo's Python projects, which
+    # also means NOTHING is installed — pytest included. tests/e2e/requirements.txt
+    # already declares the full set (pytest, requests, grpcio, solders, redis,
+    # nats-py, …) but was referenced nowhere, so every pytest suite died on
+    # "No module named pytest". Worse, only 10_iam reported that as a failure:
+    # 60_noti and 65_erp_bridge printed the same error and still summarised
+    # "0 passed, 0 failed", which reads as "no cases" rather than "could not run".
+    # Feeding the requirements file to uv keeps the isolation and the single
+    # source of truth for the dep set.
+    local reqs="$dir/../requirements.txt"
+    [ -f "$reqs" ] || reqs="$(cd "$dir/.." && pwd)/requirements.txt"
+    ( cd "$dir/.." && uv run --no-project --with-requirements "$reqs" python -m pytest "$dir" -v )
 }
