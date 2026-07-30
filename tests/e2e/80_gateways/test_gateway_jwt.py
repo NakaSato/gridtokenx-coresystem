@@ -41,7 +41,10 @@ APISIX_URL = os.getenv("APISIX_URL", "http://localhost:4001")
 JWT_ISS = os.getenv("APISIX_JWT_ISS", "gridtokenx-iam-service")
 JWT_SECRET = os.getenv(
     "APISIX_JWT_SECRET",
-    "dev-jwt-secret-key-minimum-32-characters-long-for-development-2025",
+    # Falls back to JWT_SECRET (env.sh reads it from the repo .env) before the
+    # .env.example literal: services verify with the real secret, so the literal
+    # yields 401 "invalid or expired token" from a healthy service.
+    os.getenv("JWT_SECRET", "dev-jwt-secret-key-minimum-32-characters-long-for-development-2025"),
 )
 # A route under the jwt-auth plugin_config (apisix.yaml Case 10 uses /me, /orders).
 AUTH_ROUTE = os.getenv("APISIX_AUTH_ROUTE", "/api/v1/me")

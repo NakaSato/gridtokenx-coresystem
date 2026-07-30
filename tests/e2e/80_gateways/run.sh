@@ -213,6 +213,8 @@ else
     # We fingerprint each upstream by its distinct JSON response shape (verified live):
     #   IAM /me/wallets -> {"wallets":[...]} ; Trading /me/orders -> {"data":..,"pagination":..}
     #   Meter /me/meters -> a JSON array. 401/000 => can't verify (auth/upstream) -> warn.
+    # Meter also owns the nested /me/meters/* surface (readings, stream, stats) —
+    # probed below, since a bare /me/meters hit does not prove the wildcard forwards.
     log_info "Case 9: priority-collision isolation (/me/wallets vs /me/orders vs /me/meters)"
     if [ -n "$JWT" ]; then
         # /me/wallets must hit IAM (route 11), not be shadowed by a trading/meter carve-out.
@@ -248,6 +250,22 @@ else
         else
             log_warn "/me/meters unrecognized payload (can't fingerprint upstream): ${B:0:80}"
         fi
+
+        # Route unification: meter-service's caller-scoped routes are canonical
+        # under /api/v1/me/meters/*, which route 12 forwards via its
+        # /api/v1/me/meters/* uri. Probe a NESTED path (not just the bare list) —
+        # a missing wildcard on route 12 drops it onto IAM route 11 or 404s.
+        # Fingerprint: Meter stats -> object with minted/pending/denied counts.
+        B=$(curl -s --max-time 6 "$APISIX_URL/api/v1/me/meters/stats" "${AUTH[@]}")
+        if [[ "$B" == *'"pending_count"'* ]]; then
+            log_success "/me/meters/stats -> Meter (route 12) — stats payload, wildcard forwards"
+        elif [[ "$B" == *'"wallets"'* ]]; then
+            log_fail "/me/meters/stats SHADOWED by IAM route 11 — got wallets payload"
+        elif [ -z "$B" ]; then
+            log_warn "/me/meters/stats empty body — meter upstream may be down; can't verify"
+        else
+            log_warn "/me/meters/stats unrecognized payload (can't fingerprint upstream): ${B:0:80}"
+        fi
     else
         log_warn "no JWT — skipping priority-collision isolation"
     fi
@@ -276,9 +294,9 @@ else
     done
 
     # --- Case 12: gRPC routes reachable through APISIX (routes 100/101) --
-    # ConnectRPC over HTTP/JSON. Route 100 /identity.IdentityService/* (apisix.yaml:313),
-    # route 101 /trading.TradingService/* (apisix.yaml:322). Reachable => NOT 404/000.
-    # 403/401/200/4xx all prove the route exists and proxied to the gRPC upstream.
+    # ConnectRPC over HTTP/JSON. Routes 100/101 are ip-restricted (private CIDRs
+    # only, same as route 8) — e2e runs from localhost so 403 here means the
+    # whitelist regressed. Reachable => NOT 404/000. 401/200/4xx prove proxied.
     log_info "Case 12: gRPC routes reachable via APISIX (routes 100/101)"
     C=$(apx -X POST "$APISIX_URL/identity.IdentityService/VerifyToken" \
         -H "Content-Type: application/json" -d '{}')

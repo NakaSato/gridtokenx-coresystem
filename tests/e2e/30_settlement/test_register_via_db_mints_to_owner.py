@@ -50,7 +50,11 @@ SUBJECT = os.getenv("MINT_NATS_SUBJECT", "chain.tx.mint")
 # meter-service registration API (binds 0.0.0.0:8080, host-mapped to 4062).
 METER_SERVICE = os.getenv("METER_SERVICE_URL", "http://localhost:4062")
 JWT_SECRET = os.getenv(
-    "JWT_SECRET", "dev-jwt-secret-key-minimum-32-characters-long-for-development-2025"
+    "JWT_SECRET",
+    # Falls back to JWT_SECRET (env.sh reads it from the repo .env) before the
+    # .env.example literal: services verify with the real secret, so the literal
+    # yields 401 "invalid or expired token" from a healthy service.
+    os.getenv("JWT_SECRET", "dev-jwt-secret-key-minimum-32-characters-long-for-development-2025"),
 )
 
 MINT_WAIT = float(os.getenv("MINT_WAIT_SECS", "150"))

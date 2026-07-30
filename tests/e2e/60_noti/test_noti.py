@@ -22,7 +22,10 @@ SVC = "noti.v1.NotificationService"
 # with the service JWT_SECRET. Mint one with the dev secret (override via env).
 NOTI_JWT_SECRET = os.getenv(
     "NOTI_JWT_SECRET",
-    "dev-jwt-secret-key-minimum-32-characters-long-for-development-2025",
+    # Falls back to JWT_SECRET (env.sh reads it from the repo .env) before the
+    # .env.example literal: services verify with the real secret, so the literal
+    # yields 401 "invalid or expired token" from a healthy service.
+    os.getenv("JWT_SECRET", "dev-jwt-secret-key-minimum-32-characters-long-for-development-2025"),
 )
 _BEARER = crypto.mint_hs256_jwt(NOTI_JWT_SECRET)
 

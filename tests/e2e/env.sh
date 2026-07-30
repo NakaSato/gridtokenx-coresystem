@@ -38,6 +38,21 @@ export NATS_URL_HOST="${NATS_URL_HOST:-nats://gridtokenx:gridtokenx_nats_dev@loc
 # 50_chain_bridge isolation cases (no-role / bogus-role rejected) cannot hold and skip.
 # Mirror the running bridge (.env sets it true for local dev); CI with mTLS sets it false.
 export CHAIN_BRIDGE_INSECURE="${CHAIN_BRIDGE_INSECURE:-true}"
+# JWT signing secret. Every service verifies bearer tokens with the JWT_SECRET
+# docker-compose passes from the repo `.env`, so a test that mints tokens with the
+# `.env.example` literal gets 401 "invalid or expired token" from a perfectly
+# healthy service. That drift is exactly what made every APISIX-authenticated route
+# 401 until apisix.yaml was switched to `${{JWT_SECRET}}` — do not re-hardcode it
+# here. Read the real value from `.env`, falling back to the dev literal only when
+# there is no `.env` to read.
+if [ -z "${JWT_SECRET:-}" ]; then
+    _e2e_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+    if [ -f "$_e2e_root/.env" ]; then
+        JWT_SECRET="$(sed -n 's/^JWT_SECRET=//p' "$_e2e_root/.env" | tail -1)"
+    fi
+    JWT_SECRET="${JWT_SECRET:-dev-jwt-secret-key-minimum-32-characters-long-for-development-2025}"
+fi
+export JWT_SECRET
 export GATEWAY_SECRET="${GATEWAY_SECRET:-gridtokenx-gateway-secret-2025}"
 export GATEWAY_HEADERS=(-H "x-gridtokenx-role: api-gateway" -H "x-gridtokenx-gateway-secret: $GATEWAY_SECRET")
 # Aggregator Bridge ingest key. Auth migrated to IAM validation (aggregator_api::auth),
