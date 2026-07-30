@@ -76,3 +76,14 @@ password = "gridtokenx_password"
 name = "gridtokenx_user"
 database = "gridtokenx_thbc_migrate"
 password = "gridtokenx_password"
+
+# ERP Bridge. Same per-database rule as THBC above — both entries required.
+[[users]]
+name = "gridtokenx_user"
+database = "erp_bridge"
+password = "gridtokenx_password"
+
+[[users]]
+name = "gridtokenx_user"
+database = "erp_bridge_migrate"
+password = "gridtokenx_password"

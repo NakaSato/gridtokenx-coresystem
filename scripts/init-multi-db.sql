@@ -44,3 +44,10 @@ WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'gridtokenx_chain')\ge
 
 SELECT 'CREATE DATABASE gridtokenx_thbc'
 WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'gridtokenx_thbc')\gexec
+
+-- ERP Bridge. Named `erp_bridge`, not `gridtokenx_erp`, matching the service's
+-- own DATABASE_URL. It holds the PoD <-> Business Partner <-> wallet join, which
+-- is the only PII in the system, so it is deliberately its own physical database
+-- with no cross-service JOINs reaching into it.
+SELECT 'CREATE DATABASE erp_bridge'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'erp_bridge')\gexec

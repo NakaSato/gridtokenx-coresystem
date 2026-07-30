@@ -264,6 +264,25 @@ flowchart LR
   user signing keys) — `GET /v1/admin/invariants` is authoritative, and
   [`KNOWN_LIMITATIONS.md`](KNOWN_LIMITATIONS.md) states the gaps.
 
+### ERP Bridge (`gridtokenx-erp-bridge`)
+- **Port**: 5050 (HTTP admin/health; the gRPC + mTLS surface is phase 2) · The only service
+  permitted to speak to utility ERP systems (SAP IS-U / S/4HANA Utilities) and to REC
+  registries. Own physical database (`erp_bridge`).
+- **Strictly downstream — this is the load-bearing property.** No ERP response,
+  acknowledgement or read-back may influence a mint, a settlement or an on-chain write.
+  `gridtokenx-blockchain-core` and every Solana/Anchor crate are absent from its dependency
+  graph, it publishes only under the `erp.` NATS namespace, and both facts are enforced by
+  tests plus `gridtokenx-erp-bridge/scripts/check-no-chain-dep.sh`. Compromising it yields
+  false ERP records — which reconciliation against the chain detects — not a fraudulent mint.
+- **Phase 1: a mock ERP, in dry-run.** `ERP_ADAPTER=mock`, `ERP_ADAPTER_DRY_RUN=true`,
+  `ERP_FICA_POSTING_ENABLED=false`, `REC_ADAPTER_ENABLED=false`. Real-adapter work is blocked
+  on discovery: only MEA is credibly a SAP shop from open sources, and PEA/EGAT are
+  unconfirmed. The IS-U IDoc adapter builds and validates its payload but refuses to transmit.
+- The three-way meter/chain/ERP reconciliation is the first **detective** control this
+  architecture has against a compromised Aggregator Bridge. It is detective, not preventive,
+  and it does not close the TEE attestation gap. The chain and ERP feeds are not yet wired —
+  see [`gridtokenx-erp-bridge/ARCHITECTURE.md`](gridtokenx-erp-bridge/ARCHITECTURE.md) §7.
+
 ### Demand Response (VPP flex dispatch)
 
 Autonomous, fleet-driven demand response inside the Aggregator Bridge — no external SCADA feed; the meter fleet is itself the frequency sensor.
@@ -420,6 +439,7 @@ A deliberately layered protocol stack: standard meter/IoT protocols at the physi
 | **Noti Service** | `4060` | `5060` | Notifications Dispatcher |
 | **Meter Service** | `4062` | — | Smart Meter Dashboard Read API |
 | **THBC Settlement** | `4070` | — | Payment leg — fiat on/off-ramp *(design + simulation)* |
+| **ERP Bridge** | `5050` | — | SAP IS-U / S4 + REC registry egress *(phase 1, mock adapter, dry-run)* |
 | **Simulator API** | `12010` | — | IoT Simulation Backend |
 | **Trading UI** | `11001` | — | Exchange Web App |
 | **Explorer UI** | `11002` | — | Block Explorer UI |

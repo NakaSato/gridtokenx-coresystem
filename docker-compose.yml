@@ -1151,6 +1151,80 @@ services:
       retries: 3
       start_period: 15s
 
+  erp-bridge:
+    build:
+      # Repo-root context: erp-api takes a path dependency on the sibling
+      # gridtokenx-telemetry submodule. It deliberately does NOT need
+      # gridtokenx-blockchain-core — if this build ever starts asking for it,
+      # the direction invariant has been broken, not the Dockerfile.
+      context: ./
+      dockerfile: gridtokenx-erp-bridge/Dockerfile
+    container_name: gridtokenx-erp-bridge
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      # HTTP admin/health. The gRPC + SPIFFE mTLS surface is phase 2, so these
+      # endpoints are unauthenticated — do not publish this port past the mesh.
+      - "${ERP_BRIDGE_PORT:-5050}:5050"
+    environment:
+      ERP_BRIDGE_GRPC_ADDR: 0.0.0.0:5050
+      # Own physical database. No JOINs to `users` or any other service's tables.
+      DATABASE_URL: postgres://${POSTGRES_USER:-gridtokenx_user}:${POSTGRES_PASSWORD:-gridtokenx_password}@pgdog:6432/erp_bridge
+      # sqlx::migrate! holds a session-scoped advisory lock that the pgdog
+      # transaction-mode pool would break. Session-mode alias, same physical DB.
+      ERP_MIGRATION_DATABASE_URL: postgres://${POSTGRES_USER:-gridtokenx_user}:${POSTGRES_PASSWORD:-gridtokenx_password}@pgdog:6432/erp_bridge_migrate
+      ERP_ADAPTER: ${ERP_ADAPTER:-mock}
+      ERP_ADAPTER_DRY_RUN: ${ERP_ADAPTER_DRY_RUN:-true}
+      ERP_UTILITY: ${ERP_UTILITY:-MEA}
+      ERP_ENCRYPTION_SECRET: ${ERP_ENCRYPTION_SECRET:-dev_only_change_me_0123456789abcdef}
+      ERP_FICA_POSTING_ENABLED: ${ERP_FICA_POSTING_ENABLED:-false}
+      REC_ADAPTER_ENABLED: ${REC_ADAPTER_ENABLED:-false}
+      REC_NET_BILLING_FEED_AVAILABLE: ${REC_NET_BILLING_FEED_AVAILABLE:-false}
+      ERP_RECON_TOLERANCE_KWH: ${ERP_RECON_TOLERANCE_KWH:-0.01}
+      # meter.readings lives on the MARKET cluster — that is where the
+      # Aggregator Bridge publishes it (see its KAFKA_BOOTSTRAP_SERVERS +
+      # KAFKA_TOPIC_METER_READINGS above). Pointing this at kafka-cmd would
+      # subscribe successfully to a topic that never receives a reading, which
+      # looks identical to "no meters are reporting".
+      KAFKA_BOOTSTRAP_SERVERS: kafka-market:9002
+      # Audit has its own cluster, same as IAM / Trading / Aggregator Bridge.
+      KAFKA_AUDIT_BROKERS: kafka-audit:9003
+      ERP_KAFKA_GROUP_ID: erp-bridge-v1
+      ERP_KAFKA_READING_TOPIC: meter.readings
+      ERP_KAFKA_AUDIT_TOPIC: erp.audit.events
+      # Publish-only, and only under `erp.`: export.done / export.failed /
+      # recon.break. This service has no chain.tx.* publisher.
+      NATS_URL: ${NATS_URL:-nats://gridtokenx:gridtokenx_nats_dev@nats:4222}
+      RUST_LOG: ${ERP_RUST_LOG:-info,gridtokenx_erp_bridge=debug,erp_logic=debug,erp_persistence=debug}
+      TZ: ${TZ}
+    depends_on:
+      pgdog:
+        condition: service_healthy
+      kafka-market:
+        condition: service_started
+      kafka-audit:
+        condition: service_started
+      nats:
+        condition: service_started
+    networks:
+      - gridtokenx-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+    healthcheck:
+      # /health is liveness and reports the gate state (adapter, dry_run, FI-CA,
+      # REC). /ready covers the database only — an ERP outage must never take
+      # this service out of rotation, because the outbox is what survives one.
+      test: ["CMD", "busybox", "wget", "-qO-", "http://127.0.0.1:5050/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
   # Trading Platform (Next.js)
   trading-ui:
     build:

@@ -339,6 +339,25 @@ migrate-info:
 run-oracle:
     (cd gridtokenx-aggregator-bridge; cargo run)
 
+# ERP Bridge tests (no infrastructure required — mock adapter, pure logic)
+erp-test:
+    (cd gridtokenx-erp-bridge; cargo test)
+
+# ERP Bridge lint
+erp-clippy:
+    (cd gridtokenx-erp-bridge; cargo clippy --all-targets -- -D warnings)
+
+# The direction-invariant build gate: assert erp-bridge has NO path to the chain.
+# There is no CI here — this is the only signal you get. Run it after any change
+# to an erp-bridge Cargo.toml.
+erp-check-invariant:
+    (cd gridtokenx-erp-bridge; ./scripts/check-no-chain-dep.sh)
+    (cd gridtokenx-erp-bridge; cargo test -p erp-api --test direction_invariant)
+
+# Run erp-bridge locally (needs Postgres; defaults to the mock adapter in dry-run)
+run-erp-bridge:
+    (cd gridtokenx-erp-bridge; cargo run --bin gridtokenx-erp-bridge)
+
 # Verify Trading Service can reach all its internal dependencies (Postgres, Redis, Chain Bridge gRPC, NATS, IAM, Kafka)
 verify-conns:
     (cd gridtokenx-trading-service; cargo run --quiet --bin verify-connections)

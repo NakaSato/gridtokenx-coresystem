@@ -156,3 +156,24 @@ role = "primary"
 pooler_mode = "session"
 pool_size = 3
 min_pool_size = 1
+
+# ERP Bridge DB (erp_outbox, erp_td002_pending, erp_reconciliation,
+# erp_pod_binding). Greenfield and deliberately isolated: erp_pod_binding holds
+# the only PII in the system (Business Partner, encrypted at rest), so nothing
+# else routes here.
+[[databases]]
+name = "erp_bridge"
+host = "postgres"
+port = 5432
+role = "primary"
+pooler_mode = "transaction"
+# Session-mode alias for sqlx::migrate!, same physical DB.
+[[databases]]
+name = "erp_bridge_migrate"
+database_name = "erp_bridge"
+host = "postgres"
+port = 5432
+role = "primary"
+pooler_mode = "session"
+pool_size = 3
+min_pool_size = 1

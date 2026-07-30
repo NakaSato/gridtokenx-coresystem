@@ -44,3 +44,6 @@
 [submodule "gridtokenx-thbc-service"]
 	path = gridtokenx-thbc-service
 	url = https://github.com/NakaSato/gridtokenx-thbc-service.git
+[submodule "gridtokenx-erp-bridge"]
+	path = gridtokenx-erp-bridge
+	url = git@github.com:NakaSato/gridtokenx-erp-bridge.git

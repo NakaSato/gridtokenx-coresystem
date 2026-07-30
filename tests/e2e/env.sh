@@ -16,6 +16,9 @@ export AGGREGATOR_BRIDGE_REST="${AGGREGATOR_BRIDGE_REST:-http://localhost:4030}"
 export AGGREGATOR_BRIDGE_GRPC="${AGGREGATOR_BRIDGE_GRPC:-localhost:50051}"  # docker-compose pins GRPC_PORT=50051 and maps host 50051:50051 (compose:655,660). The container default 5030 is NOT published — gRPC ingest (BulkRawIngest) lands on 50051.
 export CHAIN_BRIDGE_GRPC="${CHAIN_BRIDGE_GRPC:-localhost:5040}"
 export NOTI_GRPC="${NOTI_GRPC:-localhost:5060}"  # docker-compose publishes noti ConnectRPC at host 5060 (container 8090)
+# ERP Bridge HTTP admin/health. Phase 1 is HTTP, not gRPC — the ConnectRPC + mTLS
+# surface is phase 2, so these endpoints are unauthenticated and mesh-internal.
+export ERP_BRIDGE_URL="${ERP_BRIDGE_URL:-http://localhost:5050}"
 export SIMULATOR_URL="${SIMULATOR_URL:-http://localhost:12010}"
 
 # --- Infra ---
