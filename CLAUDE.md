@@ -345,6 +345,33 @@ just openadr-e2e        # OpenADR / OpenLEADR VTN↔VEN demand-response flow
 - Docker runtime: **OrbStack** (not Docker Desktop) for macOS.
 - Shell: Nushell required for `just` and `grx.nu` scripts.
 
+### After wiping the databases, three things must be re-seeded or the stack lies to you
+
+`docker compose down -v` destroys rows that nothing recreates on boot, and each failure
+surfaces far from its cause. All three were hit on 2026-07-30.
+
+1. **The ingest API key** — `api_keys` lives in `gridtokenx_iam`, and without it the
+   Aggregator Bridge logs `🚫 API Key rejected by IAM: Invalid API Key` and drops **every**
+   reading. Nothing else complains: containers stay healthy, but zero billing bins form and
+   no surplus is ever minted. Repair with `./scripts/app.sh seed-apikey` (verify with
+   `check-apikey`).
+2. **Service schemas that no service migrates itself.** IAM, noti, thbc and chain-bridge
+   migrate on boot; the shared `gridtokenx`, `gridtokenx_trading` and `gridtokenx_meter`
+   databases do **not**. Apply them with `sqlx migrate run` from the owning service —
+   metering is owned by a single migrate job (`gridtokenx-aggregator-bridge/src/bin/migrate.rs`)
+   because that DB is shared with meter-service and two boot runners would race one
+   `_sqlx_migrations` ledger.
+3. **On-chain zone markets, if the ledger was also reset.** See the box below.
+
+> **An order in a zone with no `ZoneMarket` is accepted, matched, and can never settle.**
+> `record_order_custodial` takes `zone_market` as an `AccountLoader`
+> (`gridtokenx-anchor/programs/trading/src/instructions/record_order_custodial.rs:11`), so an
+> uninitialized zone is still system-owned and on-chain placement fails with
+> `AccountOwnedByWrongProgram` (Custom **3007**). The REST API still returns 200, the CDA
+> still matches the order and marks it `filled` — but `trading_orders.order_pda` stays NULL
+> and the settlement later flips to `permanently_failed`. `bootstrap.ts` covered only zones
+> 0–3; run `./scripts/init-zones.sh` (idempotent) to create the rest on a running chain.
+
 ---
 
 ## Service-Specific Gotchas

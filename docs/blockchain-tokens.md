@@ -192,9 +192,63 @@ total_thbc_supply ≤ reserve_attested_thbc
 
 > **Simulation note:** In this co-simulation, payment settles on-chain as a THBC swap — fully simulated on localnet. In a real deployment, fiat would settle off-chain through existing utility billing and the §97(4) fund. Both paths are architecturally supported; only the simulated on-chain path is implemented. (v3 §II.2)
 
+### Which mint the trading service actually settles in
+
+Trading settles in whatever `CURRENCY_TOKEN_MINT` names — that is **not** automatically the
+treasury's THBC mint, and the difference is invisible from the trade itself.
+
+Until 2026-07-30 this pointed at a dev-minted classic-SPL token whose mint authority was the
+platform dev wallet: no reserve backing, no attestation, and none of F1/F3/F5/F7. The
+treasury's real THBC (`[b"thbc_mint"]`, mint authority = the treasury PDA) had **zero
+supply** — nothing had ever been issued — while the trading `Market.settlement_thbc_mint`
+already pointed at it. Trades therefore settled in a stand-in while the on-chain config
+claimed otherwise.
+
+To settle in real THBC, four things must line up:
+
+1. **Supply must exist.** `issue_thbc` is the only instruction that raises `thbc_supply`, and
+   it checks F5 (attestation freshness) *before* F1 (`supply + amount ≤ attested_reserve −
+   reserve_encumbered`). A treasury that has never been attested has `attestation_ts = 0`,
+   which is permanently stale — so `update_attestation` must run first
+   (`gridtokenx-anchor/scripts/issue-thbc.ts` does both, in that order).
+2. **`CURRENCY_TOKEN_MINT`** = the treasury THBC mint.
+3. **`CURRENCY_TOKEN_PROGRAM=token2022`.** THBC is Token-2022 while the legacy stand-in was
+   classic SPL, and an ATA derived under the wrong program is a *different address*. The
+   on-chain context takes the two token programs separately (`token_program` for the currency
+   accounts, `secondary_token_program` for energy) and constrains the currency accounts with
+   `owner = token_program.key()`, so the wrong program fails with Anchor `ConstraintOwner`
+   (2004) — not with anything that names the mint. Defaults to classic SPL so existing
+   deployments are unaffected.
+4. **Collector accounts must pre-exist.** The settlement path creates the seller's currency
+   ATA and the buyer's energy ATA idempotently, but the fee/wheeling/loss collector ATAs are
+   only *derived* — a missing one fails the settlement.
+
+> `total_settled_thbc` stays **0** even after this. The treasury `record_settlement` CPI is
+> mandatory only on `settle_offchain_match`; the live path is `execute_atomic_settlement`,
+> which has no treasury CPI at all. Settling *in* THBC and *recording* to the treasury are
+> two different things.
+
 ---
 
 ## 6. Atomic Escrow Mechanism (impl — simulated)
+
+> **What runs today is atomic but NOT party-authorized — do not cite this section as the
+> live settlement model.** The trading service settles through `execute_atomic_settlement`
+> (context inlined at `gridtokenx-anchor/programs/trading/src/lib.rs:969`), whose only
+> `Signer` accounts are `escrow_authority` and `market_authority` — **both the platform**.
+> The buyer never signs, the seller never signs, and the escrows are the platform's *pooled*
+> ATAs rather than per-trade PDAs. Atomicity is real (one instruction, all-or-nothing across
+> five `transfer_checked` CPIs, with a `[b"trade", trade_id]` nullifier blocking replay), so
+> it protects against a **half-completed settlement** — but not against a compromised or
+> malicious platform. That is the concrete form of the custody problem recorded as
+> invariant **F8 = `Violated`** in
+> `gridtokenx-thbc-service/crates/thbc-core/src/invariant.rs`.
+>
+> The both-peers-sign design below corresponds to `settle_offchain_match`, which verifies
+> Ed25519-signed order payloads from each party through the instructions sysvar and is the
+> path that also makes the treasury `record_settlement` CPI mandatory. **The trading service
+> does not currently call it.** Moving to it is the single change that would make these swaps
+> party-authorized instead of platform-authorized.
 
 ### The Problem
 
