@@ -107,7 +107,15 @@ solana_validator_cancel_kill() {
 solana_validator_schedule_kill() {
     local ttl="${1:-3600}"
     if ! [ "$ttl" -gt 0 ] 2>/dev/null; then
-        log_info "Validator auto-kill disabled (TTL=$ttl)"
+        # Cancel FIRST, then report. Returning early without cancelling left any
+        # timer armed by a previous default-TTL start still running, so a later
+        # `SOLANA_VALIDATOR_TTL=0` restart could still be killed out from under
+        # you — silently, since `pkill` leaves nothing in validator.log. The
+        # symptom is a validator that vanishes with no panic and no error, and
+        # (because a preserved ledger keeps its clock) an on-chain clock that
+        # falls further behind wall time with every such death.
+        solana_validator_cancel_kill
+        log_info "Validator auto-kill disabled (TTL=$ttl); any prior timer cancelled"
         return 0
     fi
     # Drop any prior timer first so we don't stack multiple killers.
