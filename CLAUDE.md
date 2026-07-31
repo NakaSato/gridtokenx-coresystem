@@ -371,6 +371,23 @@ surfaces far from its cause. All three were hit on 2026-07-30.
 > still matches the order and marks it `filled` — but `trading_orders.order_pda` stays NULL
 > and the settlement later flips to `permanently_failed`. `bootstrap.ts` covered only zones
 > 0–3; run `./scripts/init-zones.sh` (idempotent) to create the rest on a running chain.
+>
+> **The E2E trading suite manufactures this trap on every run, by design.**
+> `tests/e2e/40_trading/test_trading.py:30` derives a per-run zone as
+> `7000 + (E2E_RUN_ID % 1000)` so concurrent runs get an unpolluted book — and nothing
+> initializes that zone's market, so every order it places is rejected 3007 and left with a
+> NULL `order_pda`. That is where stranded `permanently_failed` settlements in zones 7000–7999
+> come from; they are test residue, **not** lost customer trades. Diagnosed 2026-08-01 from 14
+> such rows (all `retry_count = 5`, all blaming `"not included in on-chain batch result"` —
+> the symptom, not the cause). `scripts/e2e_two_user_trade.sh:62` hit the same trap earlier.
+>
+> Since 2026-08-01 the order API **refuses** a deterministically rejected placement (422)
+> instead of accepting an order that can never settle, so this now surfaces at submit time.
+> The consequence for that concurrency test is that its resting sell is refused and the test
+> **skips** (`test_trading.py:242`) rather than passing on unsettleable orders. To restore the
+> coverage, initialize the per-run zone before pytest — `ZONES=<zone> ./scripts/init-zones.sh`
+> — or narrow the derivation to a small pre-initialized pool. Left undecided on purpose: it is
+> a harness-ownership call, not a code fix.
 
 ---
 
