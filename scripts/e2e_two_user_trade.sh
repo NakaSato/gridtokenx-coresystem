@@ -41,7 +41,7 @@
 #   SIM_CANDIDATE_POOL  how many real sim meter ids to try per side before falling back
 #                       to an invented serial (default 25; a sim meter is one-owner, so
 #                       ids a prior run already claimed 409 and are skipped)
-#   GW              trading gateway (https) (default https://apisix.gridtokenx-coresystem.orb.local)
+#   GW              trading gateway (default http://localhost:4001 — APISIX published port)
 #   GATEWAY_SECRET  api-gateway shared secret (default gridtokenx-gateway-secret-2025)
 #   DEFAULT_PASS    user password           (default TestPass123!)
 #   ZONE_ID         order zone              (default 1)
@@ -77,7 +77,11 @@ SIM_CONTAINER="${SIM_CONTAINER:-gridtokenx-smartmeter-simulator}"
 REDIS_CONTAINER="${REDIS_CONTAINER:-gridtokenx-redis}"
 KEY_SECRET="${KEY_SECRET:-gridtokenx-sim}"
 WIRE_TELEMETRY="${WIRE_TELEMETRY:-1}"
-GW="${GW:-https://apisix.gridtokenx-coresystem.orb.local}"
+# APISIX on its published HTTP port, not the .orb.local hostname: OrbStack's
+# domain proxy stopped landing on a serving container port after a recreate, so
+# that host 404'd every path (including auth-exempt /health) while the real
+# listener on :4001 served routes correctly.
+GW="${GW:-http://localhost:4001}"
 GW_SECRET="${GATEWAY_SECRET:-gridtokenx-gateway-secret-2025}"
 PASS="${DEFAULT_PASS:-TestPass123!}"
 ZONE_ID="${ZONE_ID:-1}"

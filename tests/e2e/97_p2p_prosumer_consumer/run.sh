@@ -48,7 +48,13 @@ source "$HERE/../env.sh"
 IAM_BASE="${IAM_BASE:-$IAM_URL}"                                     # http://localhost:4010
 METER_BASE="${METER_BASE:-http://localhost:${METER_SERVICE_PORT:-4062}}"
 SIM_REST_BASE="${SIM_REST_BASE:-$SIMULATOR_URL}"          # sim's own REST API (env.sh: host 12010 -> container 8082)
-GW="${GW:-https://apisix.gridtokenx-coresystem.orb.local}"          # trading gateway (https, on-chain order leg)
+# Trading gateway. Defaults to the SAME APISIX endpoint env.sh already resolved,
+# not the .orb.local hostname: OrbStack's domain proxy stopped landing on a
+# serving container port after a container recreate, so every request there 404'd
+# — including auth-exempt /health — while both real listeners (9080 -> :4001 and
+# 9443 -> :8443) served routes correctly. That produced a suite failure that read
+# as a broken trading service when the gateway was fine.
+GW="${GW:-$APISIX_URL}"
 GW_SECRET="${GATEWAY_SECRET}"
 PASS="${E2E_PASSWORD}"
 
