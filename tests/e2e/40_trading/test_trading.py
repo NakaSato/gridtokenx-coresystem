@@ -14,7 +14,9 @@ Run: cd tests/e2e && python -m pytest 40_trading -v
 """
 import concurrent.futures
 import os
+import subprocess
 import time
+from pathlib import Path
 
 import pytest
 import requests
@@ -36,6 +38,53 @@ def _conc_zone():
 
 
 CONC_ZONE = _conc_zone()
+
+
+@pytest.fixture(scope="module", autouse=True)
+def conc_zone_market():
+    """Create the per-run zone's on-chain `ZoneMarket` before this module's tests.
+
+    A zone with no ZoneMarket cannot settle: `record_order_custodial` takes
+    `zone_market` as an `AccountLoader`, so placement is rejected `Custom 3007`
+    (`AccountOwnedByWrongProgram`). Nothing initializes the 7000-range zones this
+    module invents, so every order it placed used to be accepted with a NULL
+    `order_pda`, matched off-chain, and left a `permanently_failed` settlement behind
+    — 14 such rows were traced back to exactly this. Since the order API began
+    refusing a deterministically rejected placement (422), the omission instead makes
+    the concurrency test skip, silently costing its coverage.
+
+    Initializing here rather than in `run.sh` keeps `_conc_zone()` the single source of
+    truth for the derivation — a shell copy would drift — and means the suite works the
+    same way when pytest is invoked directly.
+
+    Best-effort by design: without a reachable validator, dev wallet or node toolchain
+    there is nothing to create, and the existing skip guards already handle a book that
+    will not accept orders. The script is idempotent, so re-running a zone is a no-op.
+    """
+    script = Path(__file__).resolve().parents[3] / "scripts" / "init-zones.sh"
+    if not script.exists():
+        print(f"[conc-zone] {script} not found; leaving zone {CONC_ZONE} uninitialized")
+        return
+    try:
+        r = subprocess.run(
+            [str(script)],
+            env={**os.environ, "ZONES": str(CONC_ZONE)},
+            capture_output=True,
+            text=True,
+            timeout=240,
+            check=False,
+        )
+        if r.returncode == 0:
+            print(f"[conc-zone] zone {CONC_ZONE} ZoneMarket ready")
+        else:
+            # Not a failure of the tests themselves — say why, then let the skip
+            # guards do their job.
+            print(
+                f"[conc-zone] could not initialize zone {CONC_ZONE} "
+                f"(exit {r.returncode}): {(r.stderr or r.stdout).strip()[:300]}"
+            )
+    except (OSError, subprocess.SubprocessError) as e:
+        print(f"[conc-zone] could not initialize zone {CONC_ZONE}: {e}")
 
 
 def _up():
