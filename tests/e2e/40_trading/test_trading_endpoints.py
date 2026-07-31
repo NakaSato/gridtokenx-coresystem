@@ -107,19 +107,26 @@ def test_matching_status_shape(new_user):
 
 
 def test_market_stats_shape(new_user):
-    """GET /api/v1/markets/stats -> get_market_stats (rest.rs:475, MOCK).
-    NOTE: only /api/v1/stats is routed to this handler (startup.rs:99). There is
-    NO /api/v1/markets/stats route, so hit the registered path. MarketStatsResponse:465
-    — timestamp, total_volume_24h_kwh/avg_price_24h (str), active_users:u32,
-    grid_stability_index/renewable_ratio (str)."""
+    """GET /api/v1/stats -> get_market_stats. NOTE: only /api/v1/stats is routed
+    to this handler (startup.rs:99); there is NO /api/v1/markets/stats route.
+
+    Shape is MarketStatsResponse (rest/orders.rs:871), now derived from real
+    settlements: timestamp, total_volume_24h_kwh/avg_price_24h (decimal strings),
+    active_users and trade_count_24h (ints). `grid_stability_index` and
+    `renewable_ratio` are deliberately GONE — they were static mock values dropped
+    in ee3d711 ("real trade-derived market price; drop static/mock pricing"), and
+    asserting them kept a stale expectation alive after a deliberate change."""
     uid = new_user["user_id"] or pytest.skip("no user_id")
     r = requests.get(f"{TRADING}/api/v1/stats", headers=hdr(uid), timeout=8)
     assert r.status_code == 200, f"{r.status_code} {r.text}"
     j = r.json()
     assert isinstance(j["timestamp"], str)
-    for k in ("total_volume_24h_kwh", "avg_price_24h", "grid_stability_index", "renewable_ratio"):
+    for k in ("total_volume_24h_kwh", "avg_price_24h"):
         assert isinstance(j[k], str), f"{k} expected str decimal: {j[k]!r}"
-    assert isinstance(j["active_users"], int)
+    for k in ("active_users", "trade_count_24h"):
+        assert isinstance(j[k], int), f"{k} expected int: {j[k]!r}"
+    # The mock-era fields must stay gone; their return would mean mock pricing crept back.
+    assert "grid_stability_index" not in j and "renewable_ratio" not in j
 
 
 def test_p2p_orderbook_shape(new_user):
