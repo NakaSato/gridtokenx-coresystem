@@ -1,10 +1,16 @@
 """GridTokenX E2E — Postgres test helpers (via docker exec psql, matching existing scripts).
 
 DB-per-service aware: a table's assertions route to its owning service's database.
-PRE-cutover every PG_DB_* defaults to the shared `gridtokenx`, so nothing changes.
-POST a phase flip, override that phase's env (e.g. PG_DB_TRADING=gridtokenx_trading)
-so DB-level assertions hit the DB where the data actually lives. See
-docs/design-docs/db-per-service-migration.md §5c (#6b).
+Each PG_DB_* now defaults to the database that phase ACTUALLY cut over to; override
+the env to point a phase elsewhere. See docs/design-docs/db-per-service-migration.md
+§5c (#6b).
+
+These used to default to the shared `gridtokenx` on the "pre-cutover, so nothing
+changes" principle — correct when written, wrong once the phases landed. `users`
+now lives only in gridtokenx_iam, so 90_golden_path died with a bare
+CalledProcessError from psql (relation "users" does not exist) that named neither
+the table nor the database. The same stale default was fixed in
+test-registration-e2e.sh, test-prosumer1.sh and e2e_two_user_trade.sh.
 """
 from __future__ import annotations  # PEP 604 `str | None` on the Py3.9 e2e venv
 
@@ -16,11 +22,12 @@ PG_CONTAINER = os.getenv("PG_CONTAINER", "gridtokenx-postgres")
 PG_USER = os.getenv("PG_USER", "gridtokenx_user")
 PG_DB = os.getenv("PG_DB", "gridtokenx")  # legacy default / fallback
 
-# Per-domain DBs — each defaults to the shared DB until that phase cuts over.
-PG_DB_IAM = os.getenv("PG_DB_IAM", PG_DB)
-PG_DB_TRADING = os.getenv("PG_DB_TRADING", PG_DB)
-PG_DB_METER = os.getenv("PG_DB_METER", PG_DB)
-PG_DB_CHAIN = os.getenv("PG_DB_CHAIN", PG_DB)
+# Per-domain DBs. Defaults are the post-cutover homes; a phase that has NOT cut
+# over in some environment can be pointed back with e.g. PG_DB_METER=gridtokenx.
+PG_DB_IAM = os.getenv("PG_DB_IAM", "gridtokenx_iam")
+PG_DB_TRADING = os.getenv("PG_DB_TRADING", "gridtokenx_trading")
+PG_DB_METER = os.getenv("PG_DB_METER", "gridtokenx_meter")
+PG_DB_CHAIN = os.getenv("PG_DB_CHAIN", "gridtokenx_chain")
 
 # Table -> owning-domain DB. Unlisted tables fall back to PG_DB (shared).
 _TABLE_DB = {
