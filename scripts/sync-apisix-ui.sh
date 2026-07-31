@@ -47,34 +47,69 @@ import json, os, sys, urllib.request, urllib.error
 cfg = json.load(open(os.environ["TMP"]))
 admin, key = os.environ["ADMIN"], os.environ["KEY"]
 
-def put(path, obj):
+def call(method, path, obj=None):
     req = urllib.request.Request(
         f"{admin}/apisix/admin/{path}",
-        data=json.dumps(obj).encode(),
-        method="PUT",
+        data=json.dumps(obj).encode() if obj is not None else None,
+        method=method,
         headers={"X-API-KEY": key, "Content-Type": "application/json"},
     )
     try:
         with urllib.request.urlopen(req, timeout=10) as r:
-            return r.status, ""
+            return r.status, r.read().decode(errors="replace")
     except urllib.error.HTTPError as e:
         return e.code, e.read().decode(errors="replace")[:200]
 
-failures = 0
+def remote_ids(section):
+    """ids currently in the mirror — used to prune what apisix.yaml no longer has."""
+    status, body = call("GET", section)
+    if not 200 <= status < 300:
+        return []
+    try:
+        listing = json.loads(body).get("list") or []
+    except json.JSONDecodeError:
+        return []
+    out = []
+    for row in listing:
+        v = row.get("value") or {}
+        rid = v.get("id") or v.get("username")
+        if rid is not None:
+            out.append(str(rid))
+    return out
+
 # Referenced resources first so routes never point at ids that don't exist yet.
-for section, id_field in [
+SECTIONS = [
     ("upstreams", "id"),
     ("plugin_configs", "id"),
     ("ssls", "id"),
     ("consumers", "username"),
+    ("global_rules", "id"),
     ("routes", "id"),
-]:
+]
+
+failures = 0
+desired = {}
+for section, id_field in SECTIONS:
+    ids = set()
     for item in cfg.get(section) or []:
         rid = item[id_field]
-        status, err = put(f"{section}/{rid}", item)
+        ids.add(str(rid))
+        status, err = call("PUT", f"{section}/{rid}", item)
         ok = 200 <= status < 300
-        print(f"{'ok ' if ok else 'ERR'} {section}/{rid} -> {status}{(' ' + err) if err else ''}")
+        print(f"{'ok ' if ok else 'ERR'} {section}/{rid} -> {status}{('' if ok else ' ' + err)}")
         failures += 0 if ok else 1
+    desired[section] = ids
+
+# Prune in REVERSE dependency order (routes before the upstreams they reference).
+# Without this the mirror is additive-only: anything deleted from apisix.yaml lingers
+# in the mirror's etcd forever, which is exactly when you most want to see it gone.
+for section, _ in reversed(SECTIONS):
+    for rid in remote_ids(section):
+        if rid not in desired[section]:
+            status, err = call("DELETE", f"{section}/{rid}")
+            ok = 200 <= status < 300
+            print(f"{'del' if ok else 'ERR'} {section}/{rid} -> {status}{('' if ok else ' ' + err)}")
+            failures += 0 if ok else 1
 
 sys.exit(1 if failures else 0)
 PY

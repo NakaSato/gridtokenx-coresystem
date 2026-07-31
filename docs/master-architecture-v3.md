@@ -382,10 +382,20 @@ Validation against the published CINELDI 80-bus rural feeder (Engan et al.,
 - **Experiment 2 — meter-to-mint fidelity (validation):** OBIS→mint on real
   load; verify 1 GRID = 1 kWh, idempotency, conservation, monotonicity. The four
   invariants on real data.
-- **Experiment 3 — throughput (measurement):** λ_mint ≈ 5.33 mint·s⁻¹ on
-  localnet; p99 latency, peak throughput, replay duration (fill from runs).
-  Shows single-signer write-lock is the bottleneck — a simulation finding
-  motivating the multi-signer pool.
+- **Experiment 3 — throughput (measurement):** p99 latency, peak throughput,
+  replay duration (fill from runs). **Not yet run to saturation, so no ceiling
+  has been measured.**
+  > **Correction.** This bullet previously read "λ_mint ≈ 5.33 mint·s⁻¹ … shows
+  > single-signer write-lock is the bottleneck." It does not show that. 5.33 s⁻¹
+  > is the **ingest offered load** — 80 meters ÷ 15 s cadence
+  > (`UTCC_paper/sections/05-results.typ:10,25`) — reported for a *different*
+  > subsystem, and `06-discussion.typ:73` states under construct validity that it
+  > is a design rate, not a measured maximum. An arrival rate the workload asks
+  > for is not a capacity the system refused to exceed, and the mint path was
+  > never driven past it. The write-lock hypothesis remains plausible and
+  > untested; the experiment that would settle it is to push offered load past
+  > the suspected knee against 1 signer and against *n*, and report whether the
+  > knee moves with *n*.
 
 **Validation/scenario boundary:** runs adding PV/EV/storage are *scenario
 studies* (no ground truth), never reported as validated. **Threats to validity:**
@@ -405,7 +415,8 @@ digital twin (no Level-3 state estimation).
    work.
 3. Refactor Rail A (energy + REC) onto the closed foundation; idempotency
    explicit.
-4. Multi-signer fee-payer pool (removes ≈ 5.33 mint/s single-signer bottleneck).
+4. Multi-signer fee-payer pool (targets a *suspected*, still-unmeasured
+   single-signer write-lock ceiling — see Experiment 3).
 5. Then Rail B (DR, record-only), Dual-Tracker, and the designed 7-node cluster.
 
 ---

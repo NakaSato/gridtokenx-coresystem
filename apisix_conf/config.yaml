@@ -26,4 +26,20 @@ apisix:
     enable: true
     listen:
       - port: 9443
+
+plugin_attr:
+  prometheus:
+    # Bind the metrics exporter to 0.0.0.0, NOT the 127.0.0.1 default: Prometheus
+    # scrapes it over the compose network as apisix:9091, and on the default bind
+    # that connection is refused from every other container. The port is NOT
+    # published to the host — same ops-surface-stays-private stance as the
+    # ip-restricted /metrics route. Scrape job: docker/prometheus/prometheus.yml.
+    #
+    # This only exposes the endpoint. The per-route metric families
+    # (apisix_http_status, apisix_http_latency, apisix_bandwidth) additionally
+    # need the prometheus plugin attached to traffic — see `global_rules` in
+    # apisix.yaml. Without that, the exporter serves only process-level gauges.
+    export_addr:
+      ip: 0.0.0.0
+      port: 9091
 #END

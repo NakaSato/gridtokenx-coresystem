@@ -43,6 +43,47 @@ plugin_configs:
         policy: local
         allow_degradation: true
 
+  - id: 2 # JWT auth + ADMIN role gate — private admin surfaces only
+    # Same IAM-issued JWT as plugin_config 1, plus a claim check: the token's
+    # `role` must be exactly 'admin' (iam-core Role::Admin, granted out-of-band —
+    # `AuthService::register` refuses to self-assign it).
+    #
+    # IAM is the single authentication source for these surfaces. It is
+    # single-FACTOR: IAM has no MFA, so a stolen admin token is sufficient by
+    # itself. The compensating control is network scope — every route using this
+    # config MUST also carry `ip-restriction` (internal CIDRs), exactly as
+    # routes 8/13/100/101 do. This config does not imply that gate; the route
+    # must declare it.
+    #
+    # `allow_degradation` has no analogue here on purpose: a fault in this check
+    # must fail CLOSED. The function denies whenever it cannot positively read
+    # role == 'admin', including a nil payload.
+    plugins:
+      jwt-auth:
+        key_claim_name: iss
+        store_in_ctx: true
+      serverless-post-function:
+        phase: access
+        functions:
+          - "return function(conf, ctx)
+               local core = require('apisix.core')
+               local payload = ctx.jwt_auth_payload or ctx.jwt_payload or (ctx.state and ctx.state.jwt) or ctx.consumer
+               local role = payload and payload.role
+               if role ~= 'admin' then
+                 core.log.warn('admin surface denied: role=', tostring(role))
+                 return core.response.exit(403, {message = 'admin role required'})
+               end
+               local sub = payload and payload.sub
+               if not sub then
+                 return core.response.exit(403, {message = 'admin token missing subject'})
+               end
+               ngx.req.set_header('x-gridtokenx-user-id', sub)
+               ngx.req.set_header('x-gridtokenx-user-role', 'admin')
+               ngx.req.set_header('x-gridtokenx-role', 'api-gateway')
+               ngx.req.set_header('x-gridtokenx-gateway-secret', os.getenv('GRIDTOKENX_GATEWAY_SECRET') or 'gridtokenx-gateway-secret-2025')
+             end"
+      cors: {}
+
 # Attach the prometheus plugin to ALL traffic. The exporter server runs whenever the
 # plugin is loaded, but without this it only serves process-level gauges
 # (apisix_http_requests_total, apisix_upstream_status, nginx connections) — the
@@ -120,6 +161,15 @@ upstreams:
     type: roundrobin
     nodes:
       "noti-service:8080": 1
+    checks: *http_health_checks
+
+  # THBC payment leg. The container always binds 4008 regardless of the published
+  # host port (docker-compose.yml:1100 maps ${THBC_HTTP_PORT:-4070}:4008), so the
+  # in-network node is :4008 — not the host-side 4070.
+  - id: thbc
+    type: roundrobin
+    nodes:
+      "thbc-service:4008": 1
     checks: *http_health_checks
 
   - id: simulator
@@ -458,6 +508,58 @@ routes:
       # JS read the response. Without it the fetch fails with "Failed to fetch".
       cors: {}
     upstream_id: iam
+
+  - id: 61 # THBC Admin — PRIVATE (internal CIDRs only) + IAM admin role
+    # The payment-leg operator surface: reserve attestation (sets the F1 ceiling
+    # that authorizes minting), redemption confirmation (the ONLY operation that
+    # burns THBC supply), fiat payout, and the invariant/reserve/reconciliation
+    # reads.
+    #
+    # Two independent gates, both required:
+    #   1. ip-restriction — internal CIDRs only, same list as routes 8/13/100/101.
+    #   2. plugin_config 2 — IAM-issued JWT whose `role` claim is exactly 'admin'.
+    #
+    # Neither is sufficient alone and that is the point: IAM has no MFA, so the
+    # token is single-factor, and the network gate is what stops a stolen token
+    # from being usable from the internet. This is deliberately NOT the
+    # "SSO + MFA + 4-eyes" the THBC spec asks for — the gap is disclosed in
+    # thbc-core's invariant registry rather than papered over here.
+    #
+    # priority 20 so this wins over route 60's public paths if they ever widen to
+    # a prefix; today they are enumerated and cannot overlap.
+    priority: 20
+    uris:
+      - /api/v1/thbc/admin
+      - /api/v1/thbc/admin/*
+    plugins:
+      ip-restriction:
+        whitelist:
+          - 127.0.0.1/32
+          - 10.0.0.0/8
+          - 172.16.0.0/12
+          - 192.168.0.0/16
+      proxy-rewrite:
+        regex_uri: ["^/api/v1/thbc/admin/?(.*)", "/v1/admin/$1"]
+    plugin_config_id: 2
+    upstream_id: thbc
+
+  - id: 60 # THBC Public (holder surface) — JWT
+    # Explicitly enumerated, NOT a /api/v1/thbc/* catch-all. A prefix route here
+    # would map /api/v1/thbc/partner/webhooks/deposit onto the partner deposit
+    # webhook — the instruction that issues THBC against a claimed bank credit —
+    # behind nothing but a retail JWT. The partner surface is mTLS +
+    # client-cert-allowlist by design (thbc-api/src/lib.rs) and is deliberately
+    # NOT routed through this gateway at all.
+    uris:
+      - /api/v1/thbc/redemptions
+      - /api/v1/thbc/redemptions/*
+      - /api/v1/thbc/exchange/quote/buy
+      - /api/v1/thbc/exchange/quote/sell
+    plugins:
+      proxy-rewrite:
+        regex_uri: ["^/api/v1/thbc/(.*)", "/v1/$1"]
+    plugin_config_id: 1
+    upstream_id: thbc
 
   - id: 100 # IAM gRPC (ConnectRPC) — PRIVATE (mesh/dev only, no public internet)
     # Browser clients use REST via routes 10/11; mesh services call iam-service:8090

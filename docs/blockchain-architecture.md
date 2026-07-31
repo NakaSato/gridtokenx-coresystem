@@ -121,7 +121,7 @@ Four invariants demonstrated in simulation on CINELDI data: **idempotency** · *
 1. Close L1 gaps — audit log · parameter policy · pre-sign sim default
 2. Harden L2 — TEE + Merkle; name meter-level boundary as future work
 3. Refactor Rail A onto closed foundation; idempotency explicit
-4. Multi-signer fee-payer pool (removes ≈ 5.33 mint/s single-signer write-lock)
+4. Multi-signer fee-payer pool — targets *suspected* single-signer write-lock serialization; ceiling **unmeasured** (the ≈ 5.33 s⁻¹ once cited is the ingest design rate, 80 meters ÷ 15 s, not a mint ceiling — see `ARCHITECTURE.md` build sequence §4)
 5. Rail B (DR, record-only) · Dual-Tracker · 7-node designed cluster
 
 ---

@@ -78,7 +78,7 @@ IV.  Distributed Ledger → Solana programs: Registry, Settlement, Energy Asset 
 1. Close L1 foundation gaps: hash-chained audit log · instruction-level parameter policy · pre-sign LiteSVM simulation default-on
 2. Harden L2 oracle integrity (TEE + Merkle); name meter-level boundary as future work
 3. Refactor Rail A (energy + REC) onto the closed foundation; idempotency explicit
-4. Multi-signer fee-payer pool (removes the ≈ 5.33 mint/s single-signer write-lock bottleneck)
+4. Multi-signer fee-payer pool — motivated by *suspected* single-signer write-lock serialization on the mint path. **The bottleneck is unquantified.** The ≈ 5.33 s⁻¹ figure previously cited here is the **ingest** design rate (80 meters ÷ 15 s cadence, `UTCC_paper/sections/05-results.typ:10,25`) — an offered load on a different subsystem, not a measured mint ceiling. The paper says so itself under construct validity (`UTCC_paper/sections/06-discussion.typ:73`). Settling this needs a saturation run: drive offered load past the suspected knee against 1 signer and against *n*, and show whether the knee moves with *n*.
 5. Then Rail B (DR, record-only), Dual-Tracker, and the designed 7-node consortium cluster
 
 ## 4. Service Mesh

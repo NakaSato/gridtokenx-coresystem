@@ -63,3 +63,14 @@ scrape_configs:
     static_configs:
       - targets: ['pgdog:9090']
 
+  # APISIX gateway — dedicated exporter server, NOT the :9080 data plane. Two
+  # settings make this work and both live in apisix_conf/: config.yaml's
+  # plugin_attr.prometheus.export_addr binds it to 0.0.0.0 (the 127.0.0.1 default
+  # refuses this container), and apisix.yaml's global_rules attaches the plugin to
+  # traffic so the per-route families exist at all. Port 9091 is deliberately not
+  # published to the host — scraped over the compose network only.
+  - job_name: 'apisix'
+    metrics_path: /apisix/prometheus/metrics
+    static_configs:
+      - targets: ['apisix:9091']
+

@@ -73,7 +73,9 @@ for the mirror's Admin API before pushing, so a cold `just apisix-ui` is a singl
 
 Rules: **`apisix.yaml` stays the single source of truth** — Dashboard edits touch only the mirror
 and are lost on the next sync; re-run the sync script after every `apisix.yaml` change you want to
-browse. The mirror's etcd is deliberately ephemeral (restart → empty → re-sync). Admin/Dashboard
+browse. The sync both pushes and **prunes**: resources present in the mirror but absent from
+`apisix.yaml` are deleted (in reverse dependency order), so a route you removed from the file
+actually disappears from the Dashboard instead of lingering in the mirror's etcd. The mirror's etcd is deliberately ephemeral (restart → empty → re-sync). Admin/Dashboard
 port `8001` binds to `127.0.0.1` only. No production traffic ever routes through the mirror.
 
 The Dashboard's **Stream Routes** tab returns `400 {"error_msg":"stream mode is disabled, can not
@@ -138,14 +140,14 @@ byte-identical across all 25 routes before, so health-check policy had nowhere s
 | :--- | :--- | :--- | :--- |
 | 10 | IAM public REST | `/api/v1/auth/{login,register,verify,forgot,reset,logout,refresh,resend-verification,wallet/verify}` | `iam` — `iam-service:8080` + host `4010` |
 | 11 | IAM private REST | `/api/v1/me`, `/api/v1/me/{registration,wallets,wallets/*}` (explicit, **not** a `/me/*` catch-all), `/api/v1/auth/change-password`, `/api/v1/{profile,wallets,onboarding,identity}` | `iam` — `iam-service:8080` + host `4010` |
-| 12 | Meter Service | `/api/v1/me/meters`, `/api/v1/me/meters/*` (canonical caller-scoped surface), plus `/api/v1/meters`, `/api/v1/meters/*` (dual-served legacy aliases + the grid-wide `/meters/map`) — priority 20, so it outranks IAM route 11 **and** the simulator's `/api/v1/meters` route 41 | `meter` — `meter-service:8080` |
+| 12 | Meter Service | `/api/v1/me/meters`, `/api/v1/me/meters/*` (canonical caller-scoped surface), plus `/api/v1/meters`, `/api/v1/meters/*` (dual-served legacy aliases + the grid-wide `/meters/map`) — priority 20, so it outranks IAM route 11 | `meter` — `meter-service:8080` |
 | 13 | IAM system config (**PRIVATE**) | `/api/v1/system/config` — `ip-restriction` to internal CIDRs only | `iam` — `iam-service:8080` + host `4010` |
 | 2, 20, 21, 22 | Trading REST | `/api/v1/{orders,quotes,zones,stats,futures,analytics,trades,price-alerts,transactions,carbon,settlement,markets/*,...}`; `/api/v1/me/{orders,trades,futures,analytics,transactions,carbon,wallets/*/balance}` carve-out (priority 20) | `trading` — `trading-service:8093` |
 | 6 | Trading public active-order meters | `/api/v1/public/active-order-meters` — no auth (no `plugin_config_id`); returns only order *presence* per meter (strictly less than the public order book) so the grid map can hide non-trading meters for logged-out viewers. Backend serves this exact path — no rewrite | `trading` — `trading-service:8093` |
 | 23 | Trading market-data WebSocket | `/ws/trading?token=&zone_id=` — websocket route **without** `plugin_config_id: 1` (same handshake constraint as route 33); trading-api's `ws_handler` validates the JWT from `?token=` itself. Streams per-zone sequenced order/settlement frames off Kafka | `trading` — `trading-service:8093` |
 | 3, 30, 31, 32 | Notifications REST | `/api/v1/notifications[/*]` and the `/api/v1/me/notifications` carve-outs (priority 20/21) are rewritten to the upstream's real `/api/v1/noti/*` paths; route 32 passes `/api/v1/noti[/*]` through unchanged | `noti` — `noti-service:8080` |
 | 33 | Notifications WebSocket | `/ws` — websocket route **without** `plugin_config_id: 1` (the shared plugins break the upgrade handshake); noti-service validates the JWT from `?token=` itself | `noti` — `noti-service:8080` |
-| 4, 5, 9, 40, 41, 42 | Smartmeter Simulator | `/api/v1/public/grid-*`, `/public/meters`, `/api/market/ws` (WS→`/ws`), `/simulation`, meters admin, microgrid endpoints | `simulator` — `smartmeter-simulator:8082` + host `12010` |
+| 4, 5, 9, 40, 42 | Smartmeter Simulator | `/api/v1/public/grid-*`, `/public/meters` (→ `/api/v1/meters`), `/api/market/ws` (WS→`/ws`), `/simulation`, microgrid endpoints | `simulator` — `smartmeter-simulator:8082` + host `12010` |
 | 8 | Health, metrics & API-docs (**PRIVATE**) | `/health`, `/metrics`, `/api-docs/openapi.json`, `/scalar` — `ip-restriction` to internal CIDRs only | `iam` — `iam-service:8080` + host `4010` |
 | 100 | IAM gRPC (ConnectRPC) (**PRIVATE**) | `/identity.IdentityService/*` — `ip-restriction` to internal CIDRs only; mesh calls `iam-service:8090` directly | `iam-grpc` — `iam-service:8090` + host `5010` |
 | 101 | Trading gRPC (ConnectRPC) (**PRIVATE**) | `/trading.TradingService/*` — `ip-restriction` to internal CIDRs only; mesh calls `trading-service:8092` directly | `trading-grpc` — `trading-service:8092` + host `8092` |
@@ -196,6 +198,22 @@ service off the gateway**. Verify a 200 before enabling one.
 
 The gRPC (`iam-grpc`, `trading-grpc`) and Solana upstreams have **no** active check — they expose no
 plain-HTTP health route, and a check against the wrong path is worse than none.
+
+### Metrics
+
+The `prometheus` plugin is attached to all traffic via `global_rules` (id 1) in `apisix.yaml`, and
+its exporter is bound to `0.0.0.0:9091` via `plugin_attr` in `config.yaml`. Prometheus scrapes it
+as job `apisix` (`../docker/prometheus/prometheus.yml`); port `9091` is **not** published to the
+host, so the ops surface stays private like the ip-restricted `/metrics` route.
+
+Both halves are required and fail differently. Without the `plugin_attr` bind the exporter answers
+only on loopback and every scrape from the Prometheus container is refused. Without the
+`global_rules` entry the endpoint responds but serves only process-level gauges — the useful
+per-route families (`apisix_http_status`, `apisix_http_latency`, `apisix_bandwidth`) are collected
+only on routes the plugin actually runs on. Series carry `route`, `matched_uri`, `code`, and `node`
+labels, so both incidents described in this section are now visible as data rather than log
+archaeology: a DNS fault shows as `apisix_http_status{code="503"}`, health-check flapping as an
+oscillating `apisix_upstream_status`.
 
 Inspect live state via the control API (container-internal, not exposed):
 
