@@ -38,9 +38,14 @@ run_suite() {
     echo "=================================================="
     echo "▶ SUITE: $name"
     echo "=================================================="
+    # A suite with no entry point is a FAILURE, not a skip. It used to warn and
+    # return 0, so `run.sh 96_token_lifecycle` printed "PASSED (1 suites)" while
+    # running nothing at all — the worst possible outcome, since a green run is
+    # the only signal this repo has (there is no CI). Found 2026-08-02, when 96
+    # was the only such suite and had been silently absent from every `just e2e`.
     if [ ! -f "$dir/run.sh" ]; then
-        log_warn "no run.sh in $name — skipping (every suite must own an entry point)"
-        return 0
+        log_fail "no run.sh in $name — every suite must own an entry point"
+        return 1
     fi
     local rc=0
     bash "$dir/run.sh" 2>&1 | tee "$ARTIFACTS/$name.log"
