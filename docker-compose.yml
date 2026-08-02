@@ -1095,9 +1095,25 @@ services:
     container_name: gridtokenx-thbc-service
     security_opt:
       - no-new-privileges:true
-    ports:
-      # Host port follows the 4000s gateway scheme; the container always binds 4008.
-      - "${THBC_HTTP_PORT:-4070}:4008"
+    # NO host port published — the admin surface is internal-access-only.
+    #
+    # `require_admin_role` (thbc-api/src/admin.rs:66) is a misrouting guard, NOT
+    # authentication: it only checks the `x-gridtokenx-user-role: admin` header,
+    # which any client addressing the container directly can forge. Verified
+    # 2026-08-01 — with `4070:4008` published, an unauthenticated curl from the
+    # host got 403 without the header and **200 with a forged one**, reading the
+    # full reserve/reconciliation surface and reaching the operator POSTs.
+    #
+    # The real gates live on APISIX route 61 (apisix_conf/apisix.yaml:548-562):
+    # `ip-restriction` to internal CIDRs plus `plugin_config 2` (IAM JWT,
+    # role == admin). Publishing a host port routed around both. Reaching the
+    # service only over the compose network makes the gateway the sole ingress.
+    #
+    # To debug locally, prefer `docker exec gridtokenx-thbc-service` or go through
+    # the gateway. If you must publish, bind loopback only — `127.0.0.1:4070:4008`
+    # — and never 0.0.0.0, which exposes a forgeable admin header to the LAN.
+    expose:
+      - "4008"
     environment:
       THBC_HTTP_PORT: 4008
       THBC_LEDGER_MODE: ${THBC_LEDGER_MODE:-simulated}
@@ -1205,7 +1221,33 @@ services:
       # KAFKA_TOPIC_METER_READINGS above). Pointing this at kafka-cmd would
       # subscribe successfully to a topic that never receives a reading, which
       # looks identical to "no meters are reporting".
-      KAFKA_BOOTSTRAP_SERVERS: kafka-market:9002
+      #
+      # DISABLED BY DEFAULT — the two schemas do not overlap, so this consumer
+      # cannot process a single message and never could:
+      #   producer  MeterReadingEvent   (aggregator-persistence/src/infra/kafka.rs)
+      #             meter_id, timestamp, energy_generated, energy_consumed, surplus, …
+      #   consumer  MeterReadingWire    (erp-api/src/ingest.rs)
+      #             requires pod, window_start_ms, cumulative_kwh, delta_kwh, meter_clock_ts
+      # Not one of those five required fields (nor any of their aliases) exists on
+      # the wire; `signature` is the only field the two share. erp-api/src/ingest.rs
+      # is explicit that its shape is "what this service needs from it, NOT a copy
+      # of what it currently emits" — the upstream half was never built.
+      #
+      # Leaving it subscribed is not harmless: on a decode failure the consumer
+      # deliberately does not commit (ingest.rs:264 — "a malformed message that we
+      # skip is a settlement we silently dropped"), and with no dead-letter path
+      # that is a poison pill. Observed on this stack: ~320 rejections/min, and
+      # CURRENT-OFFSET '-' on every partition of meter.readings against log-ends of
+      # 2.2k–10.3k — it has never committed an offset since the group was created.
+      #
+      # Re-enable with ERP_KAFKA_READING_BROKERS=kafka-market:9002 once the
+      # producer emits the ERP schema. The natural source for the missing
+      # cumulative register is the OBIS total (1.1.1.8.0.255) the Aggregator
+      # Bridge already decodes into DeviceReading.metadata and then drops when it
+      # builds MeterReadingEvent. Only this consumer is gated: KAFKA_AUDIT_BROKERS
+      # is separate, so the PII-access audit sink and the NATS advisories are
+      # unaffected (erp-api/src/{main.rs:69,startup.rs:63}).
+      KAFKA_BOOTSTRAP_SERVERS: ${ERP_KAFKA_READING_BROKERS:-}
       # Audit has its own cluster, same as IAM / Trading / Aggregator Bridge.
       KAFKA_AUDIT_BROKERS: kafka-audit:9003
       ERP_KAFKA_GROUP_ID: erp-bridge-v1
