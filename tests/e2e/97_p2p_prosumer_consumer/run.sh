@@ -453,6 +453,75 @@ grep_recent_log() {
     fi
 }
 
+# assert_mint_health — is the surplus-mint path actually WORKING?
+#
+# This replaces a grep for "Success|mint" against the chain-bridge log. That
+# pattern matched the word "mint" case-insensitively, so the line
+#   "⚠️ Mint chunk [0..1] failed: ... landed with an on-chain error"
+# was printed as "✔ mint evidence" — a failure rendered as proof of success, the
+# single most misleading thing a harness can do. Observed on every run of
+# 2026-08-02 while not one mint had confirmed for hours.
+#
+# The authoritative signal is the aggregator's own structured counter,
+#   "⚡ batch surplus mint: <n> confirmed, <m> failed of <k> submitted".
+# A batch that submitted work and confirmed NONE of it means the mint path is
+# broken platform-wide, whether or not this run's 15-minute bin was in that batch
+# (it usually is not — a bin must close first, which outlives the suite).
+#
+# This is a GATE, not evidence-gathering: a suite that passes while the mint is
+# down is exactly the "green means nothing" failure this file has twice been
+# fixed for. Set ALLOW_MINT_FAILURE=1 to downgrade it to a warning when the
+# breakage is known and accepted — e.g. a local validator whose Clock sysvar has
+# drifted behind wall time, which rejects every current window with Custom(6010)
+# ("window start must be at or before now") and can only be cleared by resetting
+# the ledger.
+ALLOW_MINT_FAILURE="${ALLOW_MINT_FAILURE:-0}"
+assert_mint_health() {
+    local lines confirmed failed submitted
+    [ "$HAVE_DOCKER" = "1" ] || { warn "mint health: docker unavailable — SKIP"; return 0; }
+    docker inspect "$AGG_CONTAINER" >/dev/null 2>&1 || { warn "mint health: $AGG_CONTAINER not found — SKIP"; return 0; }
+
+    lines=$(docker logs --since 3m "$AGG_CONTAINER" 2>&1 \
+            | grep -Eo 'batch surplus mint: [0-9]+ confirmed, [0-9]+ failed of [0-9]+ submitted' | tail -5)
+    if [ -z "$lines" ]; then
+        warn "mint health: no surplus-mint batch ran in the last 3m — nothing to judge (a 15-min bin must close first)"
+        return 0
+    fi
+    confirmed=$(printf '%s\n' "$lines" | awk '{s+=$4} END{print s+0}')
+    failed=$(printf   '%s\n' "$lines" | awk '{s+=$6} END{print s+0}')
+    submitted=$(printf '%s\n' "$lines" | awk '{s+=$9} END{print s+0}')
+    printf '%s\n' "$lines" | sed 's/^/    /'
+
+    if [ "$confirmed" -gt 0 ] && [ "$failed" -eq 0 ]; then
+        ok "surplus mint healthy: $confirmed confirmed / $submitted submitted"
+        return 0
+    fi
+    if [ "$confirmed" -gt 0 ]; then
+        warn "surplus mint DEGRADED: $confirmed confirmed but $failed failed of $submitted submitted"
+        return 0
+    fi
+    # Nothing confirmed. Surface the on-chain cause — chain-bridge now carries the
+    # program's error code (e.g. Custom 6010), so name it instead of "an error".
+    local why
+    # Match BOTH message shapes: "landed with on-chain error {json}" carries the
+    # program's error code (chain-bridge b129431 onward), while the older
+    # "landed with an on-chain error" says only that something failed. A stack
+    # running a pre-b129431 image still reports the useless form, so accept it
+    # rather than printing nothing at all.
+    why=$(docker logs --since 3m "$CHAIN_BRIDGE_CONTAINER" 2>&1 \
+          | grep -Eo 'landed with (an )?on-chain error[^;]*' | tail -1)
+    err "surplus mint BROKEN: 0 confirmed of $submitted submitted ($failed failed)"
+    [ -n "$why" ] && err "  on-chain cause: $why"
+    err "  the trade matched, but no energy was minted — settlement to chain is NOT working"
+    if [ "$ALLOW_MINT_FAILURE" = "1" ]; then
+        warn "ALLOW_MINT_FAILURE=1 — recording the breakage but not failing the suite"
+        return 0
+    fi
+    err "  set ALLOW_MINT_FAILURE=1 to accept this knowingly (e.g. validator clock drift)"
+    FAILED=1
+    return 1
+}
+
 FAILED=0
 
 # ---------------------------------------------------------------------------
@@ -525,9 +594,9 @@ else
     FAILED=1
 fi
 
-step "6) Best-effort evidence — settlement + mint (async, not hard-failed)"
+step "6) Settlement evidence + surplus-mint health"
 grep_recent_log "$AGG_CONTAINER" "completed billing bins|settlement" "settlement"
-grep_recent_log "$CHAIN_BRIDGE_CONTAINER" "Success|mint" "mint"
+assert_mint_health
 
 # ---------------------------------------------------------------------------
 step "Summary"
@@ -537,6 +606,6 @@ if [ "$FAILED" = "0" ]; then
     ok "SUITE 97 PASS — P2P prosumer→consumer trade filled end-to-end."
     exit 0
 else
-    err "SUITE 97 FAIL — P2P match not confirmed (see step 5)."
+    err "SUITE 97 FAIL — see the failing step above (5 = match not confirmed, 6 = surplus mint broken)."
     exit 1
 fi
