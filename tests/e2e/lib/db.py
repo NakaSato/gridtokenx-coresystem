@@ -93,6 +93,56 @@ def scalar(sql: str, db: str | None = None) -> str:
     return r.splitlines()[0].strip() if r else ""
 
 
+def grant_verified_meter(user_id: str, serial: str | None = None) -> str:
+    """Give `user_id` a VERIFIED meter so Trading will admit their sell orders.
+
+    Trading refuses a sell (403) unless the seller owns a verified meter, and it
+    answers that from its own `meter_read_model` — a projection fed by
+    meter-service `MeterRegistered`/`MeterUpdated` Kafka events. A suite that only
+    exercises the CDA has no business standing up meter registration, signed
+    telemetry and the verification handshake just to place an ask, so this writes
+    the projection directly. It is the same kind of backdoor 90_golden_path uses
+    for meter->owner mapping in Redis.
+
+    Deliberately does NOT touch metering `meters`: this seeds only what the gate
+    reads. A suite that needs the real registry row should drive the meter-service
+    API instead. Returns the serial used.
+
+    Idempotent — re-running upserts the same row.
+    """
+    serial = serial or f"e2e-verified-{user_id[:8]}"
+    query(
+        "INSERT INTO meter_read_model "
+        "  (serial_number, meter_id, user_id, zone_id, status, is_verified, updated_at) "
+        f"VALUES ('{serial}', gen_random_uuid(), '{user_id}', NULL, 'active', true, now()) "
+        "ON CONFLICT (serial_number) DO UPDATE SET "
+        "  user_id = EXCLUDED.user_id, is_verified = true, updated_at = now();",
+        db=PG_DB_TRADING,
+    )
+    return serial
+
+
+_SELLERS_GRANTED: set[str] = set()
+
+
+def ensure_sellable(user_id) -> None:
+    """Best-effort, once-per-user wrapper around `grant_verified_meter`.
+
+    Call before placing a sell order from a suite that is not itself testing meter
+    onboarding. Never raises: if the backdoor is unavailable (no docker/psql), the
+    sell is attempted anyway and the test's own assertion reports the resulting
+    403 — which is more informative than an error from this helper.
+    """
+    key = str(user_id)
+    if key in _SELLERS_GRANTED:
+        return
+    try:
+        grant_verified_meter(key)
+    except Exception as e:  # noqa: BLE001 — a backdoor failure must not mask the test
+        print(f"warning: could not grant {key} a verified meter for selling: {e}")
+    _SELLERS_GRANTED.add(key)
+
+
 def user_ows_wallet_id(username: str) -> str:
     return scalar(f"SELECT ows_wallet_id FROM users WHERE username = '{username}';",
                   db=db_for("users"))

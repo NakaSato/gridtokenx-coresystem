@@ -21,6 +21,8 @@ from pathlib import Path
 import pytest
 import requests
 
+import db  # lib/db.py — on sys.path via tests/e2e/conftest.py
+
 TRADING = os.getenv("TRADING_URL", "http://localhost:8093")
 ZONE = int(os.getenv("E2E_TRADING_ZONE", "1"))
 
@@ -110,6 +112,13 @@ def hdr(user_id, role="api-gateway"):
 
 
 def place_order(user_id, side, amount, price, role="api-gateway", zone=ZONE):
+    # Trading refuses a sell (403) unless the seller owns a VERIFIED meter. This
+    # suite is about the CDA, not meter onboarding — standing up registration,
+    # signed telemetry and the verification handshake for every ask would make
+    # each matching test depend on the whole metering stack. Grant it directly in
+    # the projection the gate reads; 97_p2p covers the real onboarding path.
+    if side == "sell":
+        db.ensure_sellable(user_id)
     body = {"side": side, "order_type": "limit",
             "energy_amount_kwh": str(amount), "price_per_kwh": str(price), "zone_id": zone}
     return requests.post(f"{TRADING}/api/v1/orders", json=body, headers=hdr(user_id, role), timeout=8)

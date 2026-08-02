@@ -152,6 +152,14 @@ def trade_hdr(uid):
 
 
 def place_order(uid, side, amount, price):
+    # Trading refuses a sell unless the seller owns a VERIFIED meter. This suite
+    # already registers the seller's meter through the Redis backdoor (for
+    # aggregator attribution), which does not reach Trading's `meter_read_model`
+    # — the projection the sell gate actually reads. Seed that too.
+    if side == "sell":
+        import db as _db  # lib/db.py
+
+        _db.ensure_sellable(uid)
     return requests.post(f"{TRADING}/api/v1/orders", timeout=8, headers=trade_hdr(uid),
                          json={"side": side, "order_type": "limit",
                                "energy_amount_kwh": str(amount), "price_per_kwh": str(price),

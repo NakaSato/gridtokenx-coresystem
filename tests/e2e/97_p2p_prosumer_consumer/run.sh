@@ -21,6 +21,9 @@
 #            + wire telemetry attribution (device pubkey + owner + wallet) at a REAL sim device id
 #   Phase 5  Prove surplus    prosumer sends signed GENERATION readings (AES-256-GCM dlms-enc + mTLS,
 #                             in sim container) — best-effort proof of real surplus BEFORE selling
+#            Verify meter     POST /api/v1/meters/<serial>/verify  [HARD GATE]
+#                             Registration only CLAIMS a serial; Trading refuses a sell (403)
+#                             until the meter is verified against the signed telemetry above.
 #            Trade            prosumer SELL x consumer BUY (crossing) -> POST /api/v1/orders
 #            Match            wait for MatcherWorker, assert our orders filled  [HARD GATE]
 #   Phase 6  Evidence         best-effort: aggregator-bridge settlement + chain-bridge mint logs
@@ -36,7 +39,10 @@
 #   REG_CONFIRM_WAIT (45) seconds to wait for detached on-chain reg to confirm
 #   SURPLUS_TICKS (3)  how many signed generation readings the prosumer pushes
 #   GEN_KWH (6) CONS_KWH (1)   per-reading generation/consumption (net must be > 0)
-#   SKIP_SURPLUS=1     skip Phase 5 telemetry (go straight to orders)
+#   SKIP_SURPLUS=1     skip Phase 5 telemetry (go straight to orders). NOTE: this now
+#                      also strands meter verification — with no attested readings the
+#                      verify step fails and the prosumer cannot sell. Only useful
+#                      against a stack where the meter is already verified.
 #   SKIP_ONCHAIN=1     skip Phase 3 (custodial already auto-registered on verify)
 #   WIRE_TELEMETRY=0   register meters with invented serials, don't re-point sim attribution
 
@@ -358,6 +364,40 @@ uv run python /tmp/p2p_surplus.py' 2>&1)
     fi
 }
 
+# verify_meter <token> <serial> — prove possession of the meter so its owner may
+# open sell orders. Trading REFUSES a sell (403) unless the seller has a verified
+# meter, and meter registration no longer auto-verifies: it only claims a serial.
+# meter-service passes this when the Aggregator Bridge has already accepted at
+# least one signature-verified reading for that serial under this owner — which
+# is precisely what send_surplus above produces, so this must run AFTER it.
+#
+# Uses the legacy `/api/v1/meters/...` base for consistency with the registration
+# call above (same service, same handler); the canonical form is
+# POST /api/v1/me/meters/{serial}/verify.
+verify_meter() {
+    local token="$1" serial="$2" resp code body
+    resp=$(curl -sk -m20 -w '\n%{http_code}' -X POST \
+        "${METER_BASE}/api/v1/meters/${serial}/verify" \
+        -H "Authorization: Bearer $token" -H 'Content-Type: application/json')
+    code=$(printf '%s' "$resp" | tail -n1); body=$(printf '%s' "$resp" | sed '$d')
+    case "$code" in
+        2??)
+            ok "meter verified: serial=$serial attested=$(printf '%s' "$body" | jq -r '.attestation.attested_readings // "?"') already=$(printf '%s' "$body" | jq -r '.already_verified // false')"
+            return 0
+            ;;
+        409)
+            err "meter $serial has no signature-verified telemetry — it cannot be verified, so its owner cannot sell."
+            err "  Cause: the surplus step above did not land readings for this exact serial."
+            err "  $(printf '%s' "$body" | jq -r '.error // empty' | head -c200)"
+            return 1
+            ;;
+        *)
+            err "meter verification failed (http=$code): $(printf '%s' "$body" | head -c200)"
+            return 1
+            ;;
+    esac
+}
+
 # submit_order <token> <side> <kwh> <price> -> echoes order id, non-zero on fail
 submit_order() {
     local token="$1" side="$2" kwh="$3" price="$4" resp code body
@@ -407,6 +447,19 @@ elif [ "$PROSUMER_REAL" = "1" ]; then
     send_surplus "$PROSUMER_SERIAL"
 else
     warn "prosumer meter is an invented serial (no real sim device) — skipping signed surplus"
+fi
+
+step "3b) Verify the prosumer's meter [HARD GATE — a sell is refused without it]"
+# Registration claims a serial; verification proves the device behind it. Trading
+# returns 403 on a sell from a seller with no verified meter, so this is now a
+# prerequisite of step 4, not an optional extra.
+#
+# NOTE the consequence for the fallback path: an invented serial receives no
+# telemetry, so it can never be verified and its owner can never sell. That path
+# is no longer a viable way to reach the trade gate.
+if ! verify_meter "$PROSUMER_TOKEN" "$PROSUMER_SERIAL"; then
+    err "prosumer meter unverified — the SELL in step 4 would be refused 403; aborting"
+    exit 1
 fi
 
 step "4) Trade — prosumer SELL x consumer BUY (zone $ZONE_ID)"

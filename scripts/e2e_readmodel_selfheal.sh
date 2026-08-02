@@ -97,6 +97,17 @@ done
 [ "$(psql_t gridtokenx_trading "SELECT count(*) FROM iam_wallet_read_model WHERE user_id='$uid'")" = "0" ] \
   && ok "read-model row deleted and stable at 0 rows" || { err "row keeps re-projecting; cannot stage miss"; exit 1; }
 
+# Trading refuses a sell (403) unless the seller owns a VERIFIED meter. This
+# script is about the WALLET read-model self-heal, not meter onboarding, so the
+# meter side of the gate is satisfied directly in the projection it reads. Same
+# backdoor as tests/e2e/lib/db.py::grant_verified_meter.
+docker exec "$PG" psql -U gridtokenx_user -d gridtokenx_trading -c \
+  "INSERT INTO meter_read_model (serial_number, meter_id, user_id, zone_id, status, is_verified, updated_at)
+   VALUES ('selfheal-$uid', gen_random_uuid(), '$uid', NULL, 'active', true, now())
+   ON CONFLICT (serial_number) DO UPDATE SET is_verified = true, updated_at = now();" >/dev/null 2>&1 \
+  && ok "seller granted a verified meter (sell gate)" \
+  || warn "could not grant a verified meter — the SELL below may be refused 403"
+
 echo "== 4) place a SELL order IMMEDIATELY — must self-heal the missing wallet row =="
 resp=$(curl -sk -m40 -w '\n%{http_code}' -X POST "${GW}/api/v1/orders" \
     -H "Authorization: Bearer $token" -H 'Content-Type: application/json' \

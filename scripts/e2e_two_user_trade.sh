@@ -389,7 +389,7 @@ onboard() {
     fi
 
     USERNAME="$username"; EMAIL="$email"; WALLET="$wallet"; TOKEN="$token"
-    METER_ID="$meter_id"; SERIAL="$serial"
+    METER_ID="$meter_id"; SERIAL="$serial"; USER_ID="$uid"
 }
 
 # submit_order <token> <side> <kwh> <price> -> echoes order id, non-zero on fail
@@ -412,12 +412,30 @@ pick_sim_meters
 step "1) Onboard PROSUMER (seller) + add meter"
 onboard prosumer "$PROSUMER_SIM_CANDIDATES" || { err "prosumer onboarding failed"; exit 1; }
 PROSUMER_USER="$USERNAME"; PROSUMER_WALLET="$WALLET"; PROSUMER_TOKEN="$TOKEN"
-PROSUMER_METER_ID="$METER_ID"; PROSUMER_SERIAL="$SERIAL"
+PROSUMER_METER_ID="$METER_ID"; PROSUMER_SERIAL="$SERIAL"; PROSUMER_USER_ID="$USER_ID"
 
 step "2) Onboard CONSUMER (buyer) + add meter"
 onboard consumer "$CONSUMER_SIM_CANDIDATES" || { err "consumer onboarding failed"; exit 1; }
 CONSUMER_USER="$USERNAME"; CONSUMER_WALLET="$WALLET"; CONSUMER_TOKEN="$TOKEN"
 CONSUMER_METER_ID="$METER_ID"; CONSUMER_SERIAL="$SERIAL"
+
+# Trading refuses a sell (403) unless the seller owns a VERIFIED meter, and
+# registration alone no longer verifies one — it only claims the serial. The real
+# proof is signature-verified telemetry (see tests/e2e/97_p2p_prosumer_consumer,
+# which drives POST /api/v1/meters/<serial>/verify after pushing signed readings).
+# This script sends no telemetry, so it satisfies the meter side of the gate in
+# the projection Trading reads, keeping its focus on the trade itself.
+if docker exec "$PG_CONTAINER" true >/dev/null 2>&1; then
+    docker exec "$PG_CONTAINER" psql -U "$PG_USER" -d "$PG_TRADING_DB" -c \
+      "INSERT INTO meter_read_model (serial_number, meter_id, user_id, zone_id, status, is_verified, updated_at)
+       VALUES ('$PROSUMER_SERIAL', gen_random_uuid(), '$PROSUMER_USER_ID', NULL, 'active', true, now())
+       ON CONFLICT (serial_number) DO UPDATE SET user_id = EXCLUDED.user_id, is_verified = true, updated_at = now();" \
+      >/dev/null 2>&1 \
+      && ok "prosumer granted a verified meter (sell gate)" \
+      || warn "could not grant a verified meter — the SELL below may be refused 403"
+else
+    warn "DB unreachable — cannot grant the prosumer a verified meter; the SELL may be refused 403"
+fi
 
 step "3) Trade — prosumer SELL x consumer BUY (zone $ZONE_ID)"
 info "prosumer SELL ${TRADE_KWH}kWh @ $SELL_PRICE   consumer BUY ${TRADE_KWH}kWh @ $BUY_PRICE"

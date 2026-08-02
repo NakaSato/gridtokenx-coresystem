@@ -150,6 +150,12 @@ def trade_hdr(uid):
 
 
 def place_order(uid, side, amount, price):
+    # A sell needs a verified meter behind it (Trading returns 403 otherwise);
+    # this suite measures on-chain balance deltas, not meter onboarding.
+    if side == "sell":
+        import db as _db  # lib/db.py
+
+        _db.ensure_sellable(uid)
     return requests.post(f"{TRADING}/api/v1/orders", timeout=8, headers=trade_hdr(uid),
                          json={"side": side, "order_type": "limit",
                                "energy_amount_kwh": str(amount), "price_per_kwh": str(price),

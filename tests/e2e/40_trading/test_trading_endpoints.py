@@ -52,7 +52,15 @@ def hdr(user_id, role="api-gateway"):
 def place_order(user_id, side, amount, price, zone=ZONE):
     """POST /api/v1/orders — same body shape as test_trading.py.place_order
     (rest.rs SubmitOrderRequest:25 — side, order_type, energy_amount_kwh,
-    price_per_kwh as STRING decimals, zone_id as int)."""
+    price_per_kwh as STRING decimals, zone_id as int).
+
+    A sell is refused 403 unless the seller owns a verified meter, so one is
+    granted in the projection the gate reads — this suite tests endpoints, not
+    meter onboarding. See lib/db.ensure_sellable."""
+    if side == "sell":
+        import db  # lib/db.py — on sys.path via tests/e2e/conftest.py
+
+        db.ensure_sellable(user_id)
     body = {"side": side, "order_type": "limit",
             "energy_amount_kwh": str(amount), "price_per_kwh": str(price), "zone_id": zone}
     return requests.post(f"{TRADING}/api/v1/orders", json=body, headers=hdr(user_id), timeout=8)

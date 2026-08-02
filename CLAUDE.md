@@ -363,6 +363,28 @@ surfaces far from its cause. All three were hit on 2026-07-30.
    `_sqlx_migrations` ledger.
 3. **On-chain zone markets, if the ledger was also reset.** See the box below.
 
+> **A prosumer cannot open a sell order until their meter is verified.**
+> Registering a meter (`POST /api/v1/me/meters`) only **claims** a serial — the row lands
+> `is_verified = false`. Possession is proven separately by
+> `POST /api/v1/me/meters/{serial}/verify`, which passes when the Aggregator Bridge has
+> already accepted at least one Ed25519-signed reading for that `(owner, serial)`
+> (`meter_readings.verification_status = 'verified'`, within `METER_VERIFY_WINDOW_HOURS`,
+> default 720). Until then Trading refuses the sell with **403** at both submit edges —
+> including a sell that names no meter, which requires the seller to own *some* verified
+> meter, else omitting `meter_serial` would bypass the rule entirely. Buys are unaffected.
+>
+> Trading answers this from its own `meter_read_model.is_verified`, mirrored by the
+> `MeterRegistered`/`MeterUpdated` Kafka feed — **not** from `meter_read_model.status`, which
+> carries the meter's *operating* status and would fail the gate open. So a freshly verified
+> meter is sellable only once the feed lands; with `METER_EVENTS_ENABLED` unset there is no
+> feed at all and only the boot backfill updates the mirror.
+>
+> Consequence for harnesses: any suite that places a sell needs a verified meter first.
+> `tests/e2e/97_p2p_prosumer_consumer` drives the real path (signed telemetry → verify →
+> sell); the CDA-focused suites seed the projection directly via
+> `tests/e2e/lib/db.py::ensure_sellable`, the same kind of backdoor 90_golden_path already
+> uses for Redis meter→owner mapping.
+
 > **An order in a zone with no `ZoneMarket` is accepted, matched, and can never settle.**
 > `record_order_custodial` takes `zone_market` as an `AccountLoader`
 > (`gridtokenx-anchor/programs/trading/src/instructions/record_order_custodial.rs:11`), so an
