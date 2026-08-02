@@ -1,0 +1,11 @@
+{
+  "enabledMcpjsonServers": [
+    "code-review-graph"
+  ],
+  "permissions": {
+    "allow": [
+      "Read(//Users/chanthawat/Developments/gridtokenx-coresystem/gridtokenx-trading/**)",
+      "Bash(rtk npm *)"
+    ]
+  }
+}
