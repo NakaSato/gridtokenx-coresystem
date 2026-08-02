@@ -158,7 +158,7 @@ pick_sim_meters() {
     if [ -n "$PROSUMER_SIM_CANDIDATES" ]; then
         ok "sim prosumer candidates (has_solar): $(echo "$PROSUMER_SIM_CANDIDATES" | wc -w | tr -d ' ')"
     else
-        warn "no solar-capable sim meter — prosumer meter falls back to an invented serial (no real telemetry)"
+        info "no free solar-capable sim device — prosumer will use this run's own serial (still real signed telemetry)"
     fi
     [ -n "$CONSUMER_SIM_CANDIDATES" ] && ok "sim consumer candidates: $(echo "$CONSUMER_SIM_CANDIDATES" | wc -w | tr -d ' ')"
 }
@@ -247,7 +247,10 @@ onboard() {
 
     # Phase 4 — add a meter to the account (real meter-service API -> real UUID).
     # Tier 1: try each real sim device id (retry: a meter is one-owner, prior runs 409).
-    # Tier 2: invented serial fallback (ownership only, no sim telemetry will match).
+    # Tier 2: this run's own serial. NOT a degraded path — step 3 signs telemetry for
+    #   whatever serial lands here, so the suite is fully self-sufficient and claims
+    #   nothing from the finite pool. Tier 1 is kept only because attributing a device
+    #   the live simulator is ALSO emitting for is a slightly more realistic fixture.
     meter_id=""; serial=""; local real_match=0
     local fallback="GRID-${user_type}-${stamp}" candidate mreg mid
     for candidate in $sim_candidates; do
@@ -277,8 +280,13 @@ onboard() {
     fi
     ok "meter registered id=$meter_id serial=$serial (real_sim=$real_match)"
 
-    # re-point sim telemetry attribution at this user (only meaningful for a real sim id)
-    if [ "$WIRE_TELEMETRY" = "1" ] && [ "$real_match" = "1" ]; then
+    # Point telemetry attribution at this user. Needed for an INVENTED serial too,
+    # not just a claimed pool device: send_surplus registers the serial's pubkey and
+    # enc key, but never the owner — `gridtokenx:meters:<serial>:{user_id,wallet}` is
+    # written only here, and without it an accepted reading attributes to nobody and
+    # the meter can never verify. For a real pool device this re-points an existing
+    # mapping; for our own serial it creates the only one. Same call either way.
+    if [ "$WIRE_TELEMETRY" = "1" ]; then
         wire_signing "$serial" "$uid" "$wallet"
     fi
 
@@ -374,28 +382,44 @@ uv run python /tmp/p2p_surplus.py' 2>&1)
 # Uses the legacy `/api/v1/meters/...` base for consistency with the registration
 # call above (same service, same handler); the canonical form is
 # POST /api/v1/me/meters/{serial}/verify.
+# verify_meter <token> <serial> — POST the verify endpoint, RETRYING a 409.
+#
+# The 409 is racy, not terminal: the bridge ACKs an ingest frame before its batched
+# INSERT commits, so `send_surplus` can report ACCEPTED 3/3 while meter_readings is
+# still empty. Measured 2026-08-02 from the verification audit trail — attempt at
+# 14:36:21.335, rows committed at 14:36:21.927, i.e. the suite asked 592ms too
+# early and read the miss as "this meter can never be verified". Poll instead of
+# sleeping a flat guess: the wait is usually one tick.
+VERIFY_TRIES="${VERIFY_TRIES:-15}"
+VERIFY_DELAY="${VERIFY_DELAY:-2}"
 verify_meter() {
-    local token="$1" serial="$2" resp code body
-    resp=$(curl -sk -m20 -w '\n%{http_code}' -X POST \
-        "${METER_BASE}/api/v1/meters/${serial}/verify" \
-        -H "Authorization: Bearer $token" -H 'Content-Type: application/json')
-    code=$(printf '%s' "$resp" | tail -n1); body=$(printf '%s' "$resp" | sed '$d')
-    case "$code" in
-        2??)
-            ok "meter verified: serial=$serial attested=$(printf '%s' "$body" | jq -r '.attestation.attested_readings // "?"') already=$(printf '%s' "$body" | jq -r '.already_verified // false')"
-            return 0
-            ;;
-        409)
-            err "meter $serial has no signature-verified telemetry — it cannot be verified, so its owner cannot sell."
-            err "  Cause: the surplus step above did not land readings for this exact serial."
-            err "  $(printf '%s' "$body" | jq -r '.error // empty' | head -c200)"
-            return 1
-            ;;
-        *)
-            err "meter verification failed (http=$code): $(printf '%s' "$body" | head -c200)"
-            return 1
-            ;;
-    esac
+    local token="$1" serial="$2" resp code body attempt=1
+    while :; do
+        resp=$(curl -sk -m20 -w '\n%{http_code}' -X POST \
+            "${METER_BASE}/api/v1/meters/${serial}/verify" \
+            -H "Authorization: Bearer $token" -H 'Content-Type: application/json')
+        code=$(printf '%s' "$resp" | tail -n1); body=$(printf '%s' "$resp" | sed '$d')
+        case "$code" in
+            2??)
+                ok "meter verified: serial=$serial attested=$(printf '%s' "$body" | jq -r '.attestation.attested_readings // "?"') already=$(printf '%s' "$body" | jq -r '.already_verified // false')${attempt:+ (attempt $attempt)}"
+                return 0
+                ;;
+            409)
+                if [ "$attempt" -lt "$VERIFY_TRIES" ]; then
+                    info "attestation not visible yet (attempt $attempt/$VERIFY_TRIES) — readings may still be committing"
+                    attempt=$((attempt+1)); sleep "$VERIFY_DELAY"; continue
+                fi
+                err "meter $serial has no signature-verified telemetry after $((VERIFY_TRIES * VERIFY_DELAY))s — it cannot be verified, so its owner cannot sell."
+                err "  Cause: the surplus step above did not land readings for this exact serial."
+                err "  $(printf '%s' "$body" | jq -r '.error // empty' | head -c200)"
+                return 1
+                ;;
+            *)
+                err "meter verification failed (http=$code): $(printf '%s' "$body" | head -c200)"
+                return 1
+                ;;
+        esac
+    done
 }
 
 # submit_order <token> <side> <kwh> <price> -> echoes order id, non-zero on fail
@@ -441,22 +465,29 @@ CONSUMER_USER="$USERNAME"; CONSUMER_WALLET="$WALLET"; CONSUMER_TOKEN="$TOKEN"
 CONSUMER_METER_ID="$METER_ID"; CONSUMER_SERIAL="$SERIAL"
 
 step "3) Prosumer proves REAL surplus (signed GENERATION telemetry)"
+# Runs for an invented serial too, NOT only a claimed sim device. `send_surplus`
+# builds its own `MeterKey(serial)` — the deterministic sha256("SECRET:serial")
+# Ed25519 key — and calls register_pubkeys_redis/register_enckeys_redis for that
+# serial before sending, so it manufactures the whole signed frame itself. It
+# never reads the sim's device list. The old `PROSUMER_REAL = 1` guard therefore
+# gated a capability the fallback path already had, and its cost was severe: a
+# meter is one-owner, so every prior run permanently consumed a pool device, and
+# once the 20 has_solar candidates were gone (82 of them claimed by 2026-08-02)
+# EVERY subsequent run fell back, skipped the surplus, and then died at 3b —
+# looking like the verified-meter feature was broken when it was the harness
+# running out of a resource it never needed.
 if [ "${SKIP_SURPLUS:-0}" = "1" ]; then
     info "SKIP_SURPLUS=1 — skipping telemetry proof, going straight to orders"
-elif [ "$PROSUMER_REAL" = "1" ]; then
-    send_surplus "$PROSUMER_SERIAL"
 else
-    warn "prosumer meter is an invented serial (no real sim device) — skipping signed surplus"
+    [ "$PROSUMER_REAL" = "1" ] \
+        || info "prosumer serial is this run's own (no pool device claimed) — signing telemetry for it directly"
+    send_surplus "$PROSUMER_SERIAL"
 fi
 
 step "3b) Verify the prosumer's meter [HARD GATE — a sell is refused without it]"
 # Registration claims a serial; verification proves the device behind it. Trading
 # returns 403 on a sell from a seller with no verified meter, so this is now a
 # prerequisite of step 4, not an optional extra.
-#
-# NOTE the consequence for the fallback path: an invented serial receives no
-# telemetry, so it can never be verified and its owner can never sell. That path
-# is no longer a viable way to reach the trade gate.
 if ! verify_meter "$PROSUMER_TOKEN" "$PROSUMER_SERIAL"; then
     err "prosumer meter unverified — the SELL in step 4 would be refused 403; aborting"
     exit 1
