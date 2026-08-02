@@ -25,6 +25,16 @@ export SIMULATOR_URL="${SIMULATOR_URL:-http://localhost:12010}"
 export PG_CONTAINER="${PG_CONTAINER:-gridtokenx-postgres}"
 export PG_USER="${PG_USER:-gridtokenx_user}"
 export PG_DB="${PG_DB:-gridtokenx}"
+# Per-service databases. These MUST mirror lib/db.py's defaults — it already names
+# the split DBs, while the bash side defaulted every one of them back to the shared
+# `gridtokenx`. That DB still HAS `users`/`meters`/`trading_orders`, all empty, so a
+# misrouted query returned "0 rows" instead of failing: a count>0 assertion failed
+# for the wrong reason and a count==0 assertion passed vacuously. Point them back
+# with e.g. PG_DB_METER=gridtokenx if an environment has not cut over.
+export PG_DB_IAM="${PG_DB_IAM:-gridtokenx_iam}"
+export PG_DB_TRADING="${PG_DB_TRADING:-gridtokenx_trading}"
+export PG_DB_METER="${PG_DB_METER:-gridtokenx_meter}"
+export PG_DB_CHAIN="${PG_DB_CHAIN:-gridtokenx_chain}"
 export DATABASE_URL="${DATABASE_URL:-postgresql://gridtokenx_user:gridtokenx_password@localhost:7001/gridtokenx}"
 export REDIS_URL="${REDIS_URL:-redis://localhost:7010}"
 export KAFKA_BROKER="${KAFKA_BROKER:-localhost:29001}"

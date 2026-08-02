@@ -131,7 +131,12 @@ wait_onchain_confirmed() {
         return 0
     fi
     for i in $(seq 1 "$REG_CONFIRM_WAIT"); do
-        reg=$(docker exec "$PG_CONTAINER" psql -U "$PG_USER" -d "$PG_DB" -tAc \
+        # PG_DB_IAM, not PG_DB: `users` moved to gridtokenx_iam. The shared DB still
+        # has an EMPTY `users`, so this query returned '' rather than erroring — the
+        # gate then burned its full 45s and warned "NOT confirmed" on accounts that
+        # were registered 30ms after creation. Measured 2026-08-02: it had never
+        # once passed, costing 90s a run while asserting nothing.
+        reg=$(docker exec "$PG_CONTAINER" psql -U "$PG_USER" -d "$PG_DB_IAM" -tAc \
               "SELECT blockchain_registered FROM users WHERE id='$uid';" 2>/dev/null | tr -d '[:space:]')
         case "$reg" in
             t|true) ok "on-chain registration CONFIRMED (blockchain_registered=t, ${i}s)"; return 0 ;;

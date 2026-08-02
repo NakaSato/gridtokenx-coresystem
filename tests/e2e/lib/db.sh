@@ -9,10 +9,15 @@
 # actually lives. See docs/design-docs/db-per-service-migration.md §5c (#6b).
 
 PG_DB="${PG_DB:-gridtokenx}"
-PG_DB_IAM="${PG_DB_IAM:-$PG_DB}"
-PG_DB_TRADING="${PG_DB_TRADING:-$PG_DB}"
-PG_DB_METER="${PG_DB_METER:-$PG_DB}"
-PG_DB_CHAIN="${PG_DB_CHAIN:-$PG_DB}"
+# Defaults name the SPLIT databases, matching lib/db.py. They used to fall back to
+# $PG_DB, which silently sent every routed query to the shared `gridtokenx` — where
+# these tables still exist but are empty, so the router looked like it worked and
+# returned nothing. env.sh exports the same four; these repeat them so a suite that
+# sources db.sh standalone still routes correctly.
+PG_DB_IAM="${PG_DB_IAM:-gridtokenx_iam}"
+PG_DB_TRADING="${PG_DB_TRADING:-gridtokenx_trading}"
+PG_DB_METER="${PG_DB_METER:-gridtokenx_meter}"
+PG_DB_CHAIN="${PG_DB_CHAIN:-gridtokenx_chain}"
 
 # _db_route <sql> — echo the DB owning the tables the SQL names. Scans FROM/JOIN/
 # UPDATE/INTO <table> plus any `table_name='<t>'` filter (information_schema
