@@ -80,3 +80,17 @@ export E2E_STATUS_FILE="${E2E_STATUS_FILE:-${TMPDIR:-/tmp}/e2e_http_status.$$}"
 # --- Test run identity (unique per run for isolation) ---
 export E2E_RUN_ID="${E2E_RUN_ID:-$(date +%s)-$$}"
 export E2E_PASSWORD="${E2E_PASSWORD:-GRX-Secure-P@ss-2026-E2E}"
+
+# --- Chain artifacts (reset-variable) ---
+# The GRX currency mint is a plain keypair created by bootstrap.ts, so it changes
+# identity on EVERY ledger reset; `app.sh init` propagates the fresh address into
+# the root .env. Suites that hardcode a fallback (96_token_lifecycle) would pin a
+# dead mint after a reset — export from the root .env so a reset flows through
+# automatically. Program IDs are declare_id!-stable and need no such export.
+_E2E_ROOT_ENV="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/.env"
+if [ -f "$_E2E_ROOT_ENV" ]; then
+  [ -z "${CURRENCY_TOKEN_MINT:-}" ] && \
+    export CURRENCY_TOKEN_MINT="$(sed -n 's/^CURRENCY_TOKEN_MINT=//p' "$_E2E_ROOT_ENV" | tail -1)"
+  [ -z "${ENERGY_TOKEN_MINT:-}" ] && \
+    export ENERGY_TOKEN_MINT="$(sed -n 's/^ENERGY_TOKEN_MINT=//p' "$_E2E_ROOT_ENV" | tail -1)"
+fi

@@ -204,7 +204,25 @@ def test_token_lifecycle_onchain_balance_deltas():
     # wallet-GRID delta (not just the envelope, per 30_settlement's caveat). -------
     before_grid = chain.token_balance_of(seller["wallet"], GRID_MINT)
     handle = si.new_meter("L", seller["user_id"], wallet=seller["wallet"])
-    ts_sec = int(time.time()) - BACKDATE_SECS
+    # Backdate from the CHAIN clock, not the host clock. mint_generation enforces
+    # `window_start_ms/1000 <= chain_now + 900` (energy-token
+    # instructions/mint_generation.rs:115-120), and this dev validator's Clock
+    # sysvar runs SLOWER than wall time (~6h wall ≈ 3h chain on Apple Silicon;
+    # measured 192 min behind on 2026-08-03). A host-clock backdate of 20 min
+    # therefore lands HOURS in the chain's future and every mint dies Custom(6010)
+    # — worse, the failed recipient poisons its whole batch chunk, dragging valid
+    # neighbours down with it. Anchoring to the chain clock makes the window valid
+    # regardless of accumulated drift; host time is only the fallback when the RPC
+    # is unreachable (in which case the on-chain assertions skip anyway).
+    try:
+        _slot = requests.post(SOLANA_RPC_URL, json={
+            "jsonrpc": "2.0", "id": 1, "method": "getSlot"}, timeout=5).json()["result"]
+        _chain_now = requests.post(SOLANA_RPC_URL, json={
+            "jsonrpc": "2.0", "id": 1, "method": "getBlockTime", "params": [_slot]},
+            timeout=5).json()["result"]
+    except Exception:
+        _chain_now = int(time.time())
+    ts_sec = int(_chain_now) - BACKDATE_SECS
     net_kwh = 25.0
     stub = si.stub()
 
