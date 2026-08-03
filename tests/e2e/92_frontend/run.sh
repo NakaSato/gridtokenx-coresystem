@@ -44,11 +44,59 @@ log_success "playwright bin present"
 # blow timing budgets that hold fine in isolation (observed: dca.spec.ts flaked only
 # when racing order.spec.ts). Serial here trades wall-clock for determinism; local
 # `npm run test:e2e` is untouched and still runs parallel for fast iteration.
-log_info "Case 3: Playwright suite against $APISIX_URL"
+# --- Port isolation: never test a server this suite didn't start -----------
+# Playwright's `reuseExistingServer` (outside CI) reuses ANY live server on the
+# target port without checking what it serves. On 2026-08-03 that made all five
+# register/login specs time out hunting a "Connect" button on a page that turned
+# out to be a DIFFERENT project's dev server squatting :3000 (UTCC AI Academy) —
+# the failure read as a broken trading UI when the UI was never under test at
+# all. Run on a dedicated port, and if something already holds it, verify it is
+# actually the trading UI (homepage title carries "GridTokenX",
+# gridtokenx-trading/app/layout.tsx:19) before reusing — else fail loudly and
+# name the squatter instead of testing a stranger's app.
+FRONTEND_PORT="${FRONTEND_PORT:-3020}"
+OCCUPANT="$(curl -s --max-time 3 "http://localhost:$FRONTEND_PORT" 2>/dev/null || true)"
+# Bash pattern match, NOT `printf | grep -q`: under this script's `set -o
+# pipefail`, grep -q exits at the first match and SIGPIPEs the still-writing
+# printf (the page is ~180 KB), so the pipeline reports 141 and the guard
+# refused the REAL trading UI as "foreign" — intermittently, since it races.
+if [ -n "$OCCUPANT" ] && [[ "$OCCUPANT" != *GridTokenX* && "$OCCUPANT" != *gridtokenx* ]]; then
+    TITLE="$(printf '%s' "$OCCUPANT" | grep -o '<title>[^<]*' | head -1 | cut -c8-60)"
+    log_fail "port $FRONTEND_PORT is serving a foreign app (title: '${TITLE:-unknown}') — refusing to run the suite against it. Free the port or set FRONTEND_PORT."
+    suite_summary
+    exit 1
+fi
+
+# --- Pre-warm: compile every route BEFORE any test budget starts ------------
+# Next dev compiles routes on first hit, and this app's trade page takes minutes
+# to compile cold on a loaded machine — inside a 180s test budget that reads as
+# five mysterious waitForTimeout timeouts (measured 2026-08-03: register→login
+# passed and only the nav click failed once the server was warm). Start the dev
+# server ourselves, curl each route under test until it compiles, THEN run
+# playwright — reuseExistingServer picks ours up (the guard above already proved
+# nothing foreign holds the port), so every test starts against warm routes.
+DEV_LOG="$(mktemp)"
+DEV_PID=""
+if [ -z "$OCCUPANT" ]; then
+    log_info "pre-warm: starting next dev on :$FRONTEND_PORT"
+    ( cd "$FRONTEND_DIR" && PORT="$FRONTEND_PORT" NEXT_PUBLIC_API_BASE_URL="$APISIX_URL" npm run dev >"$DEV_LOG" 2>&1 ) &
+    DEV_PID=$!
+    for _ in $(seq 1 60); do
+        curl -s -o /dev/null --max-time 2 "http://localhost:$FRONTEND_PORT" && break
+        sleep 2
+    done
+fi
+for route in / /portfolio /wallet /carbon-credit; do
+    t0=$SECONDS
+    code=$(curl -s -o /dev/null --max-time 240 -w '%{http_code}' "http://localhost:$FRONTEND_PORT$route" 2>/dev/null)
+    log_info "pre-warm $route -> $code in $((SECONDS - t0))s"
+done
+
+log_info "Case 3: Playwright suite against $APISIX_URL (frontend on :$FRONTEND_PORT)"
 PW_LOG="$(mktemp)"
 if (
     cd "$FRONTEND_DIR" &&
-    NEXT_PUBLIC_API_BASE_URL="$APISIX_URL" npx playwright test --workers=1 --reporter=line
+    PORT="$FRONTEND_PORT" NEXT_PUBLIC_API_BASE_URL="$APISIX_URL" npx playwright test --workers=1 --reporter=line
 ) 2>&1 | tee "$PW_LOG"; then
     log_success "frontend e2e suite passed"
 elif grep -q "Executable doesn't exist" "$PW_LOG"; then
@@ -57,5 +105,12 @@ else
     log_fail "frontend e2e suite failed — see $FRONTEND_DIR/playwright-report"
 fi
 rm -f "$PW_LOG"
+
+# Reap the pre-warm dev server we started (leave a pre-existing one alone).
+if [ -n "${DEV_PID:-}" ]; then
+    kill "$DEV_PID" 2>/dev/null
+    pkill -f "next dev.*$FRONTEND_PORT" 2>/dev/null || true
+fi
+rm -f "$DEV_LOG"
 
 suite_summary
