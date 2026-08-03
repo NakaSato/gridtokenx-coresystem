@@ -160,6 +160,14 @@ def place_order(uid, side, amount, price):
         import db as _db  # lib/db.py
 
         _db.ensure_sellable(uid)
+    # Symmetric buy-side gate: a buy is refused (402) when the buyer's on-chain
+    # currency balance cannot cover it. This user is freshly registered with an
+    # empty wallet, so point their wallet mirror at the funded dev payer — the
+    # gate's balance read still runs for real against the chain.
+    if side == "buy":
+        import db as _db  # lib/db.py
+
+        _db.ensure_funded(uid)
     return requests.post(f"{TRADING}/api/v1/orders", timeout=8, headers=trade_hdr(uid),
                          json={"side": side, "order_type": "limit",
                                "energy_amount_kwh": str(amount), "price_per_kwh": str(price),

@@ -119,6 +119,11 @@ def place_order(user_id, side, amount, price, role="api-gateway", zone=ZONE):
     # the projection the gate reads; 97_p2p covers the real onboarding path.
     if side == "sell":
         db.ensure_sellable(user_id)
+    # Symmetric buy-side gate: Trading refuses a buy (402) the buyer's on-chain
+    # currency balance cannot cover. Point the fresh e2e user's wallet mirror at
+    # the funded dev payer; the gate's balance read itself still runs for real.
+    if side == "buy":
+        db.ensure_funded(user_id)
     body = {"side": side, "order_type": "limit",
             "energy_amount_kwh": str(amount), "price_per_kwh": str(price), "zone_id": zone}
     return requests.post(f"{TRADING}/api/v1/orders", json=body, headers=hdr(user_id, role), timeout=8)

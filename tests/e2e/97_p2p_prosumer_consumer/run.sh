@@ -567,14 +567,74 @@ if ! verify_meter "$PROSUMER_TOKEN" "$PROSUMER_SERIAL"; then
     exit 1
 fi
 
+step "3c) Fund the CONSUMER with currency [HARD GATE — a buy is refused without it]"
+# Trading refuses a buy (402) when the buyer's on-chain currency balance cannot
+# cover the order's maximum spend. A real consumer tops up via the exchange
+# on-ramp — out of scope here — so mint dev currency straight to the consumer's
+# wallet with the localnet mint-authority keypair, the same dev-only faucet
+# fixture suite 96 uses (`_fund_grx`). Never a production path.
+CURRENCY_MINT="${CURRENCY_TOKEN_MINT:-7hg4h2BJPSLZsxUJn7BPKkGMjEVS2wVk5iW7X1E9Be1Z}"
+MINT_AUTH_KEYPAIR="${MINT_AUTHORITY_KEYPAIR:-$HERE/../../../dev-wallet.json}"
+FUND_AMOUNT=$(python3 -c "print(max(100, float('$TRADE_KWH') * float('$BUY_PRICE') * 2))" 2>/dev/null || echo 100)
+if command -v spl-token >/dev/null 2>&1 && [ -f "$MINT_AUTH_KEYPAIR" ]; then
+    spl-token create-account "$CURRENCY_MINT" --owner "$CONSUMER_WALLET" \
+        --fee-payer "$MINT_AUTH_KEYPAIR" --url "${SOLANA_RPC_URL:-http://localhost:8899}" >/dev/null 2>&1 || true
+    if spl-token mint "$CURRENCY_MINT" "$FUND_AMOUNT" --recipient-owner "$CONSUMER_WALLET" \
+        --mint-authority "$MINT_AUTH_KEYPAIR" --fee-payer "$MINT_AUTH_KEYPAIR" \
+        --url "${SOLANA_RPC_URL:-http://localhost:8899}" >/dev/null 2>&1; then
+        ok "consumer funded: $FUND_AMOUNT currency -> $CONSUMER_WALLET"
+    else
+        warn "currency mint failed — the BUY below will surface the funding gate's 402"
+    fi
+else
+    warn "spl-token or $MINT_AUTH_KEYPAIR unavailable — the BUY below will surface the funding gate's 402"
+fi
+
 step "4) Trade — prosumer SELL x consumer BUY (zone $ZONE_ID)"
 info "prosumer SELL ${TRADE_KWH}kWh @ $SELL_PRICE   consumer BUY ${TRADE_KWH}kWh @ $BUY_PRICE"
-if sid=$(submit_order "$PROSUMER_TOKEN" sell "$TRADE_KWH" "$SELL_PRICE"); [ -n "$sid" ]; then
+# Two transient refusals are retried; anything else surfaces immediately.
+# NOTE for both helpers: their stdout IS the captured order id — diagnostics go
+# to stderr (>&2) or they pollute $sid/$bid and break the step-5 trade lookup.
+#
+# 1. Gateway 503 (APISIX upstream blip, observed right after a trading-service
+#    container recreate): the request never reached Trading, safe to resubmit.
+submit_order_r() {
+    local attempt out errfile; errfile=$(mktemp)
+    for attempt in $(seq 1 5); do
+        if out=$(submit_order "$@" 2>"$errfile"); then
+            rm -f "$errfile"; printf '%s' "$out"; return 0
+        fi
+        if ! grep -q "503 Service Temporarily Unavailable" "$errfile"; then
+            cat "$errfile" >&2; rm -f "$errfile"; return 1
+        fi
+        [ "$attempt" -lt 5 ] && { info "gateway 503 (attempt $attempt) — retrying in 2s" >&2; sleep 2; }
+    done
+    cat "$errfile" >&2; rm -f "$errfile"; return 1
+}
+# 2. Sell-side only: Trading answers the sell gate from its OWN meter_read_model,
+#    mirrored from the meter-service MeterUpdated Kafka feed — eventually
+#    consistent BY DESIGN. A sell fired the instant after verify can lose that
+#    race (observed: publish at :36.17, sell refused at :37.35 while the
+#    consumer was still recovering), so retry that refusal for up to ~30s.
+submit_sell_with_mirror_retry() {
+    local attempt sid errfile; errfile=$(mktemp)
+    for attempt in $(seq 1 10); do
+        if sid=$(submit_order_r "$PROSUMER_TOKEN" sell "$TRADE_KWH" "$SELL_PRICE" 2>"$errfile"); then
+            rm -f "$errfile"; printf '%s' "$sid"; return 0
+        fi
+        if ! grep -qi "verified meter" "$errfile"; then
+            cat "$errfile" >&2; rm -f "$errfile"; return 1  # a different refusal — surface it
+        fi
+        [ "$attempt" -lt 10 ] && { info "sell refused: meter mirror not caught up (attempt $attempt) — retrying in 3s" >&2; sleep 3; }
+    done
+    cat "$errfile" >&2; rm -f "$errfile"; return 1
+}
+if sid=$(submit_sell_with_mirror_retry); [ -n "$sid" ]; then
     ok "prosumer ask placed: sell=$sid"
 else
     err "prosumer SELL failed"; exit 1
 fi
-if bid=$(submit_order "$CONSUMER_TOKEN" buy "$TRADE_KWH" "$BUY_PRICE"); [ -n "$bid" ]; then
+if bid=$(submit_order_r "$CONSUMER_TOKEN" buy "$TRADE_KWH" "$BUY_PRICE"); [ -n "$bid" ]; then
     ok "consumer bid placed: buy=$bid"
 else
     err "consumer BUY failed"; exit 1

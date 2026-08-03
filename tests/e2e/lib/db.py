@@ -122,6 +122,65 @@ def grant_verified_meter(user_id: str, serial: str | None = None) -> str:
     return serial
 
 
+# The dev platform payer (`SOLANA_PAYER_KEY` default in the root .env). It holds
+# the THBC currency inventory on the dev chain, so it is the one wallet a test
+# can rely on being funded across chain-resets (init re-mints to it).
+FUNDED_WALLET = os.getenv(
+    "E2E_FUNDED_WALLET", "EzudwoHvNPAc4dpPi5ndU8MEZVHVzq3Pj3Thm9ooKmiJ"
+)
+
+
+def grant_funded_wallet(user_id: str, wallet: str | None = None) -> str:
+    """Point `user_id`'s primary wallet at one that holds currency on-chain, so
+    Trading's buy-side funding gate admits their bids.
+
+    Trading refuses a buy (402) when the buyer's currency balance cannot cover
+    the order's maximum spend, and it resolves the buyer's wallet from its own
+    `iam_wallet_read_model` mirror. A suite that only exercises the CDA has no
+    business standing up THBC issuance just to place a bid, so this repoints the
+    mirror at the funded dev payer — the same backdoor class as
+    `grant_verified_meter` (seed only what the gate reads; the gate's balance
+    check itself still runs against the real chain).
+
+    Idempotent — re-running upserts the same primary row.
+    """
+    wallet = wallet or FUNDED_WALLET
+    query(
+        f"UPDATE iam_wallet_read_model SET is_primary = false WHERE user_id = '{user_id}';",
+        db=PG_DB_TRADING,
+    )
+    query(
+        "INSERT INTO iam_wallet_read_model "
+        "  (user_id, wallet_address, is_primary, blockchain_registered, updated_at) "
+        f"VALUES ('{user_id}', '{wallet}', true, true, now()) "
+        "ON CONFLICT (user_id, wallet_address) DO UPDATE SET "
+        "  is_primary = true, updated_at = now();",
+        db=PG_DB_TRADING,
+    )
+    return wallet
+
+
+_BUYERS_FUNDED: set[str] = set()
+
+
+def ensure_funded(user_id) -> None:
+    """Best-effort, once-per-user wrapper around `grant_funded_wallet`.
+
+    Call before placing a buy order from a suite that is not itself testing
+    wallet funding. Never raises: if the backdoor is unavailable, the buy is
+    attempted anyway and the test's own assertion reports the resulting 402 —
+    which is more informative than an error from this helper.
+    """
+    key = str(user_id)
+    if key in _BUYERS_FUNDED:
+        return
+    try:
+        grant_funded_wallet(key)
+    except Exception as e:  # noqa: BLE001 — a backdoor failure must not mask the test
+        print(f"warning: could not point {key} at a funded wallet for buying: {e}")
+    _BUYERS_FUNDED.add(key)
+
+
 _SELLERS_GRANTED: set[str] = set()
 
 
