@@ -194,6 +194,23 @@ just send-meter-reading meters="1" interval="15"
 > dev chain. The ledger survives in `test-ledger/`, so `SOLANA_RESET=0` recovers a
 > TTL-killed validator with programs intact.
 
+> **The chain clock also drifts CONTINUOUSLY — a reset only buys time.** Even
+> running uninterrupted, this host produces slots slower than the nominal 400 ms,
+> so the Clock sysvar advances at roughly **half wall speed** (measured 192 min
+> behind ~6 h after a fresh reset, 2026-08-03). Consequence: `mint_generation`
+> rejects any window past `chain_now + 900 s` (`Custom 6010`,
+> `gridtokenx-anchor/programs/energy-token/src/instructions/mint_generation.rs:115`),
+> so surplus mints for **current** windows start failing once drift exceeds the
+> aggregator's window lag — and one future-window recipient fails its whole
+> atomic batch chunk, dragging valid neighbouring outbox entries down with it.
+> Chain Bridge logs carry the decoded error since `b129431`; the stuck entries
+> live in Redis `gridtokenx:billing:mint_outbox`. Fix by re-anchoring:
+> **`just chain-reset`** (destructive: stop → full `init` → `init-zones.sh`; the
+> new mint addresses propagate via root `.env` → `tests/e2e/env.sh`
+> automatically). Tests that need a "current" window must derive timestamps from
+> the **chain clock** (`getSlot` → `getBlockTime`), not host time — see
+> `tests/e2e/96_token_lifecycle/test_onchain_balance_deltas.py` for the pattern.
+
 ---
 
 ## Architecture Rules
