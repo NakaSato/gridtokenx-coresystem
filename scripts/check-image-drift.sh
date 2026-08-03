@@ -138,7 +138,10 @@ done < <(parse_built_services)
 if [[ "$drift_found" == 1 && "$FIX" == 1 ]]; then
   echo ""
   echo "🔧 Rebuilding ${#STALE_SVCS[@]} stale service(s): ${STALE_SVCS[*]}"
-  docker compose build "${STALE_SVCS[@]}"
+  # COMPOSE_BAKE delegates the build to buildx bake, which builds the whole
+  # image graph CONCURRENTLY — without it, multi-service rebuilds run one image
+  # at a time and a 4-service sweep serializes ~25 min of Rust release builds.
+  COMPOSE_BAKE=true docker compose build "${STALE_SVCS[@]}"
   docker compose up -d "${STALE_SVCS[@]}"
   echo "✅ Rebuilt + recreated. Re-run without --fix to confirm clean."
   exit 0
