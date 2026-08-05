@@ -167,12 +167,19 @@ cmd_init() {
     local TRADING_ID=$(grep -E "^trading =" "$ANCHOR_DIR/Anchor.toml" | cut -d '"' -f 2)
     local ORACLE_ID=$(grep -E "^oracle =" "$ANCHOR_DIR/Anchor.toml" | cut -d '"' -f 2)
     local GOVERNANCE_ID=$(grep -E "^governance =" "$ANCHOR_DIR/Anchor.toml" | cut -d '"' -f 2)
+    local TREASURY_ID=$(grep -E "^treasury =" "$ANCHOR_DIR/Anchor.toml" | cut -d '"' -f 2)
 
     deploy_program "registry" "$REGISTRY_ID"
     deploy_program "energy_token" "$ENERGY_TOKEN_ID"
     deploy_program "trading" "$TRADING_ID"
     deploy_program "oracle" "$ORACLE_ID"
     deploy_program "governance" "$GOVERNANCE_ID"
+    # Treasury was MISSING from this list until 2026-08-05: every chain-reset
+    # left the THBC layer (issuance, GRX<->THBC exchange, staking) undeployed —
+    # found via thbc-service reconciliation failing with "treasury account does
+    # not exist" after a reset. Its state also needs scripts/init-treasury.ts
+    # (in gridtokenx-anchor) after deploy, which init-zones does NOT cover.
+    deploy_program "treasury" "$TREASURY_ID"
 
     # Let freshly deployed programs settle before the account-init txs reference them.
     sleep 5
