@@ -43,7 +43,13 @@ Two caveats that the paper now states, and that must stay stated:
   80-meter community-month run. It is invariant across fleet sizes, but the ranking
   **reverses** when supply is left uncapped
   (`test-results/endog-uncapped-80m.json`: uniform 1.9906 < buy-back 2.200).
-- `audit-community-month.ts`, the harness that produced the 15/15 result, is **no
-  longer in the repo**; only `scripts/audit-lifecycle.ts` (11 checks) survives.
-  `BENCHMARKS.md`'s claim that `bench-community-month.ts` was also removed is stale
-  — that file does still exist.
+- `audit-community-month.ts` was restored on 2026-08-10 from `e3ecf30^` (it had been
+  deleted as an "obsolete script"). Its imports still match the repo's current deps,
+  but **it has not been re-run** — that needs a live validator carrying the month
+  bench state. `BENCHMARKS.md`'s claim that `bench-community-month.ts` was also
+  removed is stale; that file does still exist.
+- **The paper says fourteen assertions, not fifteen.** The restored harness makes
+  fifteen `check()` calls, but `scripts/audit-community-month.ts:109` compares
+  `EXP.mintedWh` against the literal `3290724` — a constant against itself, which
+  reads nothing from the chain and cannot fail. Fourteen are genuine RPC reads.
+  `BENCHMARKS.md` still says 15/15; the paper deliberately does not.

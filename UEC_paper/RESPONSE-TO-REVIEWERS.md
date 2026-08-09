@@ -38,7 +38,7 @@ of the paper while the sentence referring to them was left behind, which is why 
 manuscript read "The closure identities of hold exactly on chain." The three
 identities are now stated explicitly as Eq. (1) in Section 2 — energy minted =
 settled = burned, REC supply, and currency conservation `Σ Tₘ = P_sell + W` — with
-all symbols defined and the fifteen audit assertions described. The results section
+all symbols defined and the fourteen chain-derived audit assertions described. The results section
 now refers to Eq. (1) by number.
 
 ### R1.3 — "The Acknowledgement and References sections should not be assigned section numbers."
@@ -66,7 +66,7 @@ in three places, at increasing detail:
 
 1. **Abstract** now ends with an explicit finding sentence: the execution layer is
    not the binding constraint (the community-month replays 1,858× faster than real
-   time with zero delivery loss, and all fifteen conservation assertions close
+   time with zero delivery loss, and all fourteen chain-derived conservation assertions close
    exactly against on-chain state), and participation is instead decided by the
    price rule.
 2. **Section 1** states up front the design claim the paper tests: with hot-path
@@ -80,7 +80,7 @@ in three places, at increasing detail:
 
 We have made the evidence checkable rather than asserted:
 
-- **Eq. (1)** states precisely what the "15/15 audit assertions" verify, and
+- **Eq. (1)** states precisely what the audit assertions verify, and
   Section 2 lists what the harness re-derives from live chain state by RPC reads
   alone (per-meter counters, PDA censuses, registry conservation sums, token
   supplies and balances).
@@ -130,4 +130,14 @@ would be glad to include it in an extended version.
   of this work are," and "The outcomes replays."
 - Added a corresponding-author footnote and separated the two contact addresses,
   which previously rendered as a single mailto link containing both.
+- Repaired the title, which was missing two words: "…via Solana Smart Contracts
+  **in a** Permissioned Environment."
+- Normalised spelling to one convention throughout (*realized*, *modeled*,
+  *summarizes*, alongside *serialization*), which had been mixed.
+- **Corrected the audit count from fifteen to fourteen.** On re-auditing our own
+  harness for this revision we found that one of its fifteen checks compares a
+  constant with itself and therefore reads nothing from the chain. Fourteen
+  assertions are genuine RPC reads against live chain state. Every reported
+  conservation result is unchanged; only the count is corrected. We prefer to
+  report the smaller, defensible number.
 - The paper remains within the two-page limit.
