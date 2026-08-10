@@ -194,8 +194,8 @@ Throughput is client-observed confirmed goodput, that is, confirmed transactions
     align: (left + horizon, left + horizon),
     header: ([Quantity], [Value]),
     [fleet], [80 meters (seeded solar/load physics): 12 prosumer sellers, 68 consumers],
-    [market policy], [sell cap $C = 10$ kWh/day per prosumer; 0.1 kWh dust floor],
-    [horizon / readings], [30 days × 96 ticks ($Delta t$ = 15 min) = 230,400 readings, integer Wh],
+    [market policy], [sell cap #emph[C] = 10 kWh/day per prosumer; 0.1 kWh dust floor],
+    [horizon / readings], [30 days × 96 ticks (Δ#emph[t] = 15 min) = 230,400 readings, integer Wh],
     [month energy], [15,868.5 kWh generated; 144,879.8 kWh consumed; 10,386.7 kWh interval surplus],
     [oracle-accepted surplus], [8,253.502 kWh; 919 readings gate-rejected],
   ),
@@ -238,7 +238,7 @@ measurements.
 
 The third finding is economic. All three rules move identical energy in
 @tab-revenue, so the ranking is set by what is deducted: wheeling takes
-1,278 ฿ from each P2P rule, a third of the uniform auction's gross (33.3%)
+1,278 THB from each P2P rule, a third of the uniform auction's gross (33.3%)
 and more of the CDA's (35.7%), and nothing from the buy-back. Fees (25 bp)
 and the loss allowance (5 bp) take about 0.3% together, so they do not
 decide participation. The uniform auction clears high enough to survive
@@ -248,11 +248,11 @@ microstructure, is the regulator's lever.
 
 #figure(
   caption: [#text(size: 8pt)[Prosumer revenue decomposition for one cleared
-  month (1,111.4 kWh; 80 meters / 8 prosumers, 30 days), in ฿.]],
+  month (1,111.4 kWh; 80 meters / 8 prosumers, 30 days), in THB.]],
   bt(
     columns: (auto, auto, auto, auto, auto, auto, auto),
     align: (left + horizon,) + (right + horizon,) * 6,
-    header: ([Price rule], [Gross], [Fee], [Wheeling], [Loss], [Net], [Net ฿/kWh]),
+    header: ([Price rule], [Gross], [Fee], [Wheeling], [Loss], [Net], [Net THB/kWh]),
     [uniform], [3,834.31], [9.59], [1,278.10], [1.92], [2,544.70], [2.290],
     [buy-back], [2,445.07], [0.00], [0.00], [0.00], [2,445.07], [2.200],
     [CDA], [3,584.25], [8.96], [1,278.10], [1.79], [2,295.39], [2.065],
