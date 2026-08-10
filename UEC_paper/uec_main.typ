@@ -83,8 +83,8 @@
   // ── Bibliography: IEEE numeric, heading unnumbered ───────────
   set bibliography(style: "ieee", title: "References")
   show bibliography: set heading(numbering: none)
-  show bibliography: set text(size: 8.5pt)
-  show bibliography: set par(leading: 0.45em, spacing: 0.42em)
+  show bibliography: set text(size: 8pt)
+  show bibliography: set par(leading: 0.4em, spacing: 0.38em)
 
   // ── Title block ──────────────────────────────────────────────
   align(center)[
@@ -126,6 +126,22 @@ affiliations: (
 contact-email: "2410717302003@live4.utcc.ac.th, Suwannee_ads@utcc.ac.th"
 )
 
+// ── Booktabs-style table: horizontal rules only (top / under header /
+//    bottom), no vertical or interior rules. ──────────────────────────
+#let bt(columns: (), align: (), header: (), ..rows) = text(size: 7pt)[
+  #table(
+    columns: columns,
+    align: align,
+    stroke: none,
+    inset: (x: 5pt, y: 2.1pt),
+    table.hline(stroke: 0.7pt),
+    table.header(..header.map(h => strong(h))),
+    table.hline(stroke: 0.4pt),
+    ..rows,
+    table.hline(stroke: 0.7pt),
+  )
+]
+
 // ── Abstract ───────────────────
 // The growing adoption of renewable energy in Thailand has created participate with surplus generation capacity currently cannot engage in peer-to-peer (P2P), which MEA and PEA announce to buyback surplus energy totalling 500MWh from participate single price-rate 2.20THB/kWh and limitation 5kWh/participate.
 
@@ -137,8 +153,8 @@ contact-email: "2410717302003@live4.utcc.ac.th, Suwannee_ads@utcc.ac.th"
 
 // Thailand's Power Development Plan (PDP 2026-2050) mandates a transition to a minimum of 60% clean energy generation to fulfill the nation's carbon neutrality commitments. Achieving this target will necessitate a rapid proliferation of distributed rooftop solar prosumers. However, under the existing Enhanced Single Buyer model, these prosumers lack a direct mechanism for peer-to-peer (P2P) trading of surplus generation, resulting in the underutilization of distributed energy capacity.
 
-Thailand's state utilities EGAT, MEA, and PEA have advanced a National Energy Trading Platform (NETP) since 2017, envisaging a blockchain-based settlement layer with a dedicated digital currency for Peer-to-Peer (P2P) trading among rooftop-solar prosumers. The platform remains in development, and the regulated buy-back scheme still gives prosumers no direct mechanism to exchange surplus generation within the local distribution grid.
-This paper presents a smart-contract-based on-chain settlement layer for P2P energy trading, realized as six modular Anchor programs deployed on a permissioned Solana runtime that uses the Sealevel parallel-execution engine. By routing every high-frequency write to a per-entity program-derived account (PDA), the system lets transactions with disjoint write sets execute in parallel, with transaction ordering provided by Solana's Proof-of-History (PoH). The market-clearing framework couples a continuous double auction (CDA) for real-time trades with a uniform-price auction that clears aggregated prosumer bids at a single settlement price over fifteen-minute epochs.
+Thailand's state utilities have advanced a National Energy Trading Platform (NETP) since 2017, envisaging a blockchain settlement layer with a dedicated digital currency for Peer-to-Peer (P2P) trading among rooftop-solar prosumers. It remains in development, and the regulated buy-back still gives prosumers no direct mechanism to exchange surplus generation within the local distribution grid.
+This paper presents an on-chain settlement layer for P2P energy trading: six modular Anchor programs on a permissioned Solana runtime, where routing every high-frequency write to a per-entity program-derived account (PDA) lets transactions with disjoint write sets execute in parallel under Sealevel, ordered by Proof-of-History (PoH). The market-clearing framework couples a continuous double auction (CDA) for real-time trades with a uniform-price auction clearing aggregated bids at a single price over fifteen-minute epochs.
 We simulate consumption, generation, and power flow for 80 meters over 30 days at fifteen-minute intervals on a low-voltage feeder, 15% of them prosumers, and evaluate the full token life-cycle of minting, settlement, and burning on a single-node validator. The main finding is that the execution layer is not the binding constraint: the community-month replays 1,858× faster than real time with zero delivery loss, and all fourteen chain-derived conservation assertions close exactly against on-chain state. Participation is instead decided by the price rule, which ranks the uniform-price auction above the regulated buy-back and the CDA.
 
 = Motivation and Design Rationale
@@ -150,7 +166,7 @@ The settlement logic is built as six programs on Anchor, Solana's official frame
 
 The evaluated system has two parts, the settlement layer under test and the simulated grid that drives it:
 - The smart-contract layer is built on the Solana Anchor framework @anchor2024 (anchor-lang and anchor-spl, version 1.0.0) and comprises six programs, *energy-token, governance, oracle, registry, trading,* and *treasury*, all written in Rust and compiled to SBF bytecode. One program invokes another through cross-program invocation (CPI), with authority delegated to program-derived addresses (PDAs) that sign without any private key existing. The deployment targets a permissioned environment realized as a private `solana-test-validator` network; all experiments reported here ran on a single node (Apple M2, Agave 3.1.10).
-- The fleet uses the CINELDI 80-bus rural LV reference grid (SINTEF) @cineldi2024 for network topology only, the 80-node single-phase feeder with its V/A/W parameters, imported from MATPOWER, translated to a GridLAB-D (v5.3.0) model, and resolved for AC power flow with pandapower @thurner2018. As CINELDI carries only hourly load and no generation, all time-series are simulator-produced: per-meter consumption and twelve prosumer nodes' (15%) rooftop PV at fifteen-minute cadence, with solar modeled deterministically via pvlib @holmgren2018pvlib under a fixed seed.
+- The fleet uses the CINELDI 80-bus rural LV reference grid (SINTEF) @cineldi2024 for network topology only, the 80-node single-phase feeder with its V/A/W parameters, imported from MATPOWER into a GridLAB-D (v5.3.0) model and resolved with pandapower @thurner2018. As CINELDI carries only hourly load and no generation, all time-series are simulator-produced: per-meter consumption and twelve prosumer nodes' (15%) rooftop PV at fifteen-minute cadence, with solar modeled deterministically via pvlib @holmgren2018pvlib under a fixed seed.
 
 A complete run must satisfy three closure identities, each checkable from
 chain state alone:
@@ -168,62 +184,45 @@ alone: per-meter counters, PDA censuses, registry conservation sums, token
 supplies and balances.
 
 = Throughput, Audit, and Revenue Results
-Throughput is client-observed confirmed goodput, that is, confirmed transactions per wall-clock second from burst start to last confirmation. Every non-confirmed transaction is attributed to a failure class (submission reject, on-chain guard, or expiry), separating delivery loss from validation working as intended.
-
-== Simulated Community-Month Dataset
-
-@tab-data summarizes the workload every reported figure derives from.
+Throughput is client-observed confirmed goodput, that is, confirmed transactions per wall-clock second from burst start to last confirmation. Every non-confirmed transaction is attributed to a failure class (submission reject, on-chain guard, or expiry), separating delivery loss from validation working as intended. @tab-data gives the workload every reported figure derives from.
 
 #figure(
   caption: [#text(size: 8pt)[The simulated community-month dataset
   (seed-deterministic; no field data).]],
-  text(size: 7.5pt)[
-    #table(
-      columns: (auto, auto),
-      align: (left + horizon, left + horizon),
-      stroke: 0.4pt,
-      inset: 3pt,
-      table.header([*Quantity*], [*Value*]),
-      [fleet], [80 meters (seeded solar/load physics): 12 prosumer sellers, 68 consumers],
-      [market policy], [sell cap $C = 10$ kWh/day per prosumer; 0.1 kWh dust floor],
-      [horizon / readings], [30 days × 96 ticks ($Delta t$ = 15 min) = 230,400 readings, integer Wh],
-      [month energy], [15,868.5 kWh generated; 144,879.8 kWh consumed; 10,386.7 kWh interval surplus],
-      [oracle-accepted surplus], [8,253.502 kWh; 919 readings gate-rejected],
-    )
-  ],
+  bt(
+    columns: (auto, auto),
+    align: (left + horizon, left + horizon),
+    header: ([Quantity], [Value]),
+    [fleet], [80 meters (seeded solar/load physics): 12 prosumer sellers, 68 consumers],
+    [market policy], [sell cap $C = 10$ kWh/day per prosumer; 0.1 kWh dust floor],
+    [horizon / readings], [30 days × 96 ticks ($Delta t$ = 15 min) = 230,400 readings, integer Wh],
+    [month energy], [15,868.5 kWh generated; 144,879.8 kWh consumed; 10,386.7 kWh interval surplus],
+    [oracle-accepted surplus], [8,253.502 kWh; 919 readings gate-rejected],
+  ),
 ) <tab-data>
 
 == Measured Outcomes and Limitations
 
-@tab-results reports the replay through the deployed programs. Three
-findings follow: the execution layer is not the binding constraint, since
-settlement uses 107 k of the 1.4 M CU per-transaction ceiling and the limit
-is account-lock serialization and consensus; settlement is exactly
-auditable, as @eq-closure holds on chain under all three price rules; and
-the price rule rather than the platform decides participation, through the
-wheeling charge that separates those rules. That ranking holds while
-prosumer supply is capped near demand; left uncapped, P2P net revenue falls
-below the buy-back, which bears no wheeling charge.
+@tab-results reports the replay through the deployed programs. Two findings
+follow: the execution layer is not the binding constraint, since settlement
+uses 107 k of the 1.4 M CU per-transaction ceiling and the limit is
+account-lock serialization and consensus; and settlement is exactly
+auditable, as @eq-closure holds on chain under all three price rules.
 
 #figure(
   caption: [#text(size: 8pt)[Community-month replay outcomes, each figure
   re-derived from on-chain state.]],
-  text(size: 7.5pt)[
-    #table(
-      columns: (auto, auto, auto),
-      align: (left + horizon, left + horizon, left + horizon),
-      stroke: 0.4pt,
-      inset: 3pt,
-      table.header([*Metric*], [*Value*], [*What it bounds*]),
+  bt(
+    columns: (auto, auto, auto),
+    align: (left + horizon, left + horizon, left + horizon),
+    header: ([Metric], [Value], [What it bounds]),
       [replay wall-clock], [1,394.7 s for 230,400 readings (1,858× real time)], [end-to-end lifecycle cost],
       [telemetry ingest], [≈213 readings·s#super[−1]], [oracle write path under PDA partition],
       [order bursts], [≈53 TPS confirmed goodput], [trading account-lock serialization],
       [settlement compute], [107 k CU per Ed25519-verified match], [headroom to the 1.4 M CU ceiling],
       [delivery loss], [0 unconfirmed; 919 readings gate-rejected], [validation, not lost throughput],
       [audit], [14/14 chain-derived assertions], [exactness of settlement],
-      [prosumer net revenue], [uniform 2.290 > buy-back 2.200 > CDA 2.065 ฿/kWh], [P2P participation threshold],
-    )
-  ],
+  ),
 ) <tab-results>
 
 Goodput on a single validator bounds execution and account locking only; it
@@ -235,16 +234,40 @@ separate sweep, since per-order and per-trade nullifier PDAs make an
 identical replay impossible on a persistent ledger. The dataset is simulator-produced, with no field
 measurements.
 
+== Where the Prosumer's Revenue Goes
+
+The third finding is economic. All three rules move identical energy in
+@tab-revenue, so the ranking is set by what is deducted: wheeling takes
+1,278 ฿ from each P2P rule, a third of the uniform auction's gross (33.3%)
+and more of the CDA's (35.7%), and nothing from the buy-back. Fees (25 bp)
+and the loss allowance (5 bp) take about 0.3% together, so they do not
+decide participation. The uniform auction clears high enough to survive
+wheeling and still beat the buy-back; the CDA does not, and the ranking
+reverses once supply is left uncapped. Wheeling policy, not market
+microstructure, is the regulator's lever.
+
+#figure(
+  caption: [#text(size: 8pt)[Prosumer revenue decomposition for one cleared
+  month (1,111.4 kWh; 80 meters / 8 prosumers, 30 days), in ฿.]],
+  bt(
+    columns: (auto, auto, auto, auto, auto, auto, auto),
+    align: (left + horizon,) + (right + horizon,) * 6,
+    header: ([Price rule], [Gross], [Fee], [Wheeling], [Loss], [Net], [Net ฿/kWh]),
+    [uniform], [3,834.31], [9.59], [1,278.10], [1.92], [2,544.70], [2.290],
+    [buy-back], [2,445.07], [0.00], [0.00], [0.00], [2,445.07], [2.200],
+    [CDA], [3,584.25], [8.96], [1,278.10], [1.79], [2,295.39], [2.065],
+  ),
+) <tab-revenue>
+
 #heading(numbering: none)[Conclusion]
 
 The measurements support the central design claim: with hot-path state in
 per-entity PDAs, the residual scaling limit is consensus and lock
-serialization rather than on-chain computation, and settlement is exactly
-auditable. What remains open is economic, since the wheeling charge, not
-the ledger, sets the threshold at which a Thai prosumer prefers P2P trading
-to the buy-back. Extending the evaluation to a multi-validator consortium
-mapped to EGAT, MEA, and PEA is the natural next step, well suited to
-UEC–ASEAN collaboration.
+serialization rather than computation, and settlement is exactly auditable.
+What remains open is economic: the wheeling charge, not the ledger, sets
+the threshold at which a Thai prosumer prefers P2P trading to the buy-back.
+A multi-validator consortium mapped to EGAT, MEA, and PEA is the natural
+next step, well suited to UEC–ASEAN collaboration.
 
 // The conclusion should highlight the main outcomes and suggest potential future
 // work or collaboration opportunities between UEC and ASEAN partners.
