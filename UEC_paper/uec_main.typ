@@ -78,7 +78,7 @@
 
   // ── Figure/table spacing ─────────────────────────────────────
   set figure(gap: 4pt)
-  show figure: set block(above: 6pt, below: 6pt)
+  show figure: set block(above: 5pt, below: 5pt)
 
   // ── Bibliography: IEEE numeric, heading unnumbered ───────────
   set bibliography(style: "ieee", title: "References")
@@ -155,7 +155,7 @@ contact-email: "2410717302003@live4.utcc.ac.th, Suwannee_ads@utcc.ac.th"
 
 Thailand's state utilities have advanced a National Energy Trading Platform (NETP) since 2017, envisaging a blockchain settlement layer with a dedicated digital currency for Peer-to-Peer (P2P) trading among rooftop-solar prosumers. It remains in development, and the regulated buy-back still gives prosumers no direct mechanism to exchange surplus generation within the local distribution grid.
 This paper presents an on-chain settlement layer for P2P energy trading: six modular Anchor programs on a permissioned Solana runtime, where routing every high-frequency write to a per-entity program-derived account (PDA) lets transactions with disjoint write sets execute in parallel under Sealevel, ordered by Proof-of-History (PoH). The market-clearing framework couples a continuous double auction (CDA) for real-time trades with a uniform-price auction clearing aggregated bids at a single price over fifteen-minute epochs.
-We simulate consumption, generation, and power flow for 80 meters over 30 days at fifteen-minute intervals on a low-voltage feeder, 15% of them prosumers, and evaluate the full token life-cycle of minting, settlement, and burning on a single-node validator. The main finding is that the execution layer is not the binding constraint: the community-month replays 1,858× faster than real time with zero delivery loss, and all fourteen chain-derived conservation assertions close exactly against on-chain state. Participation is instead decided by the price rule, which ranks the uniform-price auction above the regulated buy-back and the CDA.
+We simulate consumption, generation, and power flow for 80 meters over 30 days at fifteen-minute intervals on a low-voltage feeder, 15% of them prosumers, and evaluate the full token life-cycle on a single-node validator. Three findings follow. Primarily, the execution layer is not the binding constraint: the community-month replays 1,858× faster than real time with zero delivery loss. Second, settlement is exactly auditable: fourteen chain-derived conservation assertions all close. Third, participation is decided by the price rule rather than the platform, the wheeling charge ranking the uniform-price auction above the regulated buy-back and the CDA.
 
 = Motivation and Design Rationale
 
@@ -203,11 +203,11 @@ Throughput is client-observed confirmed goodput, that is, confirmed transactions
 
 == Measured Outcomes and Limitations
 
-@tab-results reports the replay through the deployed programs. Two findings
-follow: the execution layer is not the binding constraint, since settlement
-uses 107 k of the 1.4 M CU per-transaction ceiling and the limit is
-account-lock serialization and consensus; and settlement is exactly
-auditable, as @eq-closure holds on chain under all three price rules.
+@tab-results reports the replay. The first two findings are technical: the
+execution layer is not the binding constraint, since settlement uses 107 k
+of the 1.4 M CU ceiling and the limit is account-lock serialization and
+consensus; and settlement is exactly auditable, as @eq-closure holds on
+chain under all three price rules.
 
 #figure(
   caption: [#text(size: 8pt)[Community-month replay outcomes, each figure
