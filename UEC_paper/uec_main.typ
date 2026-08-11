@@ -83,7 +83,7 @@
   // ── Bibliography: IEEE numeric, heading unnumbered ───────────
   set bibliography(style: "ieee", title: "References")
   show bibliography: set heading(numbering: none)
-  show bibliography: set text(size: 8pt)
+  show bibliography: set text(size: 7.6pt)
   show bibliography: set par(leading: 0.4em, spacing: 0.38em)
 
   // ── Title block ──────────────────────────────────────────────
@@ -155,7 +155,7 @@ contact-email: "2410717302003@live4.utcc.ac.th, Suwannee_ads@utcc.ac.th"
 
 Thailand's state utilities have advanced a National Energy Trading Platform (NETP) since 2017, envisaging a blockchain settlement layer with a dedicated digital currency for Peer-to-Peer (P2P) trading among rooftop-solar prosumers. It remains in development, and the regulated buy-back still gives prosumers no direct mechanism to exchange surplus generation within the local distribution grid.
 This paper presents an on-chain settlement layer for P2P energy trading: six modular Anchor programs on a permissioned Solana runtime, where routing every high-frequency write to a per-entity program-derived account (PDA) lets transactions with disjoint write sets execute in parallel under Sealevel, ordered by Proof-of-History (PoH). The market-clearing framework couples a continuous double auction (CDA) for real-time trades with a uniform-price auction clearing aggregated bids at a single price over fifteen-minute epochs.
-We simulate consumption, generation, and power flow for 80 meters over 30 days at fifteen-minute intervals on a low-voltage feeder, 15% of them prosumers, and evaluate the full token life-cycle on a single-node validator. Three findings follow. Primarily, the execution layer is not the binding constraint: the community-month replays 1,858× faster than real time with zero delivery loss. Second, settlement is exactly auditable: fourteen chain-derived conservation assertions all close. Third, participation is decided by the price rule rather than the platform, the wheeling charge ranking the uniform-price auction above the regulated buy-back and the CDA.
+We simulate 80 meters over 30 days at fifteen-minute intervals on a low-voltage feeder, 15% of them prosumers, and evaluate the full token life-cycle on a single-node validator. Three findings follow. Primarily, the execution layer is not the binding constraint: the community-month replays 1,858× faster than real time with zero delivery loss. Second, settlement is exactly auditable: fourteen chain-derived conservation assertions all close. Third, participation is decided by the price rule rather than the platform, the wheeling charge ranking the uniform-price auction above the regulated buy-back and the CDA.
 
 = Motivation and Design Rationale
 
@@ -203,11 +203,16 @@ Throughput is client-observed confirmed goodput, that is, confirmed transactions
 
 == Measured Outcomes and Limitations
 
-@tab-results reports the replay. The first two findings are technical: the
-execution layer is not the binding constraint, since settlement uses 107 k
-of the 1.4 M CU ceiling and the limit is account-lock serialization and
-consensus; and settlement is exactly auditable, as @eq-closure holds on
-chain under all three price rules.
+@tab-results reports the replay. The first two findings are technical.
+Compute does not limit settlement: a match spends 107 k CU, about half the
+200 k default budget, yet only one match fits per transaction. The
+1,232-byte packet binds instead, since each match carries its 77-byte
+signed order twice, in the Ed25519 verification instruction and again as
+settlement instruction data, so a pair costs 186 bytes and a second pair
+overruns the packet. Address Lookup Tables cannot recover it, compressing
+account keys rather than instruction data: denser settlement needs
+signatures repackaged, not more compute. Second, settlement is exactly
+auditable, as @eq-closure holds on chain under all three price rules.
 
 #figure(
   caption: [#text(size: 8pt)[Community-month replay outcomes, each figure
@@ -219,32 +224,30 @@ chain under all three price rules.
       [replay wall-clock], [1,394.7 s for 230,400 readings (1,858× real time)], [end-to-end lifecycle cost],
       [telemetry ingest], [≈213 readings·s#super[−1]], [oracle write path under PDA partition],
       [order bursts], [≈53 TPS confirmed goodput], [trading account-lock serialization],
-      [settlement compute], [107 k CU per Ed25519-verified match], [headroom to the 1.4 M CU ceiling],
+      [settlement], [107 k CU/match (≈54% of the 200 k budget); 1 match/tx], [1,232-byte packet, not compute],
       [delivery loss], [0 unconfirmed; 919 readings gate-rejected], [validation, not lost throughput],
       [audit], [14/14 chain-derived assertions], [exactness of settlement],
   ),
 ) <tab-results>
 
-Goodput on a single validator bounds execution and account locking only; it
-is not a consensus-throughput result for a three-utility consortium. The
+Goodput on a single validator bounds execution and locking only, not
+consensus in a three-utility consortium. The
 telemetry outcome reproduced bit-identically across four runs, throughput
 varying 213–232 readings·s#super[−1] with host load, while the lifecycle
 figures come from one canonical run and the price-rule comparison from a
-separate sweep, since per-order and per-trade nullifier PDAs make an
-identical replay impossible on a persistent ledger. The dataset is simulator-produced, with no field
+separate sweep, since nullifier PDAs make identical
+replay impossible on a persistent ledger. The dataset is simulator-produced, with no field
 measurements.
 
 == Where the Prosumer's Revenue Goes
 
 The third finding is economic. All three rules move identical energy in
 @tab-revenue, so the ranking is set by what is deducted: wheeling takes
-1,278 THB from each P2P rule, a third of the uniform auction's gross (33.3%)
-and more of the CDA's (35.7%), and nothing from the buy-back. Fees (25 bp)
-and the loss allowance (5 bp) take about 0.3% together, so they do not
-decide participation. The uniform auction clears high enough to survive
-wheeling and still beat the buy-back; the CDA does not, and the ranking
-reverses once supply is left uncapped. Wheeling policy, not market
-microstructure, is the regulator's lever.
+1,278 THB from each P2P rule, a third of the uniform auction's gross and
+more of the CDA's, and nothing from the buy-back, while fees (25 bp) and
+the loss allowance (5 bp) together take about 0.3%. The uniform auction
+survives wheeling and still beats the buy-back; the CDA does not, and the
+ranking reverses once supply is left uncapped. Wheeling policy is the regulator's lever.
 
 #figure(
   caption: [#text(size: 8pt)[Prosumer revenue decomposition for one cleared
@@ -262,12 +265,12 @@ microstructure, is the regulator's lever.
 #heading(numbering: none)[Conclusion]
 
 The measurements support the central design claim: with hot-path state in
-per-entity PDAs, the residual scaling limit is consensus and lock
-serialization rather than computation, and settlement is exactly auditable.
+per-entity PDAs, what limits the system is consensus, lock serialization
+and packet framing, never computation, and settlement is exactly auditable.
 What remains open is economic: the wheeling charge, not the ledger, sets
 the threshold at which a Thai prosumer prefers P2P trading to the buy-back.
 A multi-validator consortium mapped to EGAT, MEA, and PEA is the natural
-next step, well suited to UEC–ASEAN collaboration.
+next step, suited to UEC–ASEAN collaboration.
 
 // The conclusion should highlight the main outcomes and suggest potential future
 // work or collaboration opportunities between UEC and ASEAN partners.
