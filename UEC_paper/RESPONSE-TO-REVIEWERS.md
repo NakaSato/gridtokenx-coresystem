@@ -70,14 +70,13 @@ This was fair, and it drove the largest revision. The findings were previously
 buried in a single dense paragraph of run-on measurements. The revision states them
 in three places, at increasing detail:
 
-1. **Abstract** now ends with an explicit finding sentence: the execution layer is
-   not the binding constraint (the community-month replays 1,858× faster than real
-   time with zero delivery loss, and all fourteen chain-derived conservation assertions close
-   exactly against on-chain state), and participation is instead decided by the
-   price rule.
-2. **Section 1** states up front the design claim the paper tests: with hot-path
-   state partitioned per entity, what remains of the scaling limit is consensus and
-   lock serialization, not on-chain computation.
+1. **Abstract** now names the primary finding first and in one sentence:
+   settlement is bound by packet framing rather than by compute. Auditability and
+   the price-rule ranking follow, marked explicitly as second and third.
+2. **Section 1** states the claim under test in the same terms — that once
+   per-entity partitioning removes computation as the limit, consensus and lock
+   serialization bound throughput while transaction *size* bounds how much
+   settlement one transaction can carry.
 3. **Sections 3.1 and 3.2** carry the findings themselves, supported by two new
    tables: **Table 2** gives each measurement alongside *what it bounds*, and
    **Table 3** decomposes prosumer revenue into gross, fee, wheeling, loss and net.
@@ -118,31 +117,47 @@ We have made the evidence checkable rather than asserted:
 - **We corrected a claim that had overstated our headroom.** The manuscript
   measured settlement against "the 1.4 M CU ceiling", which is the maximum a Solana
   transaction may *request*, not the budget it is granted. Against the 200 k
-  default a match uses about half, and compute was never the binding constraint at
-  all: the 1,232-byte packet is, because each match carries its 77-byte signed
-  order twice, once in the Ed25519 verification instruction and once as settlement
-  instruction data. Section 3.1 and Table 2 now say this.
+  default a match uses about half — and compute turned out not to be the binding
+  constraint at all. Section 3.1 and Table 2 now report this correctly, and the
+  constraint that does bind is set out under R2.4 below, where it has become the
+  paper's primary contribution.
 
 ### R2.4 / R1 — Originality (scored 2 by both reviewers)
 
-We accept this as the weakest axis and have sharpened the contribution claim rather
-than overstate it. Section 1 now positions the work against the existing P2P and
-blockchain-energy literature (three references added: Sousa *et al.* 2019, Andoni
-*et al.* 2019, and the Brooklyn Microgrid study of Mengelkamp *et al.* 2018) and
-states what is different here: that body of work reports throughput and market
-outcome, but seldom evidence that the ledger conserves energy and currency exactly.
-This paper supplies that evidence, as an exactly audited closure over a full token
-life-cycle, together with a revenue comparison against Thailand's actual regulated
-buy-back rate.
+We accept this as the weakest axis, and on re-reading the manuscript we think the
+score was partly earned by how we framed it. The submitted version led with an
+implementation account and reported its measurements as a list, which reads as one
+more deployment of known components. The revision instead leads with the result we
+believe is genuinely new, and orders the contributions accordingly.
 
-The revision also adds a second contribution of the same kind, which we had
-measured but not stated: settlement on this design is bound by transaction packet
-size rather than by compute, and Address Lookup Tables cannot relieve it, because
-they compress account keys while the cost here sits in instruction data. The
-consequence — that denser settlement requires repackaging signatures, not
-requesting more compute — is a design constraint that transfers to any
-signature-verifying settlement layer, and we have not seen it reported in the P2P
-energy-trading literature.
+**Primary contribution — settlement is packet-bound, not compute-bound.** On this
+design a match leaves about half of the 200 k default compute budget unused, yet
+only one match fits in a transaction, because the 1,232-byte packet binds first.
+The cause is structural: each match carries its 77-byte signed order twice, once in
+the Ed25519 verification instruction and once as settlement instruction data, so a
+match pair costs 186 bytes of instruction data. Address Lookup Tables cannot
+relieve it, since they compress account keys rather than instruction data. The
+consequence — that denser settlement requires repackaging signatures rather than
+requesting more compute — transfers to any signature-verifying settlement layer,
+on Solana or elsewhere. This inverts the assumption implicit in the literature we
+cite, which reports throughput and compute cost and treats computation as the axis
+along which such a layer scales. We have not found this reported for P2P energy
+trading, and Section 1 now says plainly which assumption the paper overturns.
+
+**Second — exact energy and currency conservation, audited from chain state.**
+Section 1 positions this against the existing P2P and blockchain-energy literature
+(three references added: Sousa *et al.* 2019, Andoni *et al.* 2019, and the
+Brooklyn Microgrid study of Mengelkamp *et al.* 2018). That body of work reports
+throughput and market outcome; it seldom demonstrates that the ledger conserves
+energy and currency exactly. Eq. (1) and its fourteen chain-derived assertions
+supply that evidence over a full token life-cycle, and they hold under all three
+price rules.
+
+**Third — the wheeling charge, not market design, sets the participation
+threshold**, measured against Thailand's actual regulated buy-back rate (Table 3).
+
+We claim the first and third as new; the second we claim as a combination that is
+uncommon in practice rather than as a new technique.
 
 We note candidly that a same-workload comparison against the Tendermint stack used
 by NETP would be the strongest possible support for the "alternative execution
@@ -172,6 +187,10 @@ would be glad to include it in an extended version.
   assertions are genuine RPC reads against live chain state. Every reported
   conservation result is unchanged; only the count is corrected. We prefer to
   report the smaller, defensible number.
+- Reordered the manuscript around the packet-bound result: the abstract, Section 1
+  and the Conclusion now lead with it, and the Conclusion separates the two limits
+  it had previously run together (consensus and lock serialization bound throughput;
+  packet framing bounds how much settlement one transaction carries).
 - Added Table 3 and a subsection decomposing prosumer revenue, so the economic
   finding is demonstrated rather than asserted.
 - Restyled all three tables to booktabs form (horizontal rules only), which reads
@@ -181,4 +200,8 @@ would be glad to include it in an extended version.
   including in a bold table header. Amounts are now written THB. Two Table 1
   entries that had been set in math mode, and so rendered in a maths face rather
   than Times, are now Times text.
+- To stay within two pages we removed two passages that carried no claim: the
+  abstract's NETP background paragraph, which restated Section 1's opening almost
+  verbatim, and the MATPOWER/GridLAB-D import chain in Section 2 (pandapower is
+  still cited for the power-flow solution).
 - The paper remains within the two-page limit.
