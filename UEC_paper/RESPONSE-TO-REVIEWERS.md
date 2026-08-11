@@ -23,14 +23,20 @@ now specific to their content:
 | 1. Introduction | 1. Motivation and Design Rationale |
 | 2. Methodology | 2. On-Chain Settlement Layer and Simulated Grid |
 | 3. Key Results and Discussion | 3. Throughput, Audit, and Revenue Results |
-| 3.1. Equations and Data | 3.1. Simulated Community-Month Dataset |
-| — (new) | 3.2. Measured Outcomes and Limitations |
+| 3.1. Equations and Data | 3.1. Measured Outcomes and Limitations |
+| — (new) | 3.2. Where the Prosumer's Revenue Goes |
+
+The dataset that Section 3.1 used to hold is now introduced in the Section 3
+preamble, next to the definitions of the metrics it feeds, so no subsection exists
+whose title promises content it does not carry.
 
 ### R1.2 — "In Section 3.1, 'Equations and Data,' there are no equations presented in this subsection."
 
 Correct on both counts, and we have fixed the cause rather than only the title.
-Section 3.1 is now *Simulated Community-Month Dataset*, which is what the
-subsection actually contains (Table 1).
+The dataset table that occupied the subsection has moved into the Section 3
+preamble, and the two subsections that remain (3.1 *Measured Outcomes and
+Limitations*, 3.2 *Where the Prosumer's Revenue Goes*) are each named for what
+they contain.
 
 Separately, the reviewer's observation exposed a real omission: the closure
 identities that the audit harness checks had been dropped from this short version
@@ -72,9 +78,16 @@ in three places, at increasing detail:
 2. **Section 1** states up front the design claim the paper tests: with hot-path
    state partitioned per entity, what remains of the scaling limit is consensus and
    lock serialization, not on-chain computation.
-3. **Section 3.2** presents three enumerated findings, supported by the new
-   **Table 2**, which gives each measurement alongside *what it bounds*
-   (throughput, compute headroom, delivery loss, audit exactness, revenue).
+3. **Sections 3.1 and 3.2** carry the findings themselves, supported by two new
+   tables: **Table 2** gives each measurement alongside *what it bounds*, and
+   **Table 3** decomposes prosumer revenue into gross, fee, wheeling, loss and net.
+
+The three findings are now counted as one set throughout, which they previously
+were not: the abstract announced a singular "main finding", Section 3.1 said "two
+findings follow", and Section 3.2 then referred to "the third finding". The
+abstract now reads "Three findings follow", marks the first as primary, and the
+two subsections continue that count. We are grateful for the observation that this
+mismatch was itself a source of the confusion.
 
 ### R2.3 — Reliability (scored 1)
 
@@ -98,7 +111,17 @@ We have made the evidence checkable rather than asserted:
   prosumer supply is capped near demand, and reverses when supply is left uncapped,
   because the regulated buy-back bears no wheeling charge. This strengthens rather
   than weakens the underlying claim, which is that the wheeling charge, not the
-  ledger, sets the P2P participation threshold.
+  ledger, sets the P2P participation threshold. **Table 3** now shows the
+  deduction that drives it: wheeling takes 1,278 THB from each P2P rule, a third of
+  the uniform auction's gross, and nothing at all from the buy-back, while fees and
+  the loss allowance together account for about 0.3%.
+- **We corrected a claim that had overstated our headroom.** The manuscript
+  measured settlement against "the 1.4 M CU ceiling", which is the maximum a Solana
+  transaction may *request*, not the budget it is granted. Against the 200 k
+  default a match uses about half, and compute was never the binding constraint at
+  all: the 1,232-byte packet is, because each match carries its 77-byte signed
+  order twice, once in the Ed25519 verification instruction and once as settlement
+  instruction data. Section 3.1 and Table 2 now say this.
 
 ### R2.4 / R1 — Originality (scored 2 by both reviewers)
 
@@ -111,6 +134,15 @@ outcome, but seldom evidence that the ledger conserves energy and currency exact
 This paper supplies that evidence, as an exactly audited closure over a full token
 life-cycle, together with a revenue comparison against Thailand's actual regulated
 buy-back rate.
+
+The revision also adds a second contribution of the same kind, which we had
+measured but not stated: settlement on this design is bound by transaction packet
+size rather than by compute, and Address Lookup Tables cannot relieve it, because
+they compress account keys while the cost here sits in instruction data. The
+consequence — that denser settlement requires repackaging signatures, not
+requesting more compute — is a design constraint that transfers to any
+signature-verifying settlement layer, and we have not seen it reported in the P2P
+energy-trading literature.
 
 We note candidly that a same-workload comparison against the Tendermint stack used
 by NETP would be the strongest possible support for the "alternative execution
@@ -140,4 +172,13 @@ would be glad to include it in an extended version.
   assertions are genuine RPC reads against live chain state. Every reported
   conservation result is unchanged; only the count is corrected. We prefer to
   report the smaller, defensible number.
+- Added Table 3 and a subsection decomposing prosumer revenue, so the economic
+  finding is demonstrated rather than asserted.
+- Restyled all three tables to booktabs form (horizontal rules only), which reads
+  more cleanly and recovered most of the space the new table needed.
+- Fixed silent font fallback: the vendored Times New Roman has no baht glyph
+  (U+0E3F is absent from its cmap), so every "฿" was being set in Rockwell,
+  including in a bold table header. Amounts are now written THB. Two Table 1
+  entries that had been set in math mode, and so rendered in a maths face rather
+  than Times, are now Times text.
 - The paper remains within the two-page limit.
