@@ -153,20 +153,20 @@ contact-email: "2410717302003@live4.utcc.ac.th, Suwannee_ads@utcc.ac.th"
 
 // Thailand's Power Development Plan (PDP 2026-2050) mandates a transition to a minimum of 60% clean energy generation to fulfill the nation's carbon neutrality commitments. Achieving this target will necessitate a rapid proliferation of distributed rooftop solar prosumers. However, under the existing Enhanced Single Buyer model, these prosumers lack a direct mechanism for peer-to-peer (P2P) trading of surplus generation, resulting in the underutilization of distributed energy capacity.
 
-Thailand's state utilities have advanced a National Energy Trading Platform (NETP) since 2017, envisaging a blockchain settlement layer with a dedicated digital currency for Peer-to-Peer (P2P) trading among rooftop-solar prosumers. It remains in development, and the regulated buy-back still gives prosumers no direct mechanism to exchange surplus generation within the local distribution grid.
+Thailand's National Energy Trading Platform (NETP), envisaged since 2017 as a blockchain settlement layer for Peer-to-Peer (P2P) trading among rooftop-solar prosumers, remains in development, and the regulated buy-back still gives prosumers no direct mechanism to exchange surplus generation within the local distribution grid.
 This paper presents an on-chain settlement layer for P2P energy trading: six modular Anchor programs on a permissioned Solana runtime, where routing every high-frequency write to a per-entity program-derived account (PDA) lets transactions with disjoint write sets execute in parallel under Sealevel, ordered by Proof-of-History (PoH). The market-clearing framework couples a continuous double auction (CDA) for real-time trades with a uniform-price auction clearing aggregated bids at a single price over fifteen-minute epochs.
-We simulate 80 meters over 30 days at fifteen-minute intervals on a low-voltage feeder, 15% of them prosumers, and evaluate the full token life-cycle on a single-node validator. Three findings follow. Primarily, the execution layer is not the binding constraint: the community-month replays 1,858× faster than real time with zero delivery loss. Second, settlement is exactly auditable: fourteen chain-derived conservation assertions all close. Third, participation is decided by the price rule rather than the platform, the wheeling charge ranking the uniform-price auction above the regulated buy-back and the CDA.
+We simulate 80 meters over 30 days at fifteen-minute intervals on a low-voltage feeder, 15% of them prosumers, and evaluate the full token life-cycle on a single-node validator; the community-month replays 1,858× faster than real time with zero delivery loss. Three findings follow. Primarily, settlement is bound by packet framing rather than by compute: a match leaves about half the 200 k default compute budget unused, yet the 1,232-byte packet admits only one match, and Address Lookup Tables cannot relieve it. Denser settlement needs signatures repackaged, not more compute — a constraint transferable to any signature-verifying settlement layer. Second, settlement is exactly auditable: fourteen chain-derived conservation assertions all close. Third, participation is decided by the price rule rather than the platform, the wheeling charge ranking the uniform-price auction above the regulated buy-back and the CDA.
 
 = Motivation and Design Rationale
 
-Thailand's state utilities have advanced a National Energy Trading Platform (NETP) since 2017 to facilitate P2P trading among rooftop-solar prosumers, using a Tendermint-based consortium blockchain @netp2019report. This article presents a Solana-based architecture as an alternative execution layer, motivated by NETP's own finding that Tendermint outperformed Ethereum and Hyperledger Fabric in throughput testing, which suggests that further gains may be available from Solana's parallel-execution model. P2P market design and blockchain-based energy trading are already well surveyed @sousa2019 @andoni2019 and demonstrated in field pilots such as the Brooklyn Microgrid @mengelkamp2018; what such work reports is throughput and market outcome, seldom evidence that the ledger conserves energy and currency exactly. This paper supplies that evidence.
-The settlement logic is built as six programs on Anchor, Solana's official framework, written in Rust, compiled to SBF bytecode, and executed on the Solana Virtual Machine (SVM). By routing high-frequency writes to per-entity program-derived accounts (PDAs), transactions with disjoint write sets never contend for the same account lock and therefore execute in parallel under Solana's Sealevel runtime. The design claim this paper tests is exactly that: with hot-path state partitioned per entity, what remains of the scaling limit is consensus and lock serialization, not on-chain computation.
+Thailand's state utilities have advanced a National Energy Trading Platform (NETP) since 2017 to facilitate P2P trading among rooftop-solar prosumers, using a Tendermint-based consortium blockchain @netp2019report. This article presents a Solana-based architecture as an alternative execution layer, motivated by NETP's own finding that Tendermint outperformed Ethereum and Hyperledger Fabric in throughput testing, which suggests that further gains may be available from Solana's parallel-execution model. P2P market design and blockchain-based energy trading are already well surveyed @sousa2019 @andoni2019 and demonstrated in field pilots such as the Brooklyn Microgrid @mengelkamp2018. What such work reports is throughput and compute cost, presuming computation to be the axis along which a settlement layer scales. This paper reports the constraint that binds once it is not, with the conservation evidence throughput figures alone cannot give.
+The settlement logic is built as six programs on Anchor, Solana's official framework, written in Rust, compiled to SBF bytecode, and executed on the Solana Virtual Machine (SVM). By routing high-frequency writes to per-entity program-derived accounts (PDAs), transactions with disjoint write sets never contend for the same account lock and therefore execute in parallel under Solana's Sealevel runtime. The design claim this paper tests is what remains once that partitioning removes computation as the limit: consensus and lock serialization bound throughput, and transaction size, not compute cost, bounds settlement density.
 
 = On-Chain Settlement Layer and Simulated Grid
 
 The evaluated system has two parts, the settlement layer under test and the simulated grid that drives it:
 - The smart-contract layer is built on the Solana Anchor framework @anchor2024 (anchor-lang and anchor-spl, version 1.0.0) and comprises six programs, *energy-token, governance, oracle, registry, trading,* and *treasury*, all written in Rust and compiled to SBF bytecode. One program invokes another through cross-program invocation (CPI), with authority delegated to program-derived addresses (PDAs) that sign without any private key existing. The deployment targets a permissioned environment realized as a private `solana-test-validator` network; all experiments reported here ran on a single node (Apple M2, Agave 3.1.10).
-- The fleet uses the CINELDI 80-bus rural LV reference grid (SINTEF) @cineldi2024 for network topology only, the 80-node single-phase feeder with its V/A/W parameters, imported from MATPOWER into a GridLAB-D (v5.3.0) model and resolved with pandapower @thurner2018. As CINELDI carries only hourly load and no generation, all time-series are simulator-produced: per-meter consumption and twelve prosumer nodes' (15%) rooftop PV at fifteen-minute cadence, with solar modeled deterministically via pvlib @holmgren2018pvlib under a fixed seed.
+- The fleet uses the CINELDI 80-bus rural LV reference grid (SINTEF) @cineldi2024 for network topology only, the 80-node single-phase feeder with its V/A/W parameters, resolved for power flow with pandapower @thurner2018. As CINELDI carries only hourly load and no generation, all time-series are simulator-produced: per-meter consumption and twelve prosumer nodes' (15%) rooftop PV at fifteen-minute cadence, with solar modeled deterministically via pvlib @holmgren2018pvlib under a fixed seed.
 
 A complete run must satisfy three closure identities, each checkable from
 chain state alone:
@@ -184,7 +184,7 @@ alone: per-meter counters, PDA censuses, registry conservation sums, token
 supplies and balances.
 
 = Throughput, Audit, and Revenue Results
-Throughput is client-observed confirmed goodput, that is, confirmed transactions per wall-clock second from burst start to last confirmation. Every non-confirmed transaction is attributed to a failure class (submission reject, on-chain guard, or expiry), separating delivery loss from validation working as intended. @tab-data gives the workload every reported figure derives from.
+Throughput is client-observed confirmed goodput, confirmed transactions per wall-clock second from burst start to last confirmation. Every non-confirmed transaction is attributed to a failure class (submission reject, on-chain guard, or expiry), separating delivery loss from validation working as intended. @tab-data gives the workload every reported figure derives from.
 
 #figure(
   caption: [#text(size: 8pt)[The simulated community-month dataset
@@ -210,8 +210,7 @@ Compute does not limit settlement: a match spends 107 k CU, about half the
 signed order twice, in the Ed25519 verification instruction and again as
 settlement instruction data, so a pair costs 186 bytes and a second pair
 overruns the packet. Address Lookup Tables cannot recover it, compressing
-account keys rather than instruction data: denser settlement needs
-signatures repackaged, not more compute. Second, settlement is exactly
+account keys rather than instruction data. Second, settlement is exactly
 auditable, as @eq-closure holds on chain under all three price rules.
 
 #figure(
@@ -231,9 +230,9 @@ auditable, as @eq-closure holds on chain under all three price rules.
 ) <tab-results>
 
 Goodput on a single validator bounds execution and locking only, not
-consensus in a three-utility consortium. The
-telemetry outcome reproduced bit-identically across four runs, throughput
-varying 213–232 readings·s#super[−1] with host load, while the lifecycle
+consensus in a three-utility consortium. The telemetry outcome reproduced
+bit-identically across four runs, throughput varying 213–232
+readings·s#super[−1], while the lifecycle
 figures come from one canonical run and the price-rule comparison from a
 separate sweep, since nullifier PDAs make identical
 replay impossible on a persistent ledger. The dataset is simulator-produced, with no field
@@ -242,7 +241,7 @@ measurements.
 == Where the Prosumer's Revenue Goes
 
 The third finding is economic. All three rules move identical energy in
-@tab-revenue, so the ranking is set by what is deducted: wheeling takes
+@tab-revenue, so the ranking is set by the deductions: wheeling takes
 1,278 THB from each P2P rule, a third of the uniform auction's gross and
 more of the CDA's, and nothing from the buy-back, while fees (25 bp) and
 the loss allowance (5 bp) together take about 0.3%. The uniform auction
@@ -264,9 +263,10 @@ ranking reverses once supply is left uncapped. Wheeling policy is the regulator'
 
 #heading(numbering: none)[Conclusion]
 
-The measurements support the central design claim: with hot-path state in
-per-entity PDAs, what limits the system is consensus, lock serialization
-and packet framing, never computation, and settlement is exactly auditable.
+The measurements support the central design claim and sharpen it: with
+hot-path state in per-entity PDAs computation never binds, consensus and
+lock serialization bound throughput, and packet framing bounds how much
+settlement a transaction carries, while settlement stays exactly auditable.
 What remains open is economic: the wheeling charge, not the ledger, sets
 the threshold at which a Thai prosumer prefers P2P trading to the buy-back.
 A multi-validator consortium mapped to EGAT, MEA, and PEA is the natural
