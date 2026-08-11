@@ -30,7 +30,10 @@
 
   // ── Base typography: Times New Roman 10pt ───────────────────
   set text(font: "Times New Roman", size: 10pt, lang: "en")
-  set par(justify: true, leading: 0.55em, spacing: 0.9em)
+  // leading/spacing tightened (0.55em/0.9em → 0.48em/0.65em) to fit the
+  // market-clearing equations and the three-axis results inside the 2-page
+  // limit; still looser than the template's Word "single line spacing".
+  set par(justify: true, leading: 0.48em, spacing: 0.65em)
 
   // ── Heading numbering scheme: "1." / "1.1." ─────────────────
   set heading(numbering: "1.1.")
@@ -39,20 +42,21 @@
   // Level 1 → 11pt bold  (e.g. "1. Introduction")
   // Level 2 → 10pt bold  (e.g. "3.1. Equations and Data")
   show heading.where(level: 1): it => {
-    v(1.0em, weak: true)
-    text(
+    v(0.5em, weak: true)
+    // sticky: never leave a section heading stranded at the foot of a page
+    block(sticky: true, text(
       size:   11pt,
       weight: "bold",
-    )[#if it.numbering != none [#counter(heading).display("1.") ]#it.body]
+    )[#if it.numbering != none [#counter(heading).display("1.") ]#it.body])
     v(0.4em, weak: true)
   }
 
   show heading.where(level: 2): it => {
-    v(0.7em, weak: true)
-    text(
+    v(0.5em, weak: true)
+    block(sticky: true, text(
       size:   11pt,
       weight: "bold",
-    )[#if it.numbering != none [#counter(heading).display("1.1.") ]#it.body]
+    )[#if it.numbering != none [#counter(heading).display("1.1.") ]#it.body])
     v(0.3em, weak: true)
   }
 
@@ -77,14 +81,14 @@
   set figure(numbering: "1")
 
   // ── Figure/table spacing ─────────────────────────────────────
-  set figure(gap: 4pt)
-  show figure: set block(above: 5pt, below: 5pt)
+  set figure(gap: 2pt)
+  show figure: set block(above: 3pt, below: 3pt)
 
   // ── Bibliography: IEEE numeric, heading unnumbered ───────────
   set bibliography(style: "ieee", title: "References")
   show bibliography: set heading(numbering: none)
-  show bibliography: set text(size: 7.6pt)
-  show bibliography: set par(leading: 0.4em, spacing: 0.38em)
+  show bibliography: set text(size: 6.8pt)
+  show bibliography: set par(leading: 0.28em, spacing: 0.32em)
 
   // ── Title block ──────────────────────────────────────────────
   align(center)[
@@ -133,7 +137,7 @@ contact-email: "2410717302003@live4.utcc.ac.th, Suwannee_ads@utcc.ac.th"
     columns: columns,
     align: align,
     stroke: none,
-    inset: (x: 5pt, y: 2.1pt),
+    inset: (x: 5pt, y: 1.3pt),
     table.hline(stroke: 0.7pt),
     table.header(..header.map(h => strong(h))),
     table.hline(stroke: 0.4pt),
@@ -153,38 +157,35 @@ contact-email: "2410717302003@live4.utcc.ac.th, Suwannee_ads@utcc.ac.th"
 
 // Thailand's Power Development Plan (PDP 2026-2050) mandates a transition to a minimum of 60% clean energy generation to fulfill the nation's carbon neutrality commitments. Achieving this target will necessitate a rapid proliferation of distributed rooftop solar prosumers. However, under the existing Enhanced Single Buyer model, these prosumers lack a direct mechanism for peer-to-peer (P2P) trading of surplus generation, resulting in the underutilization of distributed energy capacity.
 
-Thailand's National Energy Trading Platform (NETP), envisaged since 2017 as a blockchain settlement layer for Peer-to-Peer (P2P) trading among rooftop-solar prosumers, remains in development, and the regulated buy-back still gives prosumers no direct mechanism to exchange surplus generation within the local distribution grid.
-This paper presents an on-chain settlement layer for P2P energy trading: six modular Anchor programs on a permissioned Solana runtime, where routing every high-frequency write to a per-entity program-derived account (PDA) lets transactions with disjoint write sets execute in parallel under Sealevel, ordered by Proof-of-History (PoH). The market-clearing framework couples a continuous double auction (CDA) for real-time trades with a uniform-price auction clearing aggregated bids at a single price over fifteen-minute epochs.
-We simulate 80 meters over 30 days at fifteen-minute intervals on a low-voltage feeder, 15% of them prosumers, and evaluate the full token life-cycle on a single-node validator; the community-month replays 1,858× faster than real time with zero delivery loss. Three findings follow. Primarily, settlement is bound by packet framing rather than by compute: a match leaves about half the 200 k default compute budget unused, yet the 1,232-byte packet admits only one match, and Address Lookup Tables cannot relieve it. Denser settlement needs signatures repackaged, not more compute — a constraint transferable to any signature-verifying settlement layer. Second, settlement is exactly auditable: fourteen chain-derived conservation assertions all close. Third, participation is decided by the price rule rather than the platform, the wheeling charge ranking the uniform-price auction above the regulated buy-back and the CDA.
+Thailand's National Energy Trading Platform (NETP), envisaged since 2017 as a blockchain settlement layer for Peer-to-Peer (P2P) trading among rooftop-solar prosumers, remains in development on a Tendermint consortium chain, and the regulated buy-back gives prosumers no direct way to exchange surplus within the local distribution grid.
+This paper asks what a parallel-execution runtime carries in that role, measured on the three axes a settlement layer is bought on: throughput, latency, and compute cost. Six modular Anchor programs run on a permissioned Solana network with every high-frequency write routed to a per-entity program-derived account (PDA), so transactions with disjoint write sets execute in parallel under Sealevel, ordered by Proof-of-History (PoH); above them a continuous double auction (CDA) and a uniform-price auction clear the book over fifteen-minute epochs.
+Under that partition the per-meter write costs ≈13.5 k compute units (CU) and confirms at p50 ≈ 1.5–2.0 s (p95 ≤ 3.2 s), both unchanged from 80 to 200,000 meters; a simulated community-month (80 meters, 15% prosumers, 30 days at fifteen-minute intervals) replays at 1,858× real time with zero delivery loss and fourteen chain-derived conservation assertions all closing. The finding is what binds once partitioning removes computation as the limit: throughput is capped by a shared write-locked fee payer and single-node consensus rather than by per-entity contention, and settlement is packet-bound, not compute-bound. A match leaves half the 200 k CU budget unused, yet the 1,232-byte packet admits only one: denser settlement needs signatures repackaged, not more compute — a constraint transferable to any signature-verifying settlement layer. The price rule, not the platform, decides participation.
 
 = Motivation and Design Rationale
 
-Thailand's state utilities have advanced a National Energy Trading Platform (NETP) since 2017 to facilitate P2P trading among rooftop-solar prosumers, using a Tendermint-based consortium blockchain @netp2019report. This article presents a Solana-based architecture as an alternative execution layer, motivated by NETP's own finding that Tendermint outperformed Ethereum and Hyperledger Fabric in throughput testing, which suggests that further gains may be available from Solana's parallel-execution model. P2P market design and blockchain-based energy trading are already well surveyed @sousa2019 @andoni2019 and demonstrated in field pilots such as the Brooklyn Microgrid @mengelkamp2018. What such work reports is throughput and compute cost, presuming computation to be the axis along which a settlement layer scales. This paper reports the constraint that binds once it is not, with the conservation evidence throughput figures alone cannot give.
-The settlement logic is built as six programs on Anchor, Solana's official framework, written in Rust, compiled to SBF bytecode, and executed on the Solana Virtual Machine (SVM). By routing high-frequency writes to per-entity program-derived accounts (PDAs), transactions with disjoint write sets never contend for the same account lock and therefore execute in parallel under Solana's Sealevel runtime. The design claim this paper tests is what remains once that partitioning removes computation as the limit: consensus and lock serialization bound throughput, and transaction size, not compute cost, bounds settlement density.
+Thailand's state utilities have advanced a National Energy Trading Platform (NETP) since 2017 for P2P trading among rooftop-solar prosumers, on a Tendermint-based consortium blockchain @netp2019report. This article presents a Solana-based architecture as an alternative execution layer, motivated by NETP's own finding that Tendermint outperformed Ethereum and Hyperledger Fabric — which suggests further gains from Solana's parallel-execution model. P2P market design and blockchain-based energy trading are well surveyed @sousa2019 @andoni2019 and demonstrated in pilots such as the Brooklyn Microgrid @mengelkamp2018; what such work reports is throughput and compute cost, presuming computation to be the axis along which a settlement layer scales. No study places a parallel-execution runtime in that role, which is the gap this paper addresses. The design under test partitions all hot-path state into per-entity PDAs; throughput, latency and compute cost are then measured together, so that what binds each can be named separately rather than attributed to computation by default.
 
-= On-Chain Settlement Layer and Simulated Grid
+= On-Chain Settlement Architecture
 
-The evaluated system has two parts, the settlement layer under test and the simulated grid that drives it:
-- The smart-contract layer is built on the Solana Anchor framework @anchor2024 (anchor-lang and anchor-spl, version 1.0.0) and comprises six programs, *energy-token, governance, oracle, registry, trading,* and *treasury*, all written in Rust and compiled to SBF bytecode. One program invokes another through cross-program invocation (CPI), with authority delegated to program-derived addresses (PDAs) that sign without any private key existing. The deployment targets a permissioned environment realized as a private `solana-test-validator` network; all experiments reported here ran on a single node (Apple M2, Agave 3.1.10).
-- The fleet uses the CINELDI 80-bus rural LV reference grid (SINTEF) @cineldi2024 for network topology only, the 80-node single-phase feeder with its V/A/W parameters, resolved for power flow with pandapower @thurner2018. As CINELDI carries only hourly load and no generation, all time-series are simulator-produced: per-meter consumption and twelve prosumer nodes' (15%) rooftop PV at fifteen-minute cadence, with solar modeled deterministically via pvlib @holmgren2018pvlib under a fixed seed.
-
-A complete run must satisfy three closure identities, each checkable from
-chain state alone:
+The settlement layer is six Anchor programs @anchor2024 (anchor-lang and anchor-spl 1.0.0) — *energy-token, governance, oracle, registry, trading,* and *treasury* — written in Rust and compiled to SBF bytecode. Programs invoke one another through cross-program invocation (CPI), authority delegated to program-derived addresses (PDAs) that sign without any private key. Routing every high-frequency write to a per-entity PDA keeps write sets disjoint, so such transactions never contend for one account lock and execute in parallel under Sealevel. The permissioned environment is a private `solana-test-validator` network; all experiments ran on a single node (Apple M2, Agave 3.1.10). A complete run must satisfy three closure identities, each checkable from chain state alone:
 
 $ sum_(i,d) M(i,d) = E_"settle" = E_"burn", quad
-  sum_i R(i) = "REC supply" / 10^3, quad
+  sum_i R(i) = 10^(-3) dot "REC supply", quad
   sum_m T_m = P_"sell" + W $ <eq-closure>
 
-Here $M(i,d)$ is the GRID minted for prosumer $i$ on day $d$; $E_"settle"$
-and $E_"burn"$ the energy moved by settlement and retired by burns; $R(i)$
-the REC certified to $i$; and $T_m$, $P_"sell"$, $W$ the per-match buyer
-debit, seller proceeds, and wheeling charges. An audit harness re-derives
-the fourteen assertions behind @eq-closure from live chain state by RPC reads
-alone: per-meter counters, PDA censuses, registry conservation sums, token
-supplies and balances.
+Here $M(i,d)$ is the GRID minted for prosumer $i$ on day $d$, $E_"settle"$ and
+$E_"burn"$ the energy settled and burned, $R(i)$ the REC certified to $i$, and
+$T_m$, $P_"sell"$, $W$ the per-match buyer debit, seller proceeds, and wheeling
+charges. An audit harness re-derives the fourteen assertions behind
+@eq-closure from chain state by RPC reads alone.
 
-= Throughput, Audit, and Revenue Results
-Throughput is client-observed confirmed goodput, confirmed transactions per wall-clock second from burst start to last confirmation. Every non-confirmed transaction is attributed to a failure class (submission reject, on-chain guard, or expiry), separating delivery loss from validation working as intended. @tab-data gives the workload every reported figure derives from.
+= Simulation Setup and Dataset
+
+The fleet uses the CINELDI 80-bus rural LV reference grid (SINTEF) @cineldi2024 for topology only — the single-phase feeder with its V/A/W parameters — resolved for power flow with pandapower @thurner2018. As CINELDI carries only hourly load and no generation, all time-series are simulator-produced: per-meter consumption and twelve prosumer nodes' (15%) rooftop PV at fifteen-minute cadence, solar via pvlib @holmgren2018pvlib under a fixed seed (@tab-data).
+Two further sweeps read per-write cost and latency against fleet size alone,
+firing the oracle write from $N$ distinct meters over two epochs 61 s apart and
+together covering $N = 80$ to 200,000 (1.35 M transactions); the second ran
+unreset, its largest scale writing against 310,000 PDAs already on the ledger.
 
 #figure(
   caption: [#text(size: 8pt)[The simulated community-month dataset
@@ -201,82 +202,108 @@ Throughput is client-observed confirmed goodput, confirmed transactions per wall
   ),
 ) <tab-data>
 
+= Results and Discussion
+
+== Market-Clearing Model
+
+Both P2P rules clear one book. The uniform-price auction cumulates supply $S$
+ascending in ask and demand $D$ descending in bid and takes the crossing pair of
+maximum volume, $(p^*, V^*) = op("arg max")_(p_s <= p_b) min(S(p_s), D(p_b))$,
+priced at the marginal ask; the CDA fills each crossing pair pay-as-ask. Whichever
+rule sets price $p$ on quantity $q$, one on-chain tariff taxes the seller in
+integer micros with floored division:
+
+$ V = floor.l q p \/ 10^9 floor.r, quad f = floor.l V phi \/ 10^4 floor.r, quad
+  W = floor.l q w \/ 10^9 floor.r, quad L = floor.l V lambda \/ 10^4 floor.r,
+  quad "net" = V - f - W - L $ <eq-tariff>
+
+for fee $phi = 25$ bp and loss $lambda = 5$ bp on value and wheeling $w = 1.15$
+THB/kWh flat on energy. Per kWh the seller keeps $p(1 - phi - lambda) - w =
+0.997 p - 1.15$ regardless of volume, breaking even against the 2.20 THB/kWh
+buy-back only above $p^dagger approx 3.36$.
+
 == Measured Outcomes and Limitations
 
-@tab-results reports the replay. The first two findings are technical.
-Compute does not limit settlement: a match spends 107 k CU, about half the
-200 k default budget, yet only one match fits per transaction. The
-1,232-byte packet binds instead, since each match carries its 77-byte
-signed order twice, in the Ed25519 verification instruction and again as
-settlement instruction data, so a pair costs 186 bytes and a second pair
-overruns the packet. Address Lookup Tables cannot recover it, compressing
-account keys rather than instruction data. Second, settlement is exactly
-auditable, as @eq-closure holds on chain under all three price rules.
+@tab-results reports all three axes with what bounds each; throughput is
+client-observed confirmed goodput, with every non-confirmed transaction
+attributed to a failure class.
+*Compute is $O(1)$ and never binds:* the per-meter write holds 13.3–13.6 k CU
+across the whole 2,500× range — the largest fleet writing against 310,000
+already-resident PDAs at the same cost — and a match spends about half the
+default budget. *Latency is set by block time, not by the partition:*
+confirmation holds p50 ≈ 1.5–2.0 s and p95 ≤ 3.2 s over that range, flat where
+a contended design would degrade. Being send→first-seen-confirmed it is
+dominated by single-node block time (≈400–600 ms) and quantised by the ±1.5 s
+poll — an upper bound on the runtime's own cost, not a measurement of it.
+
+*Throughput is bound by serialization, not contention:* steady ingest holds
+426–455 TPS from 10,000 to 200,000 meters — flat, not proportional, because one
+write-locked gateway fee payer signs every transaction on one validator; the
+PDAs are disjoint, so the ceiling lifts with payer pooling and more nodes, not a
+finer partition. *Settlement density is packet-bound:* one match fits per
+transaction. Its two 77-byte signed orders serialize to a 186-byte
+instruction-data pair and are carried again, with signature and key, in two
+≈189-byte Ed25519 verification instructions, so a second match overruns the
+1,232-byte packet; Address Lookup Tables compress account keys, not instruction
+data. Settlement stays exactly auditable, @eq-closure holding under all three
+price rules.
 
 #figure(
-  caption: [#text(size: 8pt)[Community-month replay outcomes, each figure
-  re-derived from on-chain state.]],
+  caption: [#text(size: 8pt)[Measured outcomes by axis; #emph[sweep] figures come
+  from the 80 → 200,000-meter ingest experiment, the rest from the
+  community-month replay.]],
   bt(
     columns: (auto, auto, auto),
     align: (left + horizon, left + horizon, left + horizon),
-    header: ([Metric], [Value], [What it bounds]),
+    header: ([Axis], [Measurement], [What bounds it]),
+      [compute], [13.3–13.6 k CU/reading #emph[(sweep)]; 107 k CU/match (≈54% of the 200 k budget)], [nothing — $O(1)$ in fleet size and state],
+      [latency #emph[(sweep)]], [p50 ≈ 1.5–2.0 s, p95 ≤ 3.2 s, flat over the same range], [block time + ±1.5 s poll, not the partition],
+      [throughput], [426–455 TPS steady ingest #emph[(sweep)]; ≈213 readings·s#super[−1] and ≈53 TPS order goodput in replay], [one write-locked fee payer, one node],
+      [settlement density], [1 match/tx], [1,232-byte packet, not compute],
       [replay wall-clock], [1,394.7 s for 230,400 readings (1,858× real time)], [end-to-end lifecycle cost],
-      [telemetry ingest], [≈213 readings·s#super[−1]], [oracle write path under PDA partition],
-      [order bursts], [≈53 TPS confirmed goodput], [trading account-lock serialization],
-      [settlement], [107 k CU/match (≈54% of the 200 k budget); 1 match/tx], [1,232-byte packet, not compute],
       [delivery loss], [0 unconfirmed; 919 readings gate-rejected], [validation, not lost throughput],
       [audit], [14/14 chain-derived assertions], [exactness of settlement],
   ),
 ) <tab-results>
 
-Goodput on a single validator bounds execution and locking only, not
-consensus in a three-utility consortium. The telemetry outcome reproduced
-bit-identically across four runs, throughput varying 213–232
-readings·s#super[−1], while the lifecycle
-figures come from one canonical run and the price-rule comparison from a
-separate sweep, since nullifier PDAs make identical
-replay impossible on a persistent ledger. The dataset is simulator-produced, with no field
-measurements.
+A single validator bounds execution and locking only, not consensus in a
+three-utility consortium. Sweep delivery loss stays ≤ 0.46%, exactly zero across
+the later 1.02 M first-attempt sends; the 0.48% residual is a deliberate
+anomaly-gate probe. Telemetry
+reproduced bit-identically across four runs (213–232 readings·s#super[−1]);
+lifecycle figures come from one canonical run, since nullifier PDAs make
+identical replay impossible on a persistent ledger.
 
 == Where the Prosumer's Revenue Goes
 
-The third finding is economic. All three rules move identical energy in
-@tab-revenue, so the ranking is set by the deductions: wheeling takes
-1,278 THB from each P2P rule, a third of the uniform auction's gross and
-more of the CDA's, and nothing from the buy-back, while fees (25 bp) and
-the loss allowance (5 bp) together take about 0.3%. The uniform auction
-survives wheeling and still beats the buy-back; the CDA does not, and the
-ranking reverses once supply is left uncapped. Wheeling policy is the regulator's lever.
+A secondary, economic result follows from the same runs: all three rules move
+identical energy over one cleared month (1,111.4 kWh), so @eq-tariff alone sets
+the ranking. Flat wheeling takes 1,278 THB from each P2P rule and nothing from
+the buy-back — a third of the uniform auction's 3,834 THB gross — while the two
+proportional charges take about 0.3%. The uniform auction nets 2.290 THB/kWh,
+above $p^dagger$ and beating the 2.200 buy-back; the CDA fills cheaper rungs and
+nets 2.065. The ranking reverses once supply is uncapped, so wheeling policy,
+not the ledger, is the lever.
 
-#figure(
-  caption: [#text(size: 8pt)[Prosumer revenue decomposition for one cleared
-  month (1,111.4 kWh; 80 meters / 8 prosumers, 30 days), in THB.]],
-  bt(
-    columns: (auto, auto, auto, auto, auto, auto, auto),
-    align: (left + horizon,) + (right + horizon,) * 6,
-    header: ([Price rule], [Gross], [Fee], [Wheeling], [Loss], [Net], [Net THB/kWh]),
-    [uniform], [3,834.31], [9.59], [1,278.10], [1.92], [2,544.70], [2.290],
-    [buy-back], [2,445.07], [0.00], [0.00], [0.00], [2,445.07], [2.200],
-    [CDA], [3,584.25], [8.96], [1,278.10], [1.79], [2,295.39], [2.065],
-  ),
-) <tab-revenue>
+= Conclusion
 
-#heading(numbering: none)[Conclusion]
-
-The measurements support the central design claim and sharpen it: with
-hot-path state in per-entity PDAs computation never binds, consensus and
-lock serialization bound throughput, and packet framing bounds how much
-settlement a transaction carries, while settlement stays exactly auditable.
-What remains open is economic: the wheeling charge, not the ledger, sets
-the threshold at which a Thai prosumer prefers P2P trading to the buy-back.
-A multi-validator consortium mapped to EGAT, MEA, and PEA is the natural
-next step, suited to UEC–ASEAN collaboration.
+Per-entity PDA partitioning carries a community-scale P2P market on a
+permissioned Solana network: the full token life-cycle replays at 1,858× real
+time with nothing lost, the ledger conserving energy and currency exactly.
+Across the three axes the partition holds where it governs and yields where it
+does not: compute is $O(1)$ over a 2,500× sweep and never binds, latency is flat
+over that range and set by block time, and throughput is capped by one
+write-locked fee payer on one node, not by per-entity contention. Only
+settlement density resists: the packet, not the compute budget, limits a
+transaction to one match, and that is where denser settlement must be won. A
+multi-validator consortium mapped to EGAT, MEA, and PEA is the natural next
+step, suited to UEC–ASEAN collaboration.
 
 // The conclusion should highlight the main outcomes and suggest potential future
 // work or collaboration opportunities between UEC and ASEAN partners.
 
 #heading(numbering: none)[Acknowledgment]
-The authors thank the University of the Thai Chamber of Commerce (UTCC) for institutional support, and the organizers, the UEC ASEAN Research Center (UARC) and Multimedia University (MMU), for hosting this workshop.
+The authors thank the University of the Thai Chamber of Commerce (UTCC) for institutional support, and the organizers — the UEC ASEAN Research Center (UARC) and Multimedia University (MMU) — for hosting this workshop.
 // =============================================================================
 //  REFERENCES
 //  Option A (used here): inline bib database via `bibliography()` below.
@@ -365,8 +392,7 @@ The authors thank the University of the Thai Chamber of Commerce (UTCC) for inst
                        Generating Authority of Thailand (EGAT) and Provincial
                        Electricity Authority (PEA)}},
       title        = {{Development of the National Energy Trading Platform (NETP)}:
-                       Research and Development Project Report and Digital
-                       Platform Roadmap for Thailand's Electricity Authorities},
+                       Research and Development Project Report},
       institution  = {Submitted to the State Enterprise Policy Office (SEPO),
                       Thailand},
       year         = {2019},
