@@ -262,10 +262,15 @@ def test_crossing_orders_match(new_user, make_user):
     seller = new_user["user_id"] or pytest.skip("no user_id")
     buyer = make_user()["user_id"] or pytest.skip("could not provision distinct buyer")
     assert buyer != seller, "buyer and seller must differ for a cross-party match"
-    price = 12
-    s = place_order(seller, "sell", 4, price)
+    ask = 12
+    # Bid ABOVE the ask: the CDA settles at the landed cost (ask + wheeling + loss)
+    # which the buyer funds, so bid == ask never crosses. This test used to pass
+    # only incidentally, by filling against a cheaper ask left behind by another
+    # test -- see the docstring -- which made it fail whenever the book was clean.
+    bid = 13
+    s = place_order(seller, "sell", 4, ask)
     assert s.status_code == 200, s.text
-    b = place_order(buyer, "buy", 4, price)
+    b = place_order(buyer, "buy", 4, bid)
     assert b.status_code == 200, b.text
     buy_id = b.json()["id"]
     assert poll_filled(buyer, buy_id, 4, timeout=25), \
@@ -299,9 +304,12 @@ def test_concurrent_buys_no_oversell(new_user, make_user):
     assert seller not in buyers, "seller must differ from every buyer (self-trade guard)"
 
     Q = 4          # resting sell size
-    price = 9
+    ask = 9
+    # Bid above the ask: the CDA settles at the landed cost (ask + wheeling + loss),
+    # funded by the buyer, so bid == ask never crosses.
+    bid = 10
     # Total buy demand = N * 1 = 5 > Q = 4  -> the buyers contend for limited liquidity.
-    s = place_order(seller, "sell", Q, price, zone=CONC_ZONE)
+    s = place_order(seller, "sell", Q, ask, zone=CONC_ZONE)
     if s.status_code != 200:
         pytest.skip(f"resting sell not accepted in conc zone: {s.status_code} {s.text}")
     sell_id = s.json().get("id")
@@ -309,7 +317,7 @@ def test_concurrent_buys_no_oversell(new_user, make_user):
 
     def fire(uid):
         try:
-            r = place_order(uid, "buy", 1, price, zone=CONC_ZONE)
+            r = place_order(uid, "buy", 1, bid, zone=CONC_ZONE)
             return (r.status_code, r.json().get("id") if r.status_code == 200 else None)
         except requests.RequestException:
             return (None, None)

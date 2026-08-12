@@ -256,14 +256,17 @@ def test_token_lifecycle_onchain_balance_deltas():
                     f"within {SETTLE_WAIT:.0f}s — tx may still be confirming")
 
     # --- Fund the buyer's GRX so they can actually place a BUY order. -----------
-    price = Decimal("10")
+    price = Decimal("10")          # the seller's ask
+    # The buyer must bid ABOVE the ask: the CDA settles at the landed cost
+    # (ask + wheeling + loss), which the buyer funds, so bid == ask never crosses.
+    bid = Decimal("11")
     amount = Decimal("5")  # <= the 25 GRID just minted to the seller
-    total_currency_ui = amount * price  # 50 GRX
+    total_currency_ui = amount * bid  # fund against the BID, the buyer's real outlay
     _fund_grx(buyer["wallet"], float(total_currency_ui) * 2)  # headroom for escrow funding
 
     # --- Place crossing orders, wait for the CDA match. --------------------------
     s = place_order(seller["user_id"], "sell", amount, price)
-    b = place_order(buyer["user_id"], "buy", amount, price)
+    b = place_order(buyer["user_id"], "buy", amount, bid)
     assert s.status_code == 200 and b.status_code == 200, (
         f"place orders failed: sell={s.status_code} {s.text} buy={b.status_code} {b.text}"
     )

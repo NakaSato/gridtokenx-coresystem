@@ -259,9 +259,14 @@ def test_golden_path():
     if not _up(TRADING, "/api/v1/stats"):
         st.skip("trading match", "Trading down")
     else:
-        price = 12
-        s = place_order(seller["user_id"], "sell", 4, price)
-        b = place_order(buyer["user_id"], "buy", 4, price)
+        ask = 12
+        # The buyer must bid ABOVE the ask, not equal to it: the CDA settles at the
+        # LANDED cost (ask + wheeling + loss) and the buyer funds those charges, so
+        # bid == ask can never cover the trade. Margin is well clear of the deployed
+        # 0.10/kWh + 0.05% tariff.
+        bid = 13
+        s = place_order(seller["user_id"], "sell", 4, ask)
+        b = place_order(buyer["user_id"], "buy", 4, bid)
         if s.status_code == 200 and b.status_code == 200:
             # Poll the BUYER's crossing order — it is the active taker and reliably fills
             # against the best resting ask. (We can't assert the SELLER's specific sell
