@@ -238,3 +238,7 @@ gips/.env.local
 # UTCC_paper (Typst/DOCX paper) generated exports
 UTCC_paper/*.docx
 UTCC_paper/**/*.tmp
+
+# Local-dev assets (certs, collector keypairs, solana state). Contains PRIVATE
+# KEYS — must never be committed.
+infra/
