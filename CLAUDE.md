@@ -46,7 +46,7 @@ This rule overrides any tendency to report completion before tests run.
 - Read [README.md](README.md) for the full architecture diagram, service list, and port table. The root [`ARCHITECTURE.md`](ARCHITECTURE.md) is the top-level system map; its §8 indexes every per-component `<component>/ARCHITECTURE.md`. Per-component detail lives in those files (most `gridtokenx-*` services, plus `apisix_conf/`).
 - Read [docs/glossary.md](docs/glossary.md) for domain terms (GRID, GRX, REC, VPP, CDA, PDA, etc.).
 - Each service = **independent Cargo workspace** — no root `Cargo.toml`. Don't `cargo` from repo root; `cd` into the service first.
-- **DB-per-service split is mid-flight.** Trading is live on `gridtokenx_trading`; metering rolled back to shared `gridtokenx` (meter-service still JOINs `users`); `gridtokenx_noti` already isolated. Don't add new cross-service JOINs — check [docs/design-docs/db-per-service-migration.md](docs/design-docs/db-per-service-migration.md) before touching DB wiring.
+- **DB-per-service split is mid-flight.** Trading is live on `gridtokenx_trading`; metering is **on `gridtokenx_meter`** — meter-service's `DATABASE_URL` points there (verified against the running container, 2026-08-12), despite this line previously saying it had rolled back to the shared `gridtokenx`. On a fresh volume BOTH need the aggregator-bridge migrations applied or meter registration 500s with `relation "meter_readings" does not exist`; `gridtokenx_noti` already isolated. Don't add new cross-service JOINs — check [docs/design-docs/db-per-service-migration.md](docs/design-docs/db-per-service-migration.md) before touching DB wiring.
 - IAM Service = **modular monolith** with 6 sub-crates. Others: layered modules, single crate.
 - Two interconnected platforms: **Exchange** (IAM + Trading, direct blockchain) and **Infrastructure** (Aggregator Bridge + edge, produces validated telemetry). Gateway: **APISIX** (`:4001`, user-facing); **API orchestrator** at `:4000`. IoT/edge telemetry ingresses directly to the Aggregator Bridge IoT gateway (Ed25519-signed payloads; no separate edge proxy).
 - **Not every submodule is a Rust backend.** `gridtokenx-trading-service` (Rust, `crates/`) = the matching/settlement backend; `gridtokenx-trading` (Next.js, `app/`) = its **Trading UI frontend** — different repos, easy to confuse. `gridtokenx-explorer` (Next.js) = block/chain explorer frontend. The Rust→WASM client crate lives at `gridtokenx-trading/wasm/` (inside the Trading frontend submodule) — there is no top-level `gridtokenx-wasm` submodule. `gridtokenx-telemetry` **is a submodule** (shared Rust observability crate, `.gitmodules` → `NakaSato/gridtokenx-telemetry`) — change it in the submodule and bump the pointer here, like any other. `infra/` (untracked) holds local-dev assets: `aggregator-bridge/`, `certs/`, `solana/`.
@@ -378,6 +378,19 @@ surfaces far from its cause. All three were hit on 2026-07-30.
    metering is owned by a single migrate job (`gridtokenx-aggregator-bridge/src/bin/migrate.rs`)
    because that DB is shared with meter-service and two boot runners would race one
    `_sqlx_migrations` ledger.
+
+   Concretely, after a `docker compose down -v` (verified 2026-08-12):
+   ```bash
+   cd gridtokenx-trading-service && DATABASE_URL=...gridtokenx_trading sqlx migrate run
+   cd gridtokenx-aggregator-bridge
+   DATABASE_URL=...gridtokenx       sqlx migrate run   # shared DB
+   DATABASE_URL=...gridtokenx_meter sqlx migrate run   # meter-service reads THIS one
+   ```
+   Both metering databases need it. Migrating only the shared `gridtokenx` leaves
+   meter registration failing `500 {"error":"database error"}`, whose real cause —
+   `relation "meter_readings" does not exist` — appears only in the meter-service
+   log, not in the API response. Restart meter-service afterwards; its mint poller
+   caches the failure.
 3. **On-chain zone markets, if the ledger was also reset.** See the box below.
 
 > **A prosumer cannot open a sell order until their meter is verified.**
