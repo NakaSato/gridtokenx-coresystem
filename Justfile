@@ -394,6 +394,19 @@ solana-up-keep:
 solana-down:
     ./scripts/app.sh solana stop
 
+# Re-anchor the chain clock: full ledger reset + init + zone markets. The dev
+# validator's Clock sysvar drifts to ~half wall speed on this host (measured
+# 192 min behind ~6h after a reset, 2026-08-03), and mint_generation rejects
+# windows past chain-now+900s (Custom 6010) — so surplus mints for CURRENT
+# windows sicken as drift grows. DESTRUCTIVE: wipes every deployed program,
+# mint, PDA and balance; DB rows referencing old chain state become stale.
+# The mints change identity — init rewrites root .env, and tests/e2e/env.sh
+# re-exports them, so the e2e harness follows automatically.
+chain-reset:
+    ./scripts/app.sh solana stop
+    with-env {SOLANA_RESET: "1", SOLANA_VALIDATOR_TTL: "0"} { ./scripts/app.sh init }
+    ./scripts/init-zones.sh
+
 # Re-seed on-chain accounts after a validator ledger reset (mints/registry/shards,
 # correct registry authority) WITHOUT rebuilding/redeploying programs. Use when IAM
 # verify / register_user simulation fails (InvalidMint / AccountOwnedByWrongProgram /
