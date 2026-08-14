@@ -249,7 +249,7 @@ The telemetry sweep submits one reading per meter from $N$ distinct meters over 
 #figure(
   caption: [*Throughput by lock footprint.* Paths ordered by the shared
   write-locked state they touch — an ordering, not a demonstrated cause (see
-  text). Harnesses differ per row; rows are not mutually comparable.
+  text). Harnesses differ per row; rows are not mutually comparable, and the closed-loop OLTP row is its own concurrency knob (TPS ≈ $c$/latency).
   #emph[pre-fix] = measured before the vestigial `mut` on `zone_market` was
   dropped.],
   tbl(
@@ -260,7 +260,7 @@ The telemetry sweep submits one reading per meter from $N$ distinct meters over 
     [meter ingest (10 k–200 k meters)], [13,538], [182–296], [gateway fee payer],
     [order entry (10 k orders, pre-fix)], [9,884], [180], [fee payer + `zone_market`],
     [order entry (10 k orders, re-measured)], [9,808], [915–1,028], [fee payer + zone shard(s)],
-    [OLTP proxy (concurrency 5 → 40)], [22–24 k], [7.9 → 74.3], [fee payer + market accounts],
+    [OLTP proxy, closed loop ($c$ = 5 → 40)], [≈22.8 k], [10.4 → 78.4], [fee payer + per-district counters],
     [settlement, concurrent, 1–8 fee payers], [≈120 k], [446–561], [fee payer + `energy_mint` + collectors],
   ),
 ) <tab-tps>
