@@ -30,11 +30,11 @@
 
   // ── Base typography: Times New Roman 10pt ───────────────────
   set text(font: "Times New Roman", size: 10pt, lang: "en")
-  // leading/spacing tightened (0.55em/0.9em → 0.43em/0.50em → 0.40em/0.44em):
+  // leading/spacing tightened (0.55em/0.9em → 0.43em/0.50em → 0.39em/0.42em):
   // first to fit the four result tables, then again when the settle
   // before/after was re-measured and its account grew; still looser than the
   // template's Word "single line spacing".
-  set par(justify: true, leading: 0.40em, spacing: 0.44em)
+  set par(justify: true, leading: 0.39em, spacing: 0.42em)
 
   // ── Heading numbering scheme: "1." / "1.1." ─────────────────
   set heading(numbering: "1.1.")
@@ -103,8 +103,8 @@
   // ── Bibliography: IEEE numeric, heading unnumbered ───────────
   set bibliography(style: "ieee", title: "References")
   show bibliography: set heading(numbering: none)
-  show bibliography: set text(size: 6.2pt)
-  show bibliography: set par(leading: 0.18em, spacing: 0.20em)
+  show bibliography: set text(size: 6.0pt)
+  show bibliography: set par(leading: 0.16em, spacing: 0.18em)
 
   // ── Title block ──────────────────────────────────────────────
   align(center)[
@@ -148,12 +148,12 @@ contact-email: "2410717302003@live4.utcc.ac.th, Suwannee_ads@utcc.ac.th"
 // ── Ruled table: full 0.4pt grid, 7pt text ────────────────────────────
 // One helper so the three result tables cannot drift apart on stroke,
 // inset, or header emphasis.
-#let tbl(columns: (), align: (), header: (), ..rows) = text(size: 7pt)[
+#let tbl(columns: (), align: (), header: (), ..rows) = text(size: 6.8pt)[
   #table(
     columns: columns,
     align:   align,
     stroke:  0.4pt,
-    inset:   2pt,
+    inset:   1.5pt,
     table.header(..header.map(h => strong(h))),
     ..rows.pos(),
   )
@@ -172,11 +172,11 @@ contact-email: "2410717302003@live4.utcc.ac.th, Suwannee_ads@utcc.ac.th"
 
 Thailand's three state utilities — EGAT, MEA, and PEA — have pursued a National Energy Trading Platform (NETP) since 2017 for peer-to-peer (P2P) trading among rooftop-solar prosumers, but it remains in development, and the regulated buy-back affords prosumers no direct means of exchanging surplus within the local distribution grid.
 This paper evaluates a settlement layer for that role: six modular Anchor programs on a permissioned Solana runtime in which every high-frequency write is routed to a per-entity program-derived account (PDA), so transactions of distinct entities hold disjoint write sets and are scheduled in parallel by the Sealevel engine, ordered by Proof-of-History @yakovenko2018solana.
-We measure compute, throughput and latency together, and find that they are not bound by the same thing. Compute is $O(1)$ and never binds: the steady telemetry write holds 13.3–13.6 k compute units (CU) across a 2,500× sweep from 80 to 200,000 meters and against 510,000 resident PDAs, while confirmation latency stays flat at p50 ≈ 1.5–1.9 s (p95 ≤ 3.1 s). Throughput is instead *associated* with lock footprint: ordering every measured path by the shared write-locked state it touches spans three orders of magnitude where the CU column does not — yet controlled experiments do not confirm the association as causal. Restoring the pre-fix lock footprint (the parent `ZoneMarket` re-declared writable, one account flag) leaves settlement throughput statistically unchanged from one fee payer to eight, and a previously reported ≈0.6 TPS proves to be a serial-await harness artifact. At ≈120 k CU a settle exhausts the block compute budget before its locks bind, so the write-set lever is not visible below a multi-node scheduler.
+We measure compute, throughput and latency together, and find that they are not bound by the same thing. Compute is $O(1)$ and never binds: the steady telemetry write costs an identical 13,538 compute units (CU) at every scale of a 2,500× sweep from 80 to 200,000 meters and against 671,160 resident PDAs, while confirmation latency stays flat at p50 1.1–1.6 s (p95 ≤ 3.0 s) with zero delivery loss over 1.34 M first-attempt sends. Throughput is instead *associated* with lock footprint: ordering every measured path by the shared write-locked state it touches spans three orders of magnitude where the CU column does not — yet controlled experiments do not confirm the association as causal. Restoring the pre-fix lock footprint (the parent `ZoneMarket` re-declared writable, one account flag) leaves settlement throughput statistically unchanged from one fee payer to eight, and a previously reported ≈0.6 TPS proves to be a serial-await harness artifact. At ≈120 k CU a settle exhausts the block compute budget before its locks bind, so the write-set lever is not visible below a multi-node scheduler.
 
 = Introduction
 
-Since 2017 Thailand's state utilities have pursued a National Energy Trading Platform (NETP) for P2P trading among rooftop-solar prosumers, implemented on a Tendermint-based consortium blockchain @netp2019report. This article presents a Solana-based architecture as an alternative execution layer, motivated by NETP's own evaluation, in which Tendermint outperformed both Ethereum and Hyperledger Fabric under throughput testing: that result suggests further gains from a runtime whose execution is parallel rather than sequential. Such evaluations report throughput and compute cost as though computation were the axis along which a settlement layer scales. The contribution here is to separate the axes: partition all hot-path state per entity, then measure compute, throughput and latency independently, so that what binds each can be named rather than assumed.
+Since 2017 Thailand's state utilities have pursued a National Energy Trading Platform (NETP) for P2P trading among rooftop-solar prosumers, implemented on a Tendermint-based consortium blockchain @netp2019report. This article presents a Solana-based architecture as an alternative execution layer, motivated by NETP's own evaluation, in which Tendermint outperformed both Ethereum and Hyperledger Fabric under throughput testing: that result suggests further gains from a runtime whose execution is parallel rather than sequential. Such evaluations report throughput and compute cost as though computation were the scaling axis. The contribution here is to separate the axes: partition all hot-path state per entity, then measure compute, throughput and latency independently, so what binds each can be named rather than assumed.
 
 = The Per-Entity Partition
 
@@ -189,7 +189,7 @@ The settlement layer is six Anchor programs @anchor2024 (anchor-lang and anchor-
     columns: (auto, auto, 1fr),
     align: (left + horizon, left + horizon, left + horizon),
     header: ([Hot path], [Account], [Seed tuple]),
-    [meter telemetry], [`MeterState`], [`[b"meter", meter_id]` — the 32-byte id ceiling is the runtime's own seed limit],
+    [meter telemetry], [`MeterState`], [`[b"meter", meter_id]` (32-byte id ceiling = the runtime's seed limit)],
     [order placement], [`Order`], [`[b"order", authority, order_id]`],
     [settlement replay guard], [`OrderNullifier`], [`[b"nullifier", user, order_id]`],
     [registration counters], [`RegistryShard` ×16], [`[b"registry_shard", shard_id]`, $"shard" = "key"[0] mod 16$],
@@ -201,49 +201,50 @@ Two consequences follow. First, global accounts — config, totals — are read-
 = Method
 
 All experiments ran on one node (Apple M2, Agave 3.1.10) of a private `solana-test-validator` network, so they characterise SVM semantics — account locking and compute metering — not consensus or leader rotation @solana2019towerbft. Throughput is *client-observed confirmed goodput*: confirmed transactions per wall-clock second from burst start to last confirmation, covering the pipeline from client signing to confirmation visibility. Every non-confirmed transaction is attributed to one class — send-rejected (refused by the RPC node, no fee), guard-rejected (executed, failed a program check, fee paid and recorded on-chain), or expired — separating delivery loss from validation working as intended. Transactions are pre-signed against a cached blockhash and submitted raw without preflight or retry, then confirmed by bulk signature-status polling on a 1.5 s sweep under a 3,000-transaction in-flight window; latency is therefore poll-quantised (±1.5 s), an upper bound on the runtime's own cost rather than a measurement of it. CU is machine-independent, read post-hoc from transaction metadata.
-The telemetry sweep submits one reading per meter from $N$ distinct meters over two epochs at least 61 s apart — the rate-limit and monotonic-timestamp guards force the gap — separating one-off PDA creation from the recurring steady write. It covers $N = 80$ to 200,000 (1.35 M transactions) over two runs, the second unreset between scales (@tab-fleet). The order-entry burst submits $N = 10^4$ orders over 16 round-robin zone shards on the same transport and fee payer, making the two directly comparable.
+The telemetry sweep submits one reading per meter from $N$ distinct meters over two epochs at least 61 s apart — the rate-limit and monotonic-timestamp guards force the gap — separating one-off PDA creation from the recurring steady write. It covers $N = 80$ to 200,000 (1.34 M transactions) over two runs, the second unreset between scales (@tab-fleet). The order-entry burst submits $N = 10^4$ orders over 16 round-robin zone shards.
 
 = Results and Discussion
 
-*Compute is $O(1)$ and never binds.* @tab-cu gives the instruction profile against the 200,000-CU default per-instruction budget; every control, telemetry and settlement-recording path costs at most ≈8% of it. @tab-fleet resolves the telemetry write by fleet size: 13,337–13,634 CU from 80 to 200,000 meters, the entire 2,500× range spanned by 297 CU (±1.1%), two independent runs agreeing to within 1.4% at every shared scale. The residual tracks meter-identifier byte length, not $N$; the first write for a meter costs 16,050 CU (15,957–16,254 live) because it initialises and rent-funds the PDA. Under a concurrency sweep from 5 to 40 in-flight transactions cost is likewise flat at 22–24 k CU, so execution is load-independent as well as fleet-independent. Settlement is the one expensive instruction at 121,813 CU (60.9%), dominated by native Ed25519 verification and instruction-sysvar introspection authorising the trade, not by settlement arithmetic.
+*Compute is $O(1)$ and never binds.* @tab-cu gives the instruction profile against the 200,000-CU default per-instruction budget; every control, telemetry and settlement-recording path costs at most ≈8% of it. @tab-fleet resolves the telemetry write by fleet size: with fixed-width meter identifiers the steady write is *13,538 CU in every cell of both runs* — 80 to 200,000 meters, a 2,500× range with zero drift — and the first write is likewise constant at 16,157 CU because it additionally initialises and rent-funds the PDA (one extra identifier byte costs ≈96 CU — the spread earlier variable-width measurements showed as 13,337–13,634). Above the mode sits a deterministic ladder in exact 1,500-CU steps, geometrically decaying: `find_program_address` pays one 1,500-CU curve check per bump candidate and ≈half of candidates fail, so half of all meters resolve at bump 255 and each further step halves — a per-meter constant, not noise. Settlement is the one expensive instruction at ≈121 k CU (≈61%), dominated by native Ed25519 verification and instruction-sysvar introspection authorising the trade, not by settlement arithmetic.
 
 #figure(
   caption: [*Compute cost per instruction*, against the 200,000-CU default
-  per-instruction budget. Machine-independent, read from transaction metadata.],
+  per-instruction budget. Machine-independent, read from transaction metadata;
+  modes; PDA-deriving paths carry the bump ladder above the mode (see text).],
   tbl(
     columns: (1fr, auto, auto),
     align: (left + horizon, right + horizon, right + horizon),
     header: ([Instruction], [CU], [% of 200 k]),
     [`do_nothing` (dispatch + signature-verify floor)], [769], [0.4%],
-    [`treasury.record_settlement`], [3,301], [1.7%],
-    [`treasury.record_settlement_sharded`], [5,374], [2.7%],
-    [`trading.submit_limit_order_sharded`], [9,884], [4.9%],
-    [`oracle.submit_meter_reading` (steady)], [13,376], [6.7%],
-    [`oracle.submit_meter_reading` (first, inits PDA)], [16,050], [8.0%],
-    [`trading.settle_offchain_match`], [121,813], [60.9%],
+    [`treasury.record_settlement`], [3,302], [1.7%],
+    [`treasury.record_settlement_sharded`], [5,375], [2.7%],
+    [`trading.submit_limit_order_sharded`], [9,808], [4.9%],
+    [`oracle.submit_meter_reading` (steady)], [13,538], [6.8%],
+    [`oracle.submit_meter_reading` (first, inits PDA)], [16,157], [8.1%],
+    [`trading.settle_offchain_match`], [≈121 k], [≈61%],
   ),
 ) <tab-cu>
 
 #figure(
-  caption: [*Per-meter compute against fleet size.* Steady-state CU for
-  `oracle.submit_meter_reading`, measured live. Runs A and B are independent
-  sweeps; B ran its scales back-to-back without a ledger reset, so its
-  200,000-meter case writes against 310,000 resident PDAs and ends holding
-  510,000.],
+  caption: [*Per-meter compute against fleet size.* Steady-state CU mode for
+  `oracle.submit_meter_reading`, measured live, fixed-width meter ids. Run B
+  continues run A's ledger without a reset, so its scales write against
+  161,160–471,160 already-resident PDAs and it ends holding 671,160. Every cell
+  identical — the table #emph[is] the $O(1)$ result.],
   tbl(
     columns: (auto, 1fr, 1fr, 1fr, 1fr, 1fr, 1fr, 1fr),
     align: (left + horizon, right + horizon, right + horizon, right + horizon,
             right + horizon, right + horizon, right + horizon, right + horizon),
     header: ([Fleet size $N$ (meters)], [80], [1,000], [10,000], [50,000],
              [100,000], [150,000], [200,000]),
-    [Steady write, run A (CU)], [13,560], [13,634], [13,337], [13,337], [13,634], [—], [—],
-    [Steady write, run B (CU)], [—], [—], [13,525], [13,525], [13,560], [13,560], [13,560],
+    [Steady write, run A (CU)], [13,538], [13,538], [13,538], [13,538], [13,538], [—], [—],
+    [Steady write, run B (CU)], [—], [—], [13,538], [13,538], [13,538], [13,538], [13,538],
   ),
 ) <tab-fleet>
 
-*Compute is also $O(1)$ in accumulated state:* run B's last 200,000 submissions cost the same against 510,000 resident accounts as the first scale's did against 10,000. The account store explains it: an update appends to an append-only file rather than rewriting in place, and lookup goes through an in-memory pubkey → (slot, offset) index, so either write costs one probe and one append. What scales with account count — index memory, snapshot size, startup time — is a multi-node concern, invisible to per-transaction cost.
+*Compute is also $O(1)$ in accumulated state:* run B's last 200,000 submissions cost the same against 471,160 resident accounts as the first scale's did against 161,160, and the ledger ends holding 671,160. The account store explains it: an update appends to an append-only file, and lookup goes through an in-memory pubkey → (slot, offset) index, so either write costs one probe and one append. What scales with account count — index memory, snapshot size, startup time — is a multi-node concern, invisible to per-transaction cost.
 
-*Throughput orders by lock footprint, but the mechanism does not confirm.* @tab-tps sorts every measured path by the shared writable state it touches, and that ordering — not the CU column — tracks the rate across three orders of magnitude. The causal test fails. Anchor's `mut` imposes a writability *requirement*, not a prohibition, so the shipped binary accepts the pre-fix lock footprint when the client declares `ZoneMarket` writable — one `AccountMeta`, verified on the wire. Over five repeats of 1,200 settles, arm order alternating, the writable arm returns 493 against 561 confirmed settles·s#super[−1] across eight fee payers and 447 against 446 across one. Even the shared fee-payer lock does not move throughput: conflicting transactions still land within one slot as successive entries, so a write lock costs wall-clock drain, not slot occupancy — and at ≈120 k CU per settle the block compute budget saturates before locks bind. We therefore withdraw the 2.7–3× previously attributed to deleting this `mut`; both original figures are accounted for: a session's first burst runs ≈5–6× slower than every later one (validator warm-up), and the ≈0.6 TPS once reported for single-payer settlement is a serial send-and-await harness measuring its own round-trip (0.69 TPS, p50 463 ms reproduced). Order entry shares the caveat: the *cheaper* instruction (9,884 CU against 13,337) returned 180 TPS against 462 under a vestigial `mut` since dropped; the path has not been re-measured, and the lock is no longer established as its cause. Telemetry, holding only the gateway fee payer, is flat at 426–490 TPS from 5,000 to 200,000 meters: not proportional, since one payer signs everything, but not degrading, since per-meter PDAs never contend.
+*Throughput orders by lock footprint, but the mechanism does not confirm.* @tab-tps sorts every measured path by the shared writable state it touches, and that ordering — not the CU column — tracks the rate across three orders of magnitude. The causal test fails. Anchor's `mut` imposes a writability *requirement*, not a prohibition, so the shipped binary accepts the pre-fix lock footprint when the client declares `ZoneMarket` writable — one `AccountMeta`, verified on the wire. Over five repeats of 1,200 settles, arm order alternating, the writable arm returns 493 against 561 confirmed settles·s#super[−1] across eight fee payers and 447 against 446 across one. Even the shared fee-payer lock does not move throughput: conflicting transactions still land within one slot as successive entries, so a write lock costs wall-clock drain, not slot occupancy — and at ≈120 k CU per settle the block compute budget saturates before locks bind. We therefore withdraw the 2.7–3× previously attributed to deleting this `mut`; both original figures are accounted for: a session's first burst runs ≈5–6× slower than every later one (validator warm-up), and the ≈0.6 TPS once reported for single-payer settlement is a serial-await harness measuring its own round-trip (0.69 TPS, p50 463 ms reproduced). Order entry shares the caveat: the *cheaper* instruction returned 180 TPS against telemetry's 462 under a vestigial `mut` since dropped. Re-measured post-fix on the original 10#super[4] configuration, it lands all 10,000 orders at ≈1,000 TPS in every arm from one payer on one shard to 16 on 16 — a 5.7× spanning the fix, a rewritten harness and a warm validator, so none of it attributes to the lock. Telemetry, holding only the gateway fee payer, sustains 234–296 TPS from 10,000 to 150,000 meters with no monotone trend, dipping to 182 in the final 200,000-meter epoch: not proportional, since one payer signs everything, and largely scale-independent, since per-meter PDAs never contend.
 
 #figure(
   caption: [*Throughput by lock footprint.* Paths ordered by the shared
@@ -256,14 +257,15 @@ The telemetry sweep submits one reading per meter from $N$ distinct meters over 
     align: (left + horizon, right + horizon, right + horizon, left + horizon),
     header: ([Path], [CU], [TPS], [Shared writable state]),
     [RPC read], [—], [≈1,454], [none — no consensus round-trip],
-    [meter ingest (5 k–200 k meters)], [13.3–13.6 k], [426–490], [gateway fee payer],
+    [meter ingest (10 k–200 k meters)], [13,538], [182–296], [gateway fee payer],
     [order entry (10 k orders, pre-fix)], [9,884], [180], [fee payer + `zone_market`],
+    [order entry (10 k orders, re-measured)], [9,808], [915–1,028], [fee payer + zone shard(s)],
     [OLTP proxy (concurrency 5 → 40)], [22–24 k], [7.9 → 74.3], [fee payer + market accounts],
     [settlement, concurrent, 1–8 fee payers], [≈120 k], [446–561], [fee payer + `energy_mint` + collectors],
   ),
 ) <tab-tps>
 
-*Latency is set by block time, not by the partition.* Confirmation holds p50 ≈ 1.5–1.9 s and p95 ≤ 3.1 s across the whole 2,500× fleet range — flat where a contended design would degrade — and order entry sits at p50 2,173 ms, p95 3,565 ms (measured pre-fix). Both are send→first-seen-confirmed upper bounds dominated by the ≈400–600 ms single-node block time, not measurements of runtime cost — visible in the read path, which needs no consensus round-trip and returns in under a millisecond, three orders of magnitude faster than any write. *Delivery loss is zero* across the 1.02 M first-attempt sends of the unreset sweep; the 0.46–0.48% residue is a deterministic anomaly-gate probe firing on the same meter indices every epoch, and since the rate-limit and monotonic-timestamp guards make resubmission idempotent, one retry round would put true loss near $10^(-5)$.
+*Latency is set by block time, not by the partition.* Confirmation holds p50 1.1–1.6 s and p95 ≤ 3.0 s across the whole 2,500× fleet range — flat where a contended design would degrade — and order entry sits at p50 2,173 ms, p95 3,565 ms (measured pre-fix). Both are send→first-seen-confirmed upper bounds dominated by the ≈400–600 ms single-node block time, not measurements of runtime cost — visible in the read path, which needs no consensus round-trip and returns in under a millisecond. *Delivery loss is zero* across all 1.34 M first-attempt sends of the two sweeps — none refused at the RPC, none expired unconfirmed; the 0.47% residue is a deterministic anomaly-gate probe firing on the same meter indices every epoch, each landing on-chain as a fee-paid guard rejection.
 
 = Conclusion
 
