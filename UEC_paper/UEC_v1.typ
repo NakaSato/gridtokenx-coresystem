@@ -186,7 +186,7 @@ The two experiments use different harnesses; their rates are therefore not mutua
 
 == Secondary Result: Audited Community-Month Settlement
 
-Experiment B replays the month of @tab-data in 1,394.7 s (1,858× real time) with zero delivery loss; all 919 rejected readings are deterministic anomaly-gate rejections. Under this harness telemetry sustains ≈213 readings·s#super[−1] and order bursts ≈53 TPS, and each Ed25519-verified settlement costs 107 k CU. The energy-closure identities hold exactly on chain — 15 of 15 audit assertions — under all three price rules, and net revenue orders uniform 2.290 > buy-back 2.200 > CDA 2.065 THB/kWh, so wheeling policy sets the P2P participation threshold.
+Experiment B replays the month of @tab-data in 1,008.7 s (2,570× real time) with zero delivery loss; all 57 rejected readings are deterministic anomaly-gate rejections, predicted offline from the same 10× rule and matched exactly on chain. Under this harness telemetry sustains ≈303 readings·s#super[−1] and each Ed25519-verified settlement costs ≈117 k CU (p50 of all 120 fills). The energy-closure identities hold bigint-exact on chain — 16 of 16 audit assertions, from minted surplus through burned settlement to collector balances — and net revenue across the three price rules orders uniform 2.290 > buy-back 2.200 > CDA 2.065 THB/kWh, so wheeling policy sets the P2P participation threshold.
 
 #figure(
   caption: [*The simulated community-month dataset* (Experiment B;
