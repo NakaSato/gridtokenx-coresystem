@@ -256,7 +256,7 @@ The telemetry sweep submits one reading per meter from $N$ distinct meters over 
     columns: (1fr, auto, auto, auto),
     align: (left + horizon, right + horizon, right + horizon, left + horizon),
     header: ([Path], [CU], [TPS], [Shared writable state]),
-    [RPC read], [—], [≈1,454], [none — no consensus round-trip],
+    [RPC read (serial → 32 in flight)], [—], [731 → 6,321], [none — no consensus round-trip],
     [meter ingest (10 k–200 k meters)], [13,538], [182–296], [gateway fee payer],
     [order entry (10 k orders, pre-fix)], [9,884], [180], [fee payer + `zone_market`],
     [order entry (10 k orders, re-measured)], [9,808], [915–1,028], [fee payer + zone shard(s)],
@@ -265,7 +265,7 @@ The telemetry sweep submits one reading per meter from $N$ distinct meters over 
   ),
 ) <tab-tps>
 
-*Latency is set by block time, not by the partition.* Confirmation holds p50 1.1–1.6 s and p95 ≤ 3.0 s across the whole 2,500× fleet range — flat where a contended design would degrade — and order entry sits at p50 2,173 ms, p95 3,565 ms (measured pre-fix). Both are send→first-seen-confirmed upper bounds dominated by the ≈400–600 ms single-node block time, not measurements of runtime cost — visible in the read path, which needs no consensus round-trip and returns in under a millisecond. *Delivery loss is zero* across all 1.34 M first-attempt sends of the two sweeps — none refused at the RPC, none expired unconfirmed; the 0.47% residue is a deterministic anomaly-gate probe firing on the same meter indices every epoch, each landing on-chain as a fee-paid guard rejection.
+*Latency is set by block time, not by the partition.* Confirmation holds p50 1.1–1.6 s and p95 ≤ 3.0 s across the whole 2,500× fleet range — flat where a contended design would degrade — and order entry sits at p50 2,173 ms, p95 3,565 ms (measured pre-fix). Both are send→first-seen-confirmed upper bounds dominated by the ≈400–600 ms single-node block time, not measurements of runtime cost — visible in the read path, which needs no consensus round-trip and answers in ≈1.4 ms client-observed, HTTP transport included. *Delivery loss is zero* across all 1.34 M first-attempt sends of the two sweeps — none refused at the RPC, none expired unconfirmed; the 0.47% residue is a deterministic anomaly-gate probe firing on the same meter indices every epoch, each landing on-chain as a fee-paid guard rejection.
 
 = Conclusion
 

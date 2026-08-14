@@ -173,7 +173,7 @@ The two experiments use different harnesses; their rates are therefore not mutua
       stroke: 0.4pt,
       inset: 2pt,
       table.header([*Path*], [*CU*], [*TPS*], [*Shared writable state*]),
-      [RPC read], [—], [≈1,454], [none — no consensus round-trip],
+      [RPC read (serial → 32 in flight)], [—], [731 → 6,321], [none — no consensus round-trip],
       [meter ingest (10 k–200 k meters)], [13,538], [182–296], [gateway fee payer],
       [order entry (10 k orders, pre-fix)], [9,884], [180], [fee payer + `zone_market`],
       [order entry (10 k orders, re-measured)], [9,808], [915–1,028], [fee payer + zone shard(s)],
