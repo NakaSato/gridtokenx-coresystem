@@ -153,16 +153,16 @@ Such evaluations report throughput and compute cost as though computation were t
 
 The two experiments use different harnesses; their rates are therefore not mutually comparable.
 
-= Primary Result: Throughput Is Bound by Lock Footprint
+= Primary Result: Throughput Orders by Lock Footprint
 
 *Compute is $O(1)$ and never binds.* In Experiment A the steady telemetry write costs 13,337–13,634 CU from 80 to 200,000 meters — the entire 2,500× range spanned by 297 CU (±1.1%) — against a 200,000-CU default per-instruction budget, and the final submissions cost the same against 510,000 resident PDAs as the first scale did against 10,000. The first write for a meter costs 16,050 CU, because it initialises and rent-funds the PDA. Latency is likewise flat, p50 ≈ 1.5–1.9 s and p95 ≤ 3.1 s across the whole sweep, where a contended design would degrade; delivery loss is zero across 1.02 M first-attempt sends.
 
-*Throughput is set by lock footprint instead.* @tab-tps sorts every measured path by the shared writable state it touches, and that ordering — not the CU column — predicts the rate across three orders of magnitude. A controlled before/after isolates the mechanism: while the sharded settle context declared the parent `ZoneMarket` writable, same-zone settles shared that lock and could not co-execute, landing at one per slot; made read-only — which the handler's write set always permitted — the validator packs 3.00 settles·slot#super[−1], a 2.7–3× gain from deleting one `mut` and changing nothing else. The same defect explains order entry: the *cheaper* instruction (9,884 CU against 13,337) returned 180 TPS against 462, because its context declared the shared zone-market account writable although the handler mutated only the per-shard account.
+*Throughput orders by lock footprint, but the mechanism does not confirm.* @tab-tps sorts every measured path by the shared writable state it touches, and that ordering — not the CU column — tracks the rate across three orders of magnitude. The association is strong; the causal test fails. Anchor's `mut` imposes a writability requirement, not a prohibition, so the shipped binary still accepts the pre-fix lock footprint if the client declares `ZoneMarket` writable — one `AccountMeta`, nothing else changed. Over five repeats of 1,200 settles, the writable arm returns 493 against 561 confirmed settles·s#super[−1] across eight fee payers (overlapping ranges), and 447 against 446 across one: even the shared fee-payer lock does not move throughput, because conflicting transactions still land within a slot through successive entries, and at ≈120 k CU per settle the block compute budget saturates before locks bind. We therefore withdraw the 2.7–3× previously attributed to deleting this `mut`; a previously reported ≈0.6 TPS for single-payer settlement reproduces exactly (0.69 TPS, p50 463 ms per settle) when the harness awaits each confirmation before the next send — a measurement-loop property, since the same path sustains ≈450 TPS with transactions concurrently in flight. Order entry carries the same caveat: the *cheaper* instruction (9,884 CU against 13,337) returned 180 TPS against 462 while its context declared the shared zone-market account writable though the handler mutated only the per-shard account; the lock is no longer established as its cause.
 
 #figure(
   caption: [*Throughput by lock footprint* (Experiment A). Paths ordered by the
-  shared write-locked state they touch. Harnesses differ per row; rows are not
-  mutually comparable.],
+  shared write-locked state they touch — an ordering, not a demonstrated cause
+  (see text). Harnesses differ per row; rows are not mutually comparable.],
   kind: table,
   supplement: [Table],
   text(size: 7pt)[
@@ -176,7 +176,8 @@ The two experiments use different harnesses; their rates are therefore not mutua
       [meter ingest (5 k–200 k meters)], [13.3–13.6 k], [426–490], [gateway fee payer],
       [order entry (10 k orders, pre-fix)], [9,884], [180], [fee payer + `zone_market`],
       [OLTP proxy (concurrency 5 → 40)], [22–24 k], [7.9 → 74.3], [fee payer + market accounts],
-      [settlement, single fee payer], [≈115 k], [≈0.6], [fee payer + collectors + `treasury_state`],
+      [settlement, awaited serially (harness-bound)], [≈115 k], [≈0.6], [— (one block-time RTT per settle)],
+      [settlement, concurrent, 1–8 fee payers], [≈120 k], [446–561], [fee payer + `energy_mint` + collectors],
     )
   ],
 ) <tab-tps>
@@ -208,7 +209,7 @@ Experiment B replays the month of @tab-data in 1,394.7 s (1,858× real time) wit
 
 = Conclusion
 
-Over the range measured here, partitioning hot-path state per entity leaves neither computation nor per-entity contention as the binding constraint: the steady write varies by ±1.1% from 80 to 200,000 meters and against 510,000 resident accounts, and confirmation latency does not degrade across that sweep. What binds instead is lock footprint on the few genuinely shared accounts, which orders the measured paths more closely than instruction cost does — the cheaper order-entry write returned 180 TPS against telemetry's 462 for one additional shared writable account. This suggests that the effective lever is to shrink declared write sets rather than to optimise compute, though the before/after was isolated on the settlement path alone, where it was worth 2.7–3×; the order-entry path has not been re-measured since the same change was applied to it. The community-month replay is a seeded simulation rather than field data, and within it the energy-closure identities held in all 15 audit assertions and P2P net revenue under uniform-price clearing exceeded the regulated buy-back rate. These results characterise one implementation on a single validator, which bounds execution and locking only; reproducing them on a multi-validator consortium of the form NETP itself prototyped across EGAT, MEA, and PEA @netp2019report would place consensus under test, and suits UEC–ASEAN collaboration.
+Over the range measured here, partitioning hot-path state per entity leaves neither computation nor per-entity contention as the binding constraint: the steady write varies by ±1.1% from 80 to 200,000 meters and against 510,000 resident accounts, and confirmation latency does not degrade across that sweep. What orders the measured paths is lock footprint on the few genuinely shared accounts, more closely than instruction cost does — but that ordering did not survive a controlled test as a mechanism: with the pre-fix lock footprint reproduced on the shipped binary, settlement throughput is unchanged from one fee payer to eight, and the two strongest prior data points dissolve under re-measurement, one into validator warm-up, one into a harness that awaited each settle's confirmation before sending the next. Shrinking declared write sets remains sound design; on a single node it buys nothing measurable here, and the order-entry path has not been re-measured since the same change was applied to it. The community-month replay is a seeded simulation rather than field data, and within it the energy-closure identities held in all 15 audit assertions and P2P net revenue under uniform-price clearing exceeded the regulated buy-back rate. These results characterise one implementation on a single validator, which bounds execution and locking only; reproducing them on a multi-validator consortium of the form NETP itself prototyped across EGAT, MEA, and PEA @netp2019report would place consensus under test, and suits UEC–ASEAN collaboration.
 
 // The conclusion should highlight the main outcomes and suggest potential future
 // work or collaboration opportunities between UEC and ASEAN partners.
