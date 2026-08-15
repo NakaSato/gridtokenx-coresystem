@@ -600,12 +600,16 @@ cargo test settlement -- --nocapture   # 15-min window aggregation logic
 
 ```bash
 cd gridtokenx-anchor
-anchor test                             # all on-chain program tests (spawns local validator)
-
-# Individual program test files (TypeScript / Bankrun LiteSVM)
-npm run test:governance                 # governance.ts
-npm run test:all                        # all programs
+# `anchor test` and every `npm run test:*` recipe were DELETED with tests/
+# (b2021fb/fcd5bf5) and do not work. `cargo test` in a program crate reports
+# "1 passed" for Anchor's declare_id! macro and verifies nothing.
+npm run fuzz                            # all 10 Crucible harnesses (the real verification)
+npm run typecheck                       # tsc --noEmit over scripts/
+npx tsx scripts/bench-lifecycle-replay.ts   # month-long settlement audit, 16 assertions
 ```
+
+See `gridtokenx-anchor/BENCHMARKS.md` for what each harness measures and its
+last recorded status.
 
 **Key settlement-related tests:**
 
