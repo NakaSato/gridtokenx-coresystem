@@ -30,11 +30,11 @@
 
   // ── Base typography: Times New Roman 10pt ───────────────────
   set text(font: "Times New Roman", size: 10pt, lang: "en")
-  // leading/spacing tightened (0.55em/0.9em → 0.43em/0.50em → 0.39em/0.42em):
+  // leading/spacing tightened (0.55em/0.9em → 0.43em/0.50em → 0.38em/0.40em):
   // first to fit the four result tables, then again when the settle
   // before/after was re-measured and its account grew; still looser than the
   // template's Word "single line spacing".
-  set par(justify: true, leading: 0.39em, spacing: 0.42em)
+  set par(justify: true, leading: 0.38em, spacing: 0.40em)
 
   // ── Heading numbering scheme: "1." / "1.1." ─────────────────
   set heading(numbering: "1.1.")
@@ -180,7 +180,7 @@ Since 2017 Thailand's state utilities have pursued a National Energy Trading Pla
 
 = The Per-Entity Partition
 
-The settlement layer is six Anchor programs @anchor2024 (anchor-lang and anchor-spl 1.0.0) — *energy-token, governance, oracle, registry, trading,* and *treasury* — in Rust, compiled to SBF bytecode. Programs invoke one another through cross-program invocation (CPI), authority delegated to PDAs that sign without any private key. A PDA is the SHA-256 of its seed tuple, bump byte, program id and a domain-separation constant — accepted only if *not* a valid Ed25519 curve point, so no private key can exist and the owning program may sign as that address. A transaction declares every account it touches and whether each is writable; the runtime locks per account, so disjoint writable sets run in parallel and two writers of one account serialise. @tab-pda gives the hot-path partition under that rule.
+The settlement layer is six Anchor programs @anchor2024 — *energy-token, governance, oracle, registry, trading,* and *treasury* — in Rust, compiled to SBF bytecode, invoking one another through cross-program invocation with authority delegated to PDAs that sign without any private key. A PDA is the SHA-256 of its seed tuple, bump byte, program id and a domain-separation constant — accepted only if *not* a valid Ed25519 curve point, so no private key can exist and the owning program may sign as that address. A transaction declares every account it touches and whether each is writable; the runtime locks per account, so disjoint writable sets run in parallel and two writers of one account serialise. @tab-pda gives the hot-path partition under that rule.
 
 #figure(
   caption: [*Hot-path state partition.* Every high-frequency write targets its
@@ -196,7 +196,7 @@ The settlement layer is six Anchor programs @anchor2024 (anchor-lang and anchor-
   ),
 ) <tab-pda>
 
-Two consequences follow. First, global accounts — config, totals — are read-only on hot paths and *deliberately stale*, folded back by periodic admin instructions. Second, derivation is itself a budget item: `find_program_address` searches the bump downward from 255, paying a hash plus curve check per candidate; storing the winning bump and validating with one `create_program_address` costs *1,651 CU against 12,136* on the aggregation path.
+Two consequences follow. First, global accounts are read-only on hot paths and *deliberately stale*, folded back by periodic admin instructions. Second, derivation is itself a budget item: `find_program_address` searches the bump downward from 255, paying a hash plus curve check per candidate; storing the winning bump and validating with one `create_program_address` costs *1,651 CU against 12,136* on the aggregation path.
 
 = Method
 
@@ -268,7 +268,7 @@ The telemetry sweep submits one reading per meter from $N$ distinct meters over 
 
 = Conclusion
 
-With hot-path state partitioned per entity, neither computation nor per-entity contention bounds a P2P energy settlement layer: the steady write is $O(1)$ in fleet size and in resident account count, and latency is flat over a 2,500× sweep. Lock footprint orders the measured paths more closely than instruction cost, but the ordering did not survive a controlled test as a mechanism: settlement throughput is unchanged from one fee payer to eight — at ≈120 k CU the settle exhausts the block compute budget before its locks bind — and the two strongest prior data points dissolve into validator warm-up and a serial-await harness. A 3-validator consortium of the EGAT/MEA/PEA shape (stake 14/41/45%, zero skip) settles the question rather than deferring it: over 15 repeats per arm the same `mut` returns 261 against 255 confirmed settles·s#super[−1] (0.98×, $p = 0.82$), so consensus does not reveal what a single node hid. It costs throughput alone — telemetry 234–284 → 152 TPS at unchanged latency, compute and zero loss — with two cautions: variance roughly triples, enough that five repeats read a spurious 1.52×, and consortium liveness is a stake-distribution property, not a node count — losing the 13.6% member left the market live at 13.5% skip, losing the 45% member halted it outright (0 slots in 40 s), so equal thirds is the only 3-member split surviving any single loss. Geographically distributed nodes, where propagation rather than a loopback carries the votes, suit UEC–ASEAN collaboration.
+With hot-path state partitioned per entity, neither computation nor per-entity contention bounds a P2P energy settlement layer: the steady write is $O(1)$ in fleet size and in resident account count, and latency is flat over a 2,500× sweep. Lock footprint orders the measured paths more closely than instruction cost, but the ordering did not survive a controlled test as a mechanism: settlement throughput is unchanged from one fee payer to eight — at ≈120 k CU the settle exhausts the block compute budget before its locks bind — and the two strongest prior data points dissolve into validator warm-up and a serial-await harness. A 3-validator consortium of the EGAT/MEA/PEA shape (stake 14/41/45%, zero skip) settles the question rather than deferring it: over 15 repeats per arm the same `mut` returns 261 against 255 confirmed settles·s#super[−1] (0.98×, $p = 0.82$), so consensus does not reveal what a single node hid. It costs throughput alone — telemetry 234–284 → 152 TPS at unchanged latency, compute and zero loss — with two cautions: variance roughly triples (five repeats read a spurious 1.52×), and a three-member consortium has no single-loss tolerance: finalisation needs >2/3 of stake, so a member is losable only below 1/3, and three shares always contain one above it. Losing the 13.6% member left the market live; losing the 45% member halted it (0 slots/40 s), and equal thirds halted it too — $N >= 3f+1$, so one tolerated outage needs four validators, not equal stake among three. Geographically distributed nodes, where propagation rather than a loopback carries the votes, suit UEC–ASEAN collaboration.
 
 // The conclusion should highlight the main outcomes and suggest potential future
 // work or collaboration opportunities between UEC and ASEAN partners.
