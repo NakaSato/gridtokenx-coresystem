@@ -32,7 +32,8 @@
 
   // ── Base typography: Times New Roman 10pt ───────────────────
   set text(font: "Times New Roman", size: 10pt, lang: "en")
-  set par(justify: true, leading: 0.44em, spacing: 0.55em)
+  // Tightened as the multi-validator results landed; still looser than main's.
+  set par(justify: true, leading: 0.41em, spacing: 0.48em)
 
   // ── Heading numbering scheme: "1." / "1.1." ─────────────────
   set heading(numbering: "1.1.")
@@ -42,21 +43,21 @@
   // Level 2 → 10pt bold  (e.g. "3.1. Community-Month Dataset …")
   // A heading created with `numbering: none` prints no number (Acknowledgment).
   show heading.where(level: 1): it => {
-    v(1.0em, weak: true)
+    v(0.55em, weak: true)
     text(
       size:   11pt,
       weight: "bold",
     )[#if it.numbering != none [#counter(heading).display("1.") ]#it.body]
-    v(0.4em, weak: true)
+    v(0.28em, weak: true)
   }
 
   show heading.where(level: 2): it => {
-    v(0.7em, weak: true)
+    v(0.4em, weak: true)
     text(
       size:   11pt,
       weight: "bold",
     )[#if it.numbering != none [#counter(heading).display("1.1.") ]#it.body]
-    v(0.3em, weak: true)
+    v(0.22em, weak: true)
   }
 
   // ── Equations: block, centred, numbered (n) right margin ────
@@ -74,14 +75,14 @@
   set figure(numbering: "1")
 
   // ── Figure/table spacing ─────────────────────────────────────
-  set figure(gap: 4pt)
-  show figure: set block(above: 6pt, below: 6pt)
+  set figure(gap: 3pt)
+  show figure: set block(above: 4pt, below: 4pt)
 
   // ── Bibliography: IEEE numeric, heading unnumbered ───────────
   set bibliography(style: "ieee", title: "References")
   show bibliography: set heading(numbering: none)
-  show bibliography: set text(size: 8pt)
-  show bibliography: set par(leading: 0.3em, spacing: 0.35em)
+  show bibliography: set text(size: 7pt)
+  show bibliography: set par(leading: 0.22em, spacing: 0.25em)
 
   // ── Title block ──────────────────────────────────────────────
   align(center)[
@@ -175,7 +176,6 @@ The two experiments use different harnesses; their rates are therefore not mutua
       table.header([*Path*], [*CU*], [*TPS*], [*Shared writable state*]),
       [RPC read (serial → 32 in flight)], [—], [731 → 6,321], [none — no consensus round-trip],
       [meter ingest (10 k–200 k meters)], [13,538], [182–296], [gateway fee payer],
-      [order entry (10 k orders, pre-fix)], [9,884], [180], [fee payer + `zone_market`],
       [order entry (10 k orders, re-measured)], [9,808], [915–1,028], [fee payer + zone shard(s)],
       [OLTP proxy, closed loop ($c$ = 5 → 40)], [≈22.8 k], [10.4 → 78.4], [fee payer + per-district counters],
       [settlement, awaited serially (harness-bound)], [≈115 k], [≈0.6], [— (one block-time RTT per settle)],
@@ -211,7 +211,7 @@ Experiment B replays the month of @tab-data in 1,008.7 s (2,570× real time) wit
 
 = Conclusion
 
-Over the range measured here, partitioning hot-path state per entity leaves neither computation nor per-entity contention as the binding constraint: the steady write is an identical 13,538 CU from 80 to 200,000 meters and against 671,160 resident accounts, and confirmation latency does not degrade across that sweep. What orders the measured paths is lock footprint on the few genuinely shared accounts, more closely than instruction cost does — but that ordering did not survive a controlled test as a mechanism: with the pre-fix lock footprint reproduced on the shipped binary, settlement throughput is unchanged from one fee payer to eight, and the two strongest prior data points dissolve under re-measurement, one into validator warm-up, one into a harness that awaited each settle's confirmation before sending the next. Shrinking declared write sets remains sound design; on a single node it buys nothing measurable here — order entry, re-measured post-fix, lands identically from one payer on one shard to 16 on 16. The community-month replay is a seeded simulation rather than field data, and within it the energy-closure identities held in all 15 audit assertions and P2P net revenue under uniform-price clearing exceeded the regulated buy-back rate. These results characterise one implementation on a single validator, which bounds execution and locking only; reproducing them on a multi-validator consortium of the form NETP itself prototyped across EGAT, MEA, and PEA @netp2019report would place consensus under test, and suits UEC–ASEAN collaboration.
+Over the range measured here, partitioning hot-path state per entity leaves neither computation nor per-entity contention as the binding constraint: the steady write is an identical 13,538 CU from 80 to 200,000 meters and against 671,160 resident accounts, and confirmation latency does not degrade across that sweep. What orders the measured paths is lock footprint on the few genuinely shared accounts, more closely than instruction cost does — but that ordering did not survive a controlled test as a mechanism: with the pre-fix lock footprint reproduced on the shipped binary, settlement throughput is unchanged from one fee payer to eight, and the two strongest prior data points dissolve under re-measurement, one into validator warm-up, one into a harness that awaited each settle's confirmation before sending the next. Shrinking declared write sets remains sound design; on a single node it buys nothing measurable here — order entry, re-measured post-fix, lands identically from one payer on one shard to 16 on 16. The community-month replay is a seeded simulation rather than field data, and within it the energy-closure identities held in all 15 audit assertions and P2P net revenue under uniform-price clearing exceeded the regulated buy-back rate. Re-run on a 3-validator consortium of the form NETP itself prototyped across EGAT, MEA, and PEA @netp2019report, the same `mut` returns 261 against 255 confirmed settles·s#super[−1] over 15 repeats per arm (0.98×, $p = 0.82$): consensus does not reveal what a single node hid, and costs throughput alone — telemetry 234–284 → 152 TPS at unchanged latency, compute and zero loss. One staked member that stopped voting drove skip rate to 29.9% and expired 3.95% of readings, a liveness obligation the consortium model inherits. Geographically distributed nodes suit UEC–ASEAN collaboration.
 
 // The conclusion should highlight the main outcomes and suggest potential future
 // work or collaboration opportunities between UEC and ASEAN partners.
