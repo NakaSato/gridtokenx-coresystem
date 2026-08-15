@@ -18,4 +18,4 @@ Machine-specific configuration for the GridTokenX superproject. Scripts and manu
 
 ### Metaplex Localnet Programs
 
-GridTokenX relies on Metaplex standards. The local test validator loads the Metaplex mainnet programs (`mpl-token-metadata`, `mpl-bubblegum`, `mpl-core`) at startup via `--bpf-program`, using the automated `scripts/setup-metaplex.sh` cache — no manual download.
+GridTokenX relies on Metaplex standards. The local test validator loads the Metaplex mainnet programs (`mpl-token-metadata`, `mpl-bubblegum`, `mpl-core`) at startup via `--bpf-program`, using the automated `scripts/setup-metaplex.sh (removed — the validator loads these via `--bpf-program`, see gridtokenx-anchor/scripts/multinode/up.sh)` cache — no manual download.

@@ -34,4 +34,4 @@ let price_atomic = (price * Decimal::from(1_000_000i64)).to_u64().unwrap();
 
 ---
 *Related Synthesis: [Kafka Event Sourcing](../synthesis/kafka-event-sourcing.md)*
-*Source: tests/settlement_integration_test.rs verification (2026-04-11)*
+*Source: tests/settlement_integration_test.rs verification (2026-04-11) — that suite was since deleted (b2021fb); the finding stands, the file does not.*

@@ -18,7 +18,7 @@ Four modes. Pick from the user's phrasing; if unclear, ask which one.
 ### Inputs
 
 - **Target** = the instruction / struct / script the user names (e.g.
-  `settle_offchain_match`, `BatchMatchPair`, `bench-community-month.ts`,
+  `settle_offchain_match`, `BatchMatchPair`, `bench-lifecycle-replay.ts`,
   `export_bench_dataset.py`). If omitted, infer from the topic.
 - **Repo layout**: on-chain code = `gridtokenx-anchor/programs/<prog>/src/`;
   replayers = `gridtokenx-anchor/scripts/*.ts`; dataset exporter =
@@ -41,7 +41,7 @@ Four modes. Pick from the user's phrasing; if unclear, ask which one.
 | --- | --- | --- |
 | Transaction packet MTU | **1,232 bytes** | Solana hard cap on the whole serialized tx |
 | Default compute budget / ix | **200,000 CU** | `ComputeBudgetProgram.setComputeUnitLimit` if unset |
-| Max compute / tx | **1,400,000 CU** | bench clamps to this: `scripts/bench-community-month.ts:276` |
+| Max compute / tx | **1,400,000 CU** | a Solana runtime constant; the month-long replay is now `scripts/bench-lifecycle-replay.ts` (bench-community-month.ts was deleted) |
 | Signature (tx-level) | 64 bytes each | 1 fee-payer sig minimum |
 | Blockhash + msg header | ~40–80 bytes | recent_blockhash(32) + header + account count varints |
 | Ed25519 precompile ix DATA | `2 + 14 + 64 + 32 + msg_len` | header + offsets + sig + pubkey + message |

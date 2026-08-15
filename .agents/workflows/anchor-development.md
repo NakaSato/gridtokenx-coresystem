@@ -100,11 +100,11 @@ cargo build-bpf --manifest-path programs/registry/Cargo.toml
 # Run all tests
 anchor test
 
-# Run with skip build
-anchor test --skip-build
-
-# Run specific test file
-anchor test tests/registry.ts
+# NOTE: `anchor test` and tests/*.ts were DELETED (b2021fb/fcd5bf5) and do not
+# work; `cargo test` reports "1 passed" for Anchor's declare_id! macro only.
+npm run fuzz                    # all 10 Crucible harnesses — the real verification
+npm run typecheck               # tsc --noEmit over scripts/
+cd fuzz/<name> && cargo run --locked --features invariant_test   # one harness
 ```
 
 ### 5. Deploy Program
@@ -137,7 +137,7 @@ Programs use fixed keypairs for consistent IDs:
 ### TypeScript Tests
 
 ```typescript
-// tests/registry.ts
+// tests/registry.ts (deleted in b2021fb — kept as an example of the old shape)
 import * as anchor from "@coral-xyz/anchor";
 import { assert } from "chai";
 
@@ -317,7 +317,7 @@ console.log(result.logs);
 ### Bootstrap Script
 
 ```typescript
-// scripts/bootstrap.ts
+// gridtokenx-anchor/scripts/bootstrap.ts
 import * as anchor from "@coral-xyz/anchor";
 
 async function bootstrap() {
@@ -351,7 +351,7 @@ cd gridtokenx-anchor
 export ANCHOR_PROVIDER_URL=http://localhost:8899
 export ANCHOR_WALLET=target/deploy/registry-keypair.json
 
-npx ts-node scripts/bootstrap.ts
+npx tsx scripts/bootstrap.ts     # from inside gridtokenx-anchor
 ```
 
 ## Related Workflows
