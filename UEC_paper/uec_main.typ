@@ -196,7 +196,7 @@ The settlement layer is six Anchor programs @anchor2024 — *energy-token, gover
   ),
 ) <tab-pda>
 
-Two consequences follow. First, global accounts are read-only on hot paths and *deliberately stale*, folded back by periodic admin instructions. Second, derivation is itself a budget item: `find_program_address` searches the bump downward from 255, paying a hash plus curve check per candidate; storing the winning bump and validating with one `create_program_address` costs *1,651 CU against 12,136* on the aggregation path.
+Two consequences follow. First, global accounts are read-only on hot paths and *deliberately stale*, folded back by periodic admin instructions. Second, derivation is itself a budget item: `find_program_address` searches the bump downward from 255, a hash plus curve check per candidate; validating with a stored bump instead costs *1,651 CU against 12,136* on the aggregation path.
 
 = Method
 
@@ -205,7 +205,7 @@ The telemetry sweep submits one reading per meter from $N$ distinct meters over 
 
 = Results and Discussion
 
-*Compute is $O(1)$ and never binds.* @tab-cu gives the instruction profile against the 200,000-CU default per-instruction budget; every control, telemetry and settlement-recording path costs at most ≈8% of it. @tab-fleet resolves the telemetry write by fleet size: with fixed-width meter identifiers the steady write is *13,538 CU in every cell of both runs* — 80 to 200,000 meters, a 2,500× range with zero drift — and the first write is likewise constant at 16,157 CU because it additionally initialises and rent-funds the PDA (one extra identifier byte costs ≈96 CU — the spread earlier variable-width measurements showed as 13,337–13,634). Above the mode sits a deterministic ladder in exact 1,500-CU steps, geometrically decaying: `find_program_address` pays one 1,500-CU curve check per bump candidate and ≈half of candidates fail, so half of all meters resolve at bump 255 and each further step halves — a per-meter constant, not noise. Settlement is the one expensive instruction at ≈121 k CU (≈61%), dominated by native Ed25519 verification and instruction-sysvar introspection authorising the trade, not by settlement arithmetic.
+*Compute is $O(1)$ and never binds.* @tab-cu gives the instruction profile against the 200,000-CU default per-instruction budget; every control, telemetry and settlement-recording path costs at most ≈8% of it. @tab-fleet resolves the telemetry write by fleet size: with fixed-width meter identifiers the steady write is *13,538 CU in every cell of both runs* — 80 to 200,000 meters, a 2,500× range with zero drift — and the first write is likewise constant at 16,157 CU because it additionally initialises and rent-funds the PDA (one extra identifier byte costs ≈96 CU — the spread earlier variable-width measurements showed as 13,337–13,634). Above the mode sits a deterministic ladder in exact 1,500-CU steps, geometrically decaying: `find_program_address` pays one 1,500-CU curve check per bump candidate and ≈half of candidates fail, so half of all meters resolve at bump 255 and each further step halves — a per-meter constant, not noise. These figures predate acting on it: caching the stored bump removes the ladder and cuts the steady write to 11,752 CU, which the shipped program now does. Settlement is the one expensive instruction at ≈121 k CU (≈61%), dominated by native Ed25519 verification and instruction-sysvar introspection authorising the trade, not by settlement arithmetic.
 
 #figure(
   caption: [*Compute cost per instruction*, against the 200,000-CU default
@@ -258,13 +258,13 @@ The telemetry sweep submits one reading per meter from $N$ distinct meters over 
     header: ([Path], [CU], [TPS], [Shared writable state]),
     [RPC read (serial → 32 in flight)], [—], [731 → 6,321], [none — no consensus round-trip],
     [meter ingest (10 k–200 k meters)], [13,538], [182–296], [gateway fee payer],
-    [order entry (10 k orders, re-measured)], [9,808], [915–1,028], [fee payer + zone shard(s)],
+    [order entry (10 k orders)], [9,808], [915–1,028], [fee payer + zone shard(s)],
     [OLTP proxy, closed loop ($c$ = 5 → 40)], [≈22.8 k], [10.4 → 78.4], [fee payer + per-district counters],
     [settlement, concurrent, 1–8 fee payers], [≈120 k], [446–561], [fee payer + `energy_mint` + collectors],
   ),
 ) <tab-tps>
 
-*Latency is set by block time, not by the partition.* Confirmation holds p50 1.1–1.6 s and p95 ≤ 3.0 s across the whole 2,500× fleet range — flat where a contended design would degrade — and order entry sits at p50 2,173 ms, p95 3,565 ms (measured pre-fix). Both are send→first-seen-confirmed upper bounds dominated by the ≈400–600 ms block time — visible in the read path, which needs no consensus round-trip and answers in ≈1.4 ms client-observed. *Delivery loss is zero* across all 1.34 M first-attempt sends of the two sweeps — none refused at the RPC, none expired unconfirmed; the 0.47% residue is a deterministic anomaly-gate probe firing on the same meter indices every epoch, each landing on-chain as a fee-paid guard rejection.
+*Latency is set by block time, not by the partition.* Confirmation holds p50 1.1–1.6 s and p95 ≤ 3.0 s across the whole 2,500× fleet range — flat where a contended design would degrade — and order entry sits at p50 2,173 ms, p95 3,565 ms (measured pre-fix). Both are send→first-seen-confirmed upper bounds dominated by the ≈400–600 ms block time — visible in the read path, which needs no consensus round-trip and answers in ≈1.4 ms client-observed. *Delivery loss is zero* across all 1.34 M first-attempt sends — none refused, none expired; the 0.47% residue is a deterministic anomaly-gate probe, each rejection landing on-chain fee-paid.
 
 = Conclusion
 
