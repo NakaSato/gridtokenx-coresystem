@@ -26,6 +26,54 @@ os.environ.setdefault("AGGREGATOR_API_KEY", "engineering-department-api-key-2025
 # target the right port without an explicit override.
 os.environ.setdefault("AGGREGATOR_BRIDGE_GRPC", "localhost:50051")
 
+def _normalize_aggregator_scheme():
+    """Point AGGREGATOR_BRIDGE_REST at TLS when the bridge is serving TLS.
+
+    `env.sh:15` defaults it to `http://localhost:4030`, but docker-compose gives
+    the bridge `IOT_GATEWAY_TLS_CERT`/`_KEY` by default, so under `just orb-up`
+    the IoT gateway is **HTTPS**. Every suite's reachability probe therefore threw
+    and the suites skipped — 20_oracle's 8 cases and 90_golden_path's bridge legs
+    reported green while asserting nothing, which is indistinguishable from having
+    no cases at all (the failure `tests/e2e/run.sh` already calls out for suites
+    with no entry point).
+
+    Auto-correct only when the configured plaintext URL is genuinely dead AND the
+    TLS one answers, so an explicit override is never second-guessed and a
+    plaintext bridge (bare-metal `start.sh`) is left alone.
+    """
+    url = os.getenv("AGGREGATOR_BRIDGE_REST", "http://localhost:4030")
+    if not url.startswith("http://"):
+        return
+
+    try:
+        requests.get(f"{url}/health", timeout=3)
+        return  # plaintext works — nothing to correct
+    except requests.exceptions.RequestException:
+        pass
+
+    https_url = "https://" + url[len("http://") :]
+    ca = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        "infra", "certs", "ca.crt",
+    )
+    probe = {"timeout": 3}
+    if os.path.isfile(ca):
+        probe["verify"] = ca
+    try:
+        requests.get(f"{https_url}/health", **probe)
+    except requests.exceptions.RequestException:
+        return  # neither answers — leave it, suites skip with their own reason
+
+    os.environ["AGGREGATOR_BRIDGE_REST"] = https_url
+    # Let suites keep calling bare `requests.get(...)` without threading `verify=`
+    # through every call site. Safe here because every e2e endpoint is a localhost
+    # dev service issued by this same dev CA; setdefault so an explicit bundle wins.
+    if os.path.isfile(ca):
+        os.environ.setdefault("REQUESTS_CA_BUNDLE", ca)
+
+
+_normalize_aggregator_scheme()
+
 IAM_URL = os.getenv("IAM_URL", "http://localhost:4010")
 E2E_RUN_ID = os.getenv("E2E_RUN_ID", str(int(time.time())))
 E2E_PASSWORD = os.getenv("E2E_PASSWORD", "GRX-Secure-P@ss-2026-E2E")
