@@ -147,6 +147,15 @@ transport check *passed* (a handshake failure would have yielded no HTTP respons
 key a `401`), and the app-layer secure-mode check then refused the unsigned `simulator` payload. The
 mTLS boundary narrows who may connect; it does not and should not decide what a frame may claim.
 
+**All three serve branches were exercised at runtime, not just the new one.** The change restructured
+the enclosing `if let (Some(cert), Some(key))` block, so the two branches it did *not* set out to
+change still needed proving — a green `cargo check` says nothing about which branch a deployment
+takes. Verified: mTLS (`MtlsAcceptor`) serves a CA-signed client and propagates its identity;
+server-auth TLS (`bind_rustls`, `IOT_GATEWAY_TLS_CLIENT_CA` empty — the plain-dev default and the
+most common posture) still serves a client presenting **no** certificate with `200`, and logs zero
+identity lines, since that path captures no peer cert and must not fabricate one; plaintext
+(`IOT_GATEWAY_TLS_CERT`/`_KEY` empty) still serves `200` over HTTP.
+
 **Residual, unchanged from the plan's own note:** the identity is published but nothing consumes it.
 Binding `meter_serial` to the cert identity, and production device-cert issuance/rotation (SPIFFE/SPIRE
 or Vault-issued), remain separate tasks.
