@@ -9,7 +9,7 @@ Status legend: 🔴 blocking · 🟠 should-fix · 🟢 nice-to-have · ✅ paid
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | TD-001 | _example_ — direct DB call bypassing repository layer | trading | 🟠 | before next settlement refactor | open |
 | TD-002 | Settlement settles a freshly-completed bin before late readings arrive → strands energy | aggregator | 🟢 | before onboarding intermittent/offline-buffered meters | mitigated (boundary case) |
-| TD-003 | IoT edge has no transport-level mTLS — Envoy `:4002` edge removed 2026-06-14; device auth is Ed25519-only at the Aggregator | edge | 🟡 | before any IoT device traffic needs a transport-mTLS boundary | graduated → [`active/0001-iot-edge-mtls.md`](active/0001-iot-edge-mtls.md) |
+| TD-003 | IoT edge transport-level mTLS — terminates at the Aggregator, enforced in the secure profile, SPIFFE identity propagated to handlers | edge | 🟡 | — | closed 2026-08-16 → [`completed/0001-iot-edge-mtls.md`](completed/0001-iot-edge-mtls.md) |
 | TD-004 | meter-service reads aggregator-owned read-model tables directly (cross-domain coupling); register-time wallet leans on a user-edge fallback to cover async feed lag | meter / aggregator | 🟢 | before rec-A (one shared `gridtokenx_meter`) is revisited — see rec-B | narrowed to one contract table (2026-07-27); circular read removed |
 
 ### TD-003 — Envoy `:4002` mTLS edge is an unenforced plaintext stub
@@ -55,7 +55,24 @@ replace before relying on the `:4002` edge path."
   on `:4010` **is** live. gen-certs already emits the server cert + 9 SPIFFE client certs
   (`scripts/gen-certs.sh:97,104-126`). Real residual = (1) enforcement off in every profile, (2) no
   SAN→identity propagation (TLS path uses `into_make_service()`, drops the peer cert), (3) no e2e.
-  **Graduated:** scoped into [`active/0001-iot-edge-mtls.md`](active/0001-iot-edge-mtls.md).
+  **Graduated:** scoped into [`completed/0001-iot-edge-mtls.md`](completed/0001-iot-edge-mtls.md).
+  **Closed (2026-08-16):** all three residuals paid.
+  (1) Enforcement ships in the secure profile — `secure.env:19` sets
+  `IOT_GATEWAY_TLS_CLIENT_CA=/app/infra/certs/ca.crt` (Phase 6 of
+  [`../telemetry-security.md`](../telemetry-security.md)); this had in fact landed before the plan
+  was written, which the plan did not know.
+  (2) SAN→identity propagation exists: the mTLS serve path swapped
+  `bind_rustls`+`into_make_service()` (which discards the peer cert) for `MtlsAcceptor`, and
+  `peer_cert_identity` republishes the SPIFFE URI as a `VerifiedSpiffeUri` extension +
+  `z-gridtokenx-spiffe-id` header —
+  `gridtokenx-aggregator-bridge/crates/aggregator-api/src/middleware/mtls.rs`.
+  (3) e2e: [`../../tests/e2e/25_iot_mtls/`](../../tests/e2e/25_iot_mtls/) asserts the transport cases;
+  the identity-reaches-handler leg is a Rust test driving a real handshake (same module).
+  **Residual (new, deliberate):** the propagated identity is **published, not yet consumed** — no
+  handler authorizes on it, so API-key + Ed25519 remain the device-auth of record and this is
+  defence-in-depth. Binding `meter_serial` to the cert's SPIFFE identity is a separate decision.
+  Device cert issuance/rotation also stays dev-CA manual; production PKI (SPIFFE/SPIRE or
+  Vault-issued device certs) is unscoped.
 
 ### TD-002 — partial-bin settlement strands energy on late telemetry
 

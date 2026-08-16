@@ -1,7 +1,9 @@
 # 0001 — IoT edge transport-mTLS: enable + propagate device identity (TD-003)
 
-> Graduated from [`../tech-debt-tracker.md`](../tech-debt-tracker.md) TD-003 · Status: **not started**
+> Graduated from [`../tech-debt-tracker.md`](../tech-debt-tracker.md) TD-003 · Status: **done (2026-08-16)**
 > Owner: platform / aggregator · Severity: 🟡
+>
+> See the [retro](#retro-2026-08-16) at the bottom for what diverged from this plan.
 
 ## Goal
 
@@ -92,3 +94,50 @@ then the "terminate at the Aggregator itself" option the tracker named **has lan
   (SPIFFE/SPIRE or Vault-issued device certs) is a separate, larger task — note it, don't scope here.
 - Scope is smaller than a green-field edge: the verifier + certs already exist; the real work is
   **enabling** it and **propagating identity** (Gaps 1-3), not building mTLS from scratch.
+
+---
+
+## Retro (2026-08-16)
+
+All four definition-of-done criteria met. Three divergences worth recording:
+
+**Step 1 was already done before this plan was written.** The "Real state (verified 2026-07-22)"
+section above says enforcement is enabled in no shipped profile. By the time the work started,
+`secure.env:19` already set `IOT_GATEWAY_TLS_CLIENT_CA=/app/infra/certs/ca.crt`, shipped as Phase 6
+of [`../../telemetry-security.md`](../../telemetry-security.md) and reachable via `just secure-up`.
+Gap 1 had closed independently and nothing updated the plan. **The lesson is the one the
+documentation harness already states — re-verify a plan's "real state" before executing it, because
+a plan is a snapshot, not a live view.** Only Gaps 2 and 3 were genuinely open.
+
+**Two deliberate improvements over the chain-bridge model.** The plan said to copy `PeerCertLayer`
+for parity; the port diverges in two places, both because the aggregator's IoT gateway is
+outward-facing where Chain Bridge is in-mesh:
+- `peer_cert_identity` **unconditionally strips** an inbound `z-gridtokenx-spiffe-id` before
+  deriving its own. Chain Bridge only ever inserts, so a client-supplied header survives when no
+  cert is present — harmless there (the header is trusted only behind a dev-gated flag) but a
+  latent spoofing hole to inherit at a public ingress.
+- `MtlsAcceptor` carries a 10s handshake timeout, matching `axum_server::RustlsAcceptor`'s own
+  default. Replacing `bind_rustls` with a hand-rolled acceptor silently drops that bound, which on
+  an internet-facing port is a slowloris hole. Chain Bridge has no timeout.
+
+**The e2e is split across two layers, not one.** Step 4 asked one suite to assert all three
+transport cases *and* that the SPIFFE identity is visible to the handler. No HTTP endpoint echoes
+the identity, and adding one purely for a test would be an information-disclosure surface. So the
+transport cases live in [`../../../tests/e2e/25_iot_mtls/`](../../../tests/e2e/25_iot_mtls/) against
+the deployed stack (plus a fourth case the plan missed: an *untrusted* client cert, without which a
+server that requires certs but never checks the signer would still pass), and the propagation leg is
+a Rust test driving a real handshake against a real handler in
+`gridtokenx-aggregator-bridge/crates/aggregator-api/src/middleware/mtls.rs`.
+
+Note the e2e **skips** unless the bridge is actually enforcing client certs, since mTLS is off by
+default — so its skip is load-bearing and was validated in both directions rather than shipped
+never having run green: 4 passed against the deployed bridge started with
+`IOT_GATEWAY_TLS_CLIENT_CA=/app/infra/certs/ca.crt`, and 4 skipped against a TLS-only endpoint that
+does not request a client cert. The deployed run also confirmed the propagation leg independently of
+the Rust test — with `RUST_LOG=debug` the container logged
+`verified mTLS peer identity spiffe_id="spiffe://gridtokenx.th/prod/smartmeter-simulator"`, exactly
+once, matching the single case that presented a valid certificate.
+
+**Residual, unchanged from the plan's own note:** the identity is published but nothing consumes it.
+Binding `meter_serial` to the cert identity, and production device-cert issuance/rotation (SPIFFE/SPIRE
+or Vault-issued), remain separate tasks.

@@ -15,7 +15,7 @@ keep their conveniences; flip them all on together with `just secure-up`.
 | 3 | **Key rotation** — random per-meter GUEK wrapped by a Vault Transit KEK; only the wrapped blob is at rest in Redis | `SMARTMETER_KEY_ROTATION_ENABLED` (+ `VAULT_*`, `VAULT_METER_KEK_NAME`) | sim wraps + versions (`kid`); bridge unwraps via Vault |
 | 4 | **Ingest lockdown** — reject every bypass (unsigned `simulator`, unverified-telemetry escape hatch, plaintext downgrade) | `AGGREGATOR_REQUIRE_SECURE` | bridge |
 | 5 | **Rotation lifecycle** — version pruning past the grace window + background auto-rotation | `AGGREGATOR_KEY_GRACE_VERSIONS`, `SMARTMETER_KEY_ROTATION_INTERVAL_S` | sim |
-| 6 | **mTLS** — bridge authenticates the sim at the transport layer (client cert) | `IOT_GATEWAY_TLS_CLIENT_CA` (+ `AGGREGATOR_TLS_CLIENT_CERT` / `_KEY`) | bridge verifies, sim presents `smartmeter-simulator` client cert |
+| 6 | **mTLS** — bridge authenticates the sim at the transport layer (client cert), and propagates its SPIFFE identity to handlers | `IOT_GATEWAY_TLS_CLIENT_CA` (+ `AGGREGATOR_TLS_CLIENT_CERT` / `_KEY`) | bridge verifies, sim presents `smartmeter-simulator` client cert |
 | 7 | **At-rest stream encryption** — the full register set is AES-256-GCM sealed in the zone/unified Redis streams (opaque at rest) | `AGGREGATOR_ENCRYPT_STREAMS` (needs Vault) | bridge encrypts on disseminate, the in-process zone ingester decrypts |
 
 Together: confidentiality + integrity + authenticity + anti-replay + mutual
@@ -47,6 +47,18 @@ In secure mode a frame that is not an authenticated, encrypted `dlms-enc` over
 mTLS is rejected before reaching settlement: no-client-cert fails the TLS
 handshake, plaintext / `simulator` / downgrade returns `426`, a bad signature or
 replayed counter returns `403` / `409`.
+
+The transport cases are asserted by [`../tests/e2e/25_iot_mtls/`](../tests/e2e/25_iot_mtls/), which
+**skips unless this profile is up** — a green `just e2e` on plain dev proves nothing about them.
+
+### What Phase 6 does and does not buy you
+
+The verified client certificate's SPIFFE URI reaches handlers as a `VerifiedSpiffeUri` extension and
+a `z-gridtokenx-spiffe-id` header (the middleware strips any client-supplied copy first, so the
+header is never self-asserted). But **nothing authorizes on it yet**: device auth of record is still
+the API key plus the per-reading Ed25519 signature. Phase 6 narrows *who can open a connection*, not
+*which meter a frame may claim to be* — binding `meter_serial` to the cert identity is a separate,
+unscoped change. Certificate issuance and rotation are also still manual against the dev CA.
 
 ## At rest in the streams
 
