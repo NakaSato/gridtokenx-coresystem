@@ -14,12 +14,24 @@ source "$HERE/../lib/http.sh"
 reachable() { curl -s -o /dev/null --max-time 3 -w '%{http_code}' "$1" 2>/dev/null; }
 
 # --- Case 1: API orchestrator health (:4000) ----------------------------
+# The orchestrator (`gridtokenx-api`) is NOT part of this stack: it has no
+# submodule in .gitmodules, no directory in the tree, and its `4000:4000` mapping
+# was deleted from docker-compose.yml in the "Major platform restructure" commit.
+# README/ARCHITECTURE still document it as core service #1, which is why this
+# case exists at all.
+#
+# It used to report "down … skipping", which reads as a service that failed to
+# start — an environmental blip someone might go debug. Nothing is coming up on
+# :4000 no matter what you start, so say that instead. Kept rather than deleted
+# so the case flips back to a real check if the orchestrator ever returns.
 log_info "Case 1: API orchestrator health ($API_URL)"
 CODE=$(reachable "$API_URL/health")
 if [ "$CODE" != "000" ]; then
     log_success "API orchestrator reachable [$CODE]"
 else
-    log_warn "API orchestrator down at $API_URL — skipping"
+    log_warn "API orchestrator absent at $API_URL — not a failure: no such service"
+    log_warn "  ships in this repo (no submodule, no compose entry). README still"
+    log_warn "  documents it as core service #1; the docs are stale, not the stack."
 fi
 
 # --- Case 2: APISIX user-facing routing (:4001) -------------------------

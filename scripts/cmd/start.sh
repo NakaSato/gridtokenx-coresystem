@@ -426,10 +426,13 @@ _show_start_summary() {
     echo "  • Metrics:       http://localhost:4001/metrics-admin"
     echo "  • Grafana:       http://localhost:4001/grafana"
     echo ""
-    echo -e "${CYAN}API Services (Direct Port 4000):${NC}"
-    echo "  • API Services:   http://localhost:4000/api/v1"
-    echo "  • Health:        http://localhost:4000/health"
-    echo ""
+    # NOTE: the "API Services (Direct Port 4000)" block was removed 2026-08-16.
+    # Nothing serves :4000 — the API orchestrator (`gridtokenx-api`) is not a
+    # submodule, not in the tree, and its compose mapping was deleted in the
+    # "Major platform restructure" commit. The banner advertised two URLs that
+    # could only ever refuse the connection, which sends whoever reads it off
+    # debugging a service that does not exist.
+
     echo -e "${CYAN}Frontend UIs:${NC}"
     echo "  • Trading UI:    http://localhost:11001"
     echo "  • Explorer UI:   http://localhost:11002"
