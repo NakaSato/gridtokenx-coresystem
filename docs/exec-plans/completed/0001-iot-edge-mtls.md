@@ -138,6 +138,15 @@ the Rust test — with `RUST_LOG=debug` the container logged
 `verified mTLS peer identity spiffe_id="spiffe://gridtokenx.th/prod/smartmeter-simulator"`, exactly
 once, matching the single case that presented a valid certificate.
 
+Finally re-verified under the **composed** secure profile (`just provision-kek` + `secure.env`
+layered over `.env`), not just the one mTLS variable in isolation: the bridge came up with at-rest
+stream encryption (SEK bootstrapped), Vault Transit key rotation, and mTLS together, and suite 25
+passed 12/12 with `IOT_MTLS_REQUIRED=1`. A `POST` to both ingest routes over mTLS with a valid API
+key returned `426` — which is the layering working as intended, and worth stating precisely: the
+transport check *passed* (a handshake failure would have yielded no HTTP response at all, and a bad
+key a `401`), and the app-layer secure-mode check then refused the unsigned `simulator` payload. The
+mTLS boundary narrows who may connect; it does not and should not decide what a frame may claim.
+
 **Residual, unchanged from the plan's own note:** the identity is published but nothing consumes it.
 Binding `meter_serial` to the cert identity, and production device-cert issuance/rotation (SPIFFE/SPIRE
 or Vault-issued), remain separate tasks.
