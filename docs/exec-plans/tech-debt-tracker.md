@@ -68,12 +68,18 @@ replace before relying on the `:4002` edge path."
   `gridtokenx-aggregator-bridge/crates/aggregator-api/src/middleware/mtls.rs`.
   (3) e2e: [`../../tests/e2e/25_iot_mtls/`](../../tests/e2e/25_iot_mtls/) asserts the transport cases;
   the identity-reaches-handler leg is a Rust test driving a real handshake (same module).
-  **Residual (new, deliberate):** the propagated identity is **published, not yet consumed** — no
-  handler authorizes on it, so API-key + Ed25519 remain the device-auth of record and this is
-  defence-in-depth. Scoped as [`active/0002-mtls-identity-as-authorization.md`](active/0002-mtls-identity-as-authorization.md),
-  which may legitimately close as won't-do: certs are per-*service* and a gateway fronts many meters,
-  so this is a serial-**scope** problem, not an identity equality, and Ed25519 already binds what a
-  frame may claim.
+  **Residual — accepted, closed 2026-08-16.** The propagated identity is **published and not
+  consumed**: no handler authorizes on it, so API-key + Ed25519 remain the device-auth of record and
+  the mTLS layer is defence-in-depth. That is now the **intended end state**, not a gap.
+  [`completed/0002-mtls-identity-as-authorization.md`](completed/0002-mtls-identity-as-authorization.md)
+  investigated making it an authorization input and closed **won't-do**: certs are per-*service* and
+  a gateway fronts many meters, so it is a serial-**scope** problem rather than an identity equality;
+  Ed25519 already binds what a frame may claim; and a reject-at-ingest rule keyed on a lookup cuts
+  against the meter registry's deliberate degraded-safe design. Two findings from that work are worth
+  carrying: `api_keys.permissions` already exists as a per-client IoT scope but is dropped by the
+  proto (`ApiKeyResponse` omits it) and the aggregator discards `role` as well, caching only
+  `valid: bool` — so any future per-client ingest authorization should widen **that** path; and a
+  SPIFFE→serial map is recorded as considered-and-rejected.
   Device cert issuance/rotation also stays dev-CA manual; production PKI (SPIFFE/SPIRE or
   Vault-issued device certs) is unscoped.
 

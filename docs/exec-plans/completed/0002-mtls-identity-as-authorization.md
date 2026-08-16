@@ -1,7 +1,24 @@
 # 0002 — Make the mTLS identity an authorization input (TD-003 residual)
 
-> Follows [`../completed/0001-iot-edge-mtls.md`](../completed/0001-iot-edge-mtls.md) · Status: **not started**
-> Owner: platform / aggregator · Severity: 🟢 (see "Should we do this at all?" — this may be a decline)
+> Follows [`0001-iot-edge-mtls.md`](0001-iot-edge-mtls.md) · Status: **closed 2026-08-16 — won't do**
+> Owner: platform / aggregator · Severity: 🟢
+>
+> **Decision: not doing this.** Per-gateway serial scoping is not worth operating. Ed25519 already
+> binds what a frame may claim, so scoping adds only containment of a stolen device key or a
+> compromised gateway — narrow, against the real cost of a reject-at-ingest rule keyed on a lookup,
+> in a service whose meter registry is *deliberately* degraded-safe so a registry outage can never
+> become permanent telemetry loss. The plan's own "Should we do this at all?" section argued for
+> this outcome before the research; the research below then removed the remaining reason to
+> reconsider, by showing the design would have been a third identity system rather than a new
+> capability.
+>
+> **Kept, not deleted, for two reusable findings** (see "Step 1 is already answered"):
+> 1. `api_keys.permissions` is dead weight today — present in the schema, dropped by the proto,
+>    and the aggregator discards `role` too. Anyone who later wants per-client authorization on the
+>    ingest path should widen *that* path, not invent a parallel one.
+> 2. A SPIFFE→serial map is recorded as considered-and-rejected, so it is not re-proposed.
+>
+> Nothing below was implemented. Read it as analysis, not as pending work.
 
 ## Goal
 
