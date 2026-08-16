@@ -70,7 +70,10 @@ replace before relying on the `:4002` edge path."
   the identity-reaches-handler leg is a Rust test driving a real handshake (same module).
   **Residual (new, deliberate):** the propagated identity is **published, not yet consumed** — no
   handler authorizes on it, so API-key + Ed25519 remain the device-auth of record and this is
-  defence-in-depth. Binding `meter_serial` to the cert's SPIFFE identity is a separate decision.
+  defence-in-depth. Scoped as [`active/0002-mtls-identity-as-authorization.md`](active/0002-mtls-identity-as-authorization.md),
+  which may legitimately close as won't-do: certs are per-*service* and a gateway fronts many meters,
+  so this is a serial-**scope** problem, not an identity equality, and Ed25519 already binds what a
+  frame may claim.
   Device cert issuance/rotation also stays dev-CA manual; production PKI (SPIFFE/SPIRE or
   Vault-issued device certs) is unscoped.
 
