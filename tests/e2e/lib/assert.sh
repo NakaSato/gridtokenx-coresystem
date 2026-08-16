@@ -7,6 +7,10 @@ GREEN='\033[0;32m'; BLUE='\033[0;34m'; RED='\033[0;31m'; YELLOW='\033[0;33m'; NC
 # Per-suite counters
 E2E_PASS=0
 E2E_FAIL=0
+# Pytest cases skipped in this suite. Tracked because a skip is NOT a pass:
+# `suite_summary` used to print only passed/failed, so a suite that skipped every
+# case looked exactly like one that verified something.
+E2E_SKIP=0
 
 log_info()    { echo -e "${BLUE}[INFO]${NC} $1"; }
 log_warn()    { echo -e "${YELLOW}[WARN]${NC} $1"; }
@@ -49,9 +53,14 @@ retry_until() {
 }
 
 # suite_summary — print counts, exit nonzero if any failure. Call at end of each suite.
+# Skips are reported but never fail the suite: a service that is genuinely not
+# running is a legitimate skip, and failing on it would make a partial stack
+# unusable. The point is only that a skip stops being invisible.
 suite_summary() {
     echo "--------------------------------------------------"
-    echo -e "Suite result: ${GREEN}${E2E_PASS} passed${NC}, ${RED}${E2E_FAIL} failed${NC}"
+    local skip_note=""
+    [ "${E2E_SKIP:-0}" -gt 0 ] && skip_note=", ${YELLOW}${E2E_SKIP} skipped${NC}"
+    echo -e "Suite result: ${GREEN}${E2E_PASS} passed${NC}, ${RED}${E2E_FAIL} failed${NC}${skip_note}"
     [ "$E2E_FAIL" -eq 0 ] || exit 1
 }
 
@@ -73,5 +82,35 @@ pytest_suite() {
     # source of truth for the dep set.
     local reqs="$dir/../requirements.txt"
     [ -f "$reqs" ] || reqs="$(cd "$dir/.." && pwd)/requirements.txt"
-    ( cd "$dir/.." && uv run --no-project --with-requirements "$reqs" python -m pytest "$dir" -v )
+
+    # Capture while still streaming, so the skip tally can be read off pytest's
+    # own summary line without hiding output from the operator.
+    local out rc name
+    name="$(basename "$dir")"
+    out="$(mktemp)"
+    ( cd "$dir/.." && uv run --no-project --with-requirements "$reqs" python -m pytest "$dir" -v ) 2>&1 | tee "$out"
+    rc=${PIPESTATUS[0]}
+
+    # A suite that runs and skips EVERY case reports the same green as one that
+    # verified something — the no-entry-point failure this script already guards
+    # against, wearing a disguise. It has bitten three times: a skip predicate
+    # that silently inverted, an http/https probe mismatch that skipped 21 cases,
+    # and a legacy test that "passed" by asserting a vulnerability still worked.
+    # Warn, don't fail: a service that is genuinely down is a legitimate skip.
+    local summary skipped
+    summary="$(grep -E '^=+.*(passed|failed|skipped|error).*=+$' "$out" | tail -1)"
+    skipped="$(printf '%s' "$summary" | grep -oE '[0-9]+ skipped' | grep -oE '^[0-9]+')"
+    if [ -n "$skipped" ]; then
+        E2E_SKIP=$((E2E_SKIP + skipped))
+        if printf '%s' "$summary" | grep -qE '[0-9]+ (passed|failed)'; then
+            log_warn "$name: $skipped case(s) skipped — partial coverage, check why."
+        else
+            log_warn "$name: ALL $skipped case(s) SKIPPED — this suite asserted NOTHING."
+            log_warn "  A fully-skipped suite is not a pass. Read the skip reason above:"
+            log_warn "  a wrong probe (scheme/port/host) looks identical to a service being down."
+        fi
+    fi
+
+    rm -f "$out"
+    return $rc
 }
