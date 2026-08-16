@@ -38,7 +38,7 @@
 
 ## Flow 2 — Telemetry Ingest & Dissemination (`tests/e2e/20_oracle`)
 
-- Meter / simulator → Aggregator Bridge(:4030): `POST /v1/private-network/ingest[/batch]`, `POST /v1/ingest/telemetry[/batch]` (HTTP). Ed25519-signed DLMS frame. Header `X-API-KEY` (`AGGREGATOR_API_KEY=engineering-department-api-key-2025`; validated via IAM).
+- Meter / simulator → Aggregator Bridge(:4030): `POST /v1/private-network/ingest[/batch]` (HTTP). Ed25519-signed DLMS frame. Header `X-API-KEY` (`AGGREGATOR_API_KEY=engineering-department-api-key-2025`; validated via IAM). The unverified `/v1/ingest/telemetry[/batch]` routes were removed 2026-08-16 and now `404`.
 - Aggregator → Redis: fail-closed sig verify `gridtokenx:devices:{id}:pubkey` (`crates/aggregator-persistence/src/infra/crypto.rs`); AES key fetch `gridtokenx:devices:{id}:enckey` for secure v4 frame.
 - Aggregator → Redis Streams: zone-partitioned dissemination, XADD with retry (`crates/aggregator-logic/src/router.rs`).
 - Aggregator → Kafka `meter.readings`: `MeterReadingEvent` (when `KAFKA_BOOTSTRAP_SERVERS` set).

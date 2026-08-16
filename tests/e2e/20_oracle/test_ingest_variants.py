@@ -2,11 +2,11 @@
 
 `test_telemetry.py` covers the single signed REST ingest + single gRPC Ingest.
 This file fills the gaps for the remaining ingest surfaces wired in
-`gridtokenx-aggregator-bridge/src/main.rs:613-628` (REST routes) and
+`gridtokenx-aggregator-bridge/src/main.rs:1293-1311` (REST routes) and
 `crates/aggregator-protocol/proto/oracle.proto:11` (gRPC IngestBatch):
 
   1. POST /v1/private-network/ingest/batch  (signed DLMS batch)
-     handler: handlers.rs:363 ingest_private_network_batch
+     handler: handlers.rs:605 ingest_private_network_batch
               body  = BatchPrivateNetworkPayload { protocol, readings: [obj,...] }
                       (models.rs:98) — NOTE each reading object is FLAT (fields at
                       top level, NOT nested under a `payload` key like the single
@@ -17,13 +17,13 @@ This file fills the gaps for the remaining ingest surfaces wired in
                       (models.rs:108: {status, reading_id, device_type, stream}),
                       FILTERED to accepted readings only (handlers.rs:508).
 
-  2. POST /v1/ingest/telemetry  +  /v1/ingest/telemetry/batch  (legacy)
-     Both routes map to the SAME handler ingest_legacy_batch (main.rs:622-628,
-     handlers.rs:294). Body = { readings: [obj,...] } where each obj has
-     meter_serial|meter_id, kwh, timestamp(RFC3339), energy_generated/consumed,
-     zone_code. NO signature verification on this path — every reading is
-     disseminated and returned (handlers.rs:300-360). Response = Vec<IngestResponse>
-     (one per reading, unfiltered). Missing `readings` => 400.
+  2. POST /v1/ingest/telemetry  +  /v1/ingest/telemetry/batch  — REMOVED 2026-08-16.
+     These ran no Ed25519 verification at all (X-API-KEY was the only gate), so a
+     single leaked key could inject arbitrary energy for any meter serial straight
+     into the billing bins and the surplus mint. The cases below now assert the
+     routes are GONE. They used to assert the opposite — that an unsigned batch was
+     accepted — which is how a test suite ends up certifying a vulnerability as
+     intended behaviour rather than catching it.
 
   3. OracleService/IngestBatch gRPC  (oracle.proto:11, service.rs:405)
      Request = MeterReadingBatchRequest { readings: [MeterReading,...] }.
@@ -108,7 +108,7 @@ def _iso(ts_ms: int) -> str:
 
 def _signed_batch_reading(meter_id, kwh, ts_ms, signature):
     """One element of BatchPrivateNetworkPayload.readings — a FLAT reading object
-    (handlers.rs:363,396 reads device_id/signature/kwh/timestamp at the top level,
+    (handlers.rs:605 reads device_id/signature/kwh/timestamp at the top level,
     unlike the single endpoint which nests them under `payload`)."""
     return {
         "device_id": meter_id,
@@ -193,52 +193,42 @@ def test_rest_batch_disseminated(device):
 
 
 # ---------------------------------------------------------------------------
-# 2. Legacy ingest — /v1/ingest/telemetry and /v1/ingest/telemetry/batch
-#    (both routes -> ingest_legacy_batch; NO signature verification)
+# 2. Legacy ingest — REMOVED. These routes must stay gone.
 # ---------------------------------------------------------------------------
 
-def _legacy_reading(meter_id, *, kwh, ts_ms, generated=None, consumed=None):
-    """One element of the legacy `readings` array (handlers.rs:312-340). meter_serial
-    is the primary id key; energy_* default to kwh/0 when absent."""
-    obj = {
-        "meter_serial": meter_id,
-        "kwh": float(kwh),
-        "timestamp": _iso(ts_ms),
-    }
-    if generated is not None:
-        obj["energy_generated"] = float(generated)
-    if consumed is not None:
-        obj["energy_consumed"] = float(consumed)
-    return obj
-
-
 @pytest.mark.parametrize("url", [LEGACY_URL, LEGACY_BATCH_URL])
-def test_legacy_ingest_accepts_unsigned_batch(device, url):
-    """Legacy endpoints take an UNSIGNED `{readings:[...]}` batch and return one
-    IngestResponse per reading (handlers.rs:294-360 — no sig check). Both
-    /v1/ingest/telemetry and /v1/ingest/telemetry/batch hit the same handler
-    (main.rs:622-628), so both must behave identically."""
-    base_ts = int(time.time() * 1000)
-    readings = [
-        _legacy_reading(device["meter_id"], kwh="10.5", ts_ms=base_ts, generated=10.5, consumed=0.0),
-        _legacy_reading(device["meter_id"], kwh="20.0", ts_ms=base_ts + 1, generated=20.0, consumed=0.0),
-    ]
-    r = requests.post(url, json={"readings": readings}, headers=HEADERS, timeout=10)
-    assert r.status_code in (200, 202), f"legacy ingest rejected at {url}: {r.status_code} {r.text}"
-    arr = r.json()
-    assert isinstance(arr, list), f"legacy response not a list: {arr}"
-    assert len(arr) == len(readings), (
-        f"legacy: expected {len(readings)} responses, got {len(arr)}: {arr}"
+def test_legacy_ingest_routes_are_gone(url):
+    """The unverified legacy ingest routes must not exist.
+
+    They accepted an unsigned `{readings:[...]}` batch with X-API-KEY as the only
+    gate, so one leaked key injected arbitrary energy for any serial into billing
+    and the surplus mint. Removed 2026-08-16 (main.rs route block + the
+    ingest_legacy_batch handler).
+
+    Asserted with a valid API key on purpose: a 404 behind a *rejected* key would
+    prove nothing about whether the route exists. This must be a routing miss,
+    not an auth miss — so 401 fails here too, and would mean the route came back
+    and is merely gated.
+    """
+    r = requests.post(url, json={"readings": []}, headers=HEADERS, timeout=5)
+    assert r.status_code == 404, (
+        f"unverified ingest route {url} is reachable again "
+        f"({r.status_code} {r.text!r}) — it must not be re-added"
     )
-    for item in arr:
-        assert item.get("status") == "accepted", f"unexpected legacy status: {item}"
-        assert item.get("reading_id"), f"missing reading_id: {item}"
 
 
-def test_legacy_ingest_missing_readings_is_400(device):
-    """No `readings` array => 400 Bad Request (handlers.rs:300-303)."""
-    r = requests.post(LEGACY_URL, json={"not_readings": []}, headers=HEADERS, timeout=5)
-    assert r.status_code == 400, f"expected 400 for missing readings, got {r.status_code} {r.text}"
+def test_no_unauthenticated_ingest_surface_remains():
+    """Belt-and-braces: neither legacy path is served even without a key.
+
+    Guards the re-introduction shape that would be easiest to miss — a route
+    added back outside the api_key_auth route_layer, which would answer before
+    auth ran at all.
+    """
+    for url in (LEGACY_URL, LEGACY_BATCH_URL):
+        r = requests.post(url, json={"readings": []}, timeout=5)
+        assert r.status_code == 404, (
+            f"{url} answered {r.status_code} without an API key — expected 404"
+        )
 
 
 # ---------------------------------------------------------------------------
