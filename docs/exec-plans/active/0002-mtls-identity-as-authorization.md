@@ -56,27 +56,58 @@ mints.
 **A defensible outcome of this plan is to close it as "won't do", keeping the identity as
 attribution + logging only.** Do not treat implementation as the default.
 
-## If we proceed: three candidate designs
+## Step 1 is already answered: IAM owns it, and the mechanism exists but is thrown away
 
-| # | Design | Mapping owner | Failure mode when the mapping is stale |
-| - | ------ | ------------- | -------------------------------------- |
-| A | SPIFFE identity → allowed serial prefix/zone | static config in the bridge | new meter in an existing zone works; new zone rejects until redeployed |
-| B | SPIFFE identity → explicit serial set, in the meter registry | meter-service registration API | every newly registered meter is rejected until the mapping is written — highest blast radius |
-| C | **Log-and-measure only**: record `(spiffe_id, serial)` pairs, emit a metric on mismatch, reject nothing | none | none — but enforces nothing |
+Investigated 2026-08-16. **Do not invent a SPIFFE→serial map.** A per-client credential scoped to
+an IoT caller already exists end to end — it is simply discarded, at two separate layers:
 
-**C is the recommended first step regardless of the eventual target.** It costs little, and it
-answers the question this plan cannot answer from the code alone: *how often does a gateway
-legitimately submit for a serial nobody expected?* Without that number, A and B are guesses about
-blast radius, and the fail-closed cost above is unquantified.
+1. **The schema has the scope.** `api_keys`
+   (`gridtokenx-iam-service/migrations/20260325000002_create_api_keys.sql`) carries
+   `role VARCHAR(20) DEFAULT 'ami'` **and `permissions TEXT[]`**, seeded `'{"*"}'`, under the table
+   comment *"Stores API keys for IoT devices and external services"*. That is precisely a
+   per-gateway authorization scope, already owned by IAM, already provisioned per client.
+2. **The proto drops `permissions`.** `ApiKeyResponse` is
+   `{ bool valid, string role, string error_message }`
+   (`gridtokenx-iam-service/crates/iam-protocol/proto/identity.proto:106`) — the permissions array
+   never crosses the wire.
+3. **The aggregator drops `role` too.** `auth.rs` normalizes the whole round-trip to a single
+   `valid: bool` and caches that (`crates/aggregator-api/src/auth.rs:141,157,173`); the auth policy
+   has exactly three cases (valid / invalid / transient IAM failure). No scope reaches a handler.
+
+So the honest statement of the residual is not "the mTLS identity is unused" — it is **"the API-key
+scope is unused, and the mTLS identity is a second unused identity layered over it."** Building a
+SPIFFE→serial map would be a *third* client-identity system stacked on two that already exist and
+are ignored. The aggregator is already an authorized `VerifyApiKey` caller (IAM's RBAC allowlist:
+ApiGateway / AggregatorBridge / Admin), so no new trust relationship is needed either.
+
+### Revised designs
+
+| # | Design | Where the work lands | Failure mode when the mapping is stale |
+| - | ------ | -------------------- | -------------------------------------- |
+| A | **Widen the existing API-key scope**: expose `permissions` in `ApiKeyResponse`, carry it through the aggregator's auth cache, check submitted serials against it | IAM proto + `auth.rs` + handlers | a key whose permissions were never populated rejects its whole fleet — mitigate by treating an **empty** array as "unscoped", so existing keys are unchanged |
+| B | SPIFFE identity → explicit serial set in the meter registry | new mapping table + meter-service | duplicates A with a second identity system; **not recommended** |
+| C | **Log-and-measure only**: record `(spiffe_id, api-key role, serial)`, emit a metric on mismatch, reject nothing | `auth.rs` + handlers | none — enforces nothing |
+
+**C first, then A.** C costs little and answers what neither the schema nor this plan can: *how
+often does a gateway legitimately submit for a serial nobody scoped it for?* Without that number,
+A's blast radius is a guess. B is superseded — record it as considered-and-rejected so it is not
+re-proposed.
+
+The mTLS SPIFFE identity's job then settles into something small and well-defined: **bind the API
+key to a transport identity**, so a stolen key cannot be replayed from an arbitrary network
+location. That is a property plan 0001 already delivers; it does not need serial-level semantics of
+its own.
 
 ## Ordered steps
 
-1. **Decide the mapping owner** — this is the blocking decision, not a code task. If no service
-   plausibly owns "which gateway may speak for which meters", stop here and close as won't-do.
+1. ~~**Decide the mapping owner.**~~ **Answered 2026-08-16: IAM, via `api_keys.permissions`** — see
+   the section above. The remaining decision is narrower and is a *product* call, not an
+   architecture one: is per-gateway serial scoping worth operating at all, given Ed25519 already
+   binds what a frame may claim? If no, close as won't-do and delete this plan.
 2. **Implement C** (observability only). Read `VerifiedSpiffeUri` in the ingest handlers
    (`crates/aggregator-api/src/handlers.rs`: `ingest_private_network`,
-   `ingest_private_network_batch`) and emit a counter keyed on match/mismatch against whatever
-   provisional mapping step 1 chose. Reject nothing. Ship it and let it run.
+   `ingest_private_network_batch`) and emit a counter keyed on `(spiffe_id, api-key role, serial)`.
+   Reject nothing. Ship it and let it run.
 3. **Read the metric** for a realistic period across a real fleet, not the simulator — the sim uses
    one identity for everything and will report a 100% "mismatch" that means nothing.
 4. **Only then** choose A or B, and only if step 3 shows the enforcement would be quiet. Any
