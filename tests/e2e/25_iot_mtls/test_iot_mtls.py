@@ -20,6 +20,13 @@ skips unless the bridge is actually enforcing client certs. Enable with:
 
     just gen-certs && just orb-up && just secure-up
 
+**If you are running this to verify mTLS, set `IOT_MTLS_REQUIRED=1`.** Otherwise
+a stack that silently stopped enforcing produces four skips and a green suite,
+which reads the same as "nothing to test here". With the flag,
+`test_enforcement_matches_expectation` turns that into a failure. The predicate
+behind the skip is itself unit-tested in test_probe_logic.py, which needs no
+stack and therefore runs on every `just e2e`.
+
 Run: cd tests/e2e && python -m pytest 25_iot_mtls -v
 """
 import os
@@ -30,6 +37,8 @@ from urllib.parse import urlparse
 
 import pytest
 import requests
+
+from mtls_probe import enforcement_verdict
 
 # The IoT gateway as the e2e harness addresses it (env.sh:15).
 REST = os.getenv("AGGREGATOR_BRIDGE_REST", "http://localhost:4030")
@@ -62,28 +71,6 @@ def _get(path: str, *, with_client_cert: bool):
     return requests.get(f"{HTTPS}{path}", **kwargs)
 
 
-def _mtls_enforced() -> bool:
-    """True when the bridge is up, speaking TLS, AND requiring a client cert.
-
-    Probes rather than reading IOT_GATEWAY_TLS_CLIENT_CA: that var is set inside
-    the container (secure.env), so the test shell cannot see it, and a stale
-    export would misreport a stack that was never re-upped.
-    """
-    if not _certs_present():
-        return False
-    try:
-        _get("/health", with_client_cert=False)
-        return False  # served without a cert => mTLS not enforced
-    except requests.exceptions.SSLError:
-        return True
-    except requests.exceptions.ConnectionError:
-        # Distinguish "rejected mid-connection" (mTLS on, TLS 1.3 defers the
-        # alert past connect) from "nothing is listening" (stack down).
-        return _port_open()
-    except requests.exceptions.RequestException:
-        return False
-
-
 def _port_open() -> bool:
     try:
         with socket.create_connection((HOST, PORT), timeout=TIMEOUT):
@@ -92,13 +79,56 @@ def _port_open() -> bool:
         return False
 
 
+def _mtls_enforced() -> bool:
+    """True when the bridge is up, speaking TLS, AND requiring a client cert.
+
+    Probes rather than reading IOT_GATEWAY_TLS_CLIENT_CA: that var is set inside
+    the container (secure.env), so the test shell cannot see it, and a stale
+    export would misreport a stack that was never re-upped.
+
+    The I/O lives here; the decision lives in `mtls_probe.enforcement_verdict`,
+    which is unit-tested in test_probe_logic.py.
+    """
+    if not _certs_present():
+        return False
+    try:
+        _get("/health", with_client_cert=False)
+        probe = None  # served without a cert
+    except requests.exceptions.RequestException as exc:
+        probe = exc
+    return enforcement_verdict(probe, certs_present=True, port_open=_port_open())
+
+
+ENFORCED = _mtls_enforced()
+
+# Opt-in tripwire. When set, this run is *expected* to be exercising mTLS, so a
+# non-enforcing endpoint is a failure rather than a silent skip. Without it the
+# suite can only skip, and a skip looks identical to "nothing to test here".
+REQUIRED = os.getenv("IOT_MTLS_REQUIRED", "").lower() in ("1", "true", "yes")
+
 mtls_only = pytest.mark.skipif(
-    not _mtls_enforced(),
+    not ENFORCED,
     reason=(
         f"IoT gateway at {HTTPS} is not enforcing mTLS — run `just gen-certs && "
-        f"just secure-up` (mTLS is off by default outside the secure profile)"
+        f"just secure-up` (mTLS is off by default outside the secure profile). "
+        f"Set IOT_MTLS_REQUIRED=1 to make this a failure instead."
     ),
 )
+
+
+def test_enforcement_matches_expectation():
+    """Guards the skip itself: a run that asked for mTLS must not quietly skip.
+
+    Always collected, never skipped when IOT_MTLS_REQUIRED is set — so a secure
+    run cannot report green while every transport case below was skipped.
+    """
+    if not REQUIRED:
+        pytest.skip("IOT_MTLS_REQUIRED not set — enforcement optional for this run")
+    assert ENFORCED, (
+        f"IOT_MTLS_REQUIRED is set but {HTTPS} is not enforcing client certs — "
+        f"every transport case would have skipped and this suite would have "
+        f"reported green without asserting anything"
+    )
 
 
 @mtls_only

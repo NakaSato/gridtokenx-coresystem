@@ -50,6 +50,9 @@ replayed counter returns `403` / `409`.
 
 The transport cases are asserted by [`../tests/e2e/25_iot_mtls/`](../tests/e2e/25_iot_mtls/), which
 **skips unless this profile is up** — a green `just e2e` on plain dev proves nothing about them.
+When you are running specifically to verify mTLS, set `IOT_MTLS_REQUIRED=1`: it turns "not
+enforcing" from a skip into a failure, so a stack that quietly stopped requiring client certs
+cannot pass as green.
 
 ### What Phase 6 does and does not buy you
 
