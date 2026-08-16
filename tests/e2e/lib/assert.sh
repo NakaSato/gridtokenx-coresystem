@@ -4,12 +4,16 @@
 
 GREEN='\033[0;32m'; BLUE='\033[0;34m'; RED='\033[0;31m'; YELLOW='\033[0;33m'; NC='\033[0m'
 
-# Per-suite counters
+# Per-suite counters. Bash assertions and pytest cases are counted separately
+# because they fail differently: bash asserts run inline, pytest runs in a child
+# process whose tally is only readable from its summary line.
 E2E_PASS=0
 E2E_FAIL=0
-# Pytest cases skipped in this suite. Tracked because a skip is NOT a pass:
-# `suite_summary` used to print only passed/failed, so a suite that skipped every
-# case looked exactly like one that verified something.
+E2E_PYTEST_PASS=0
+E2E_PYTEST_FAIL=0
+# Skips, from either side. Tracked because a skip is NOT a pass: suite_summary
+# used to print only passed/failed, so a suite that skipped everything looked
+# exactly like one that verified something.
 E2E_SKIP=0
 
 log_info()    { echo -e "${BLUE}[INFO]${NC} $1"; }
@@ -17,6 +21,12 @@ log_warn()    { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_success() { echo -e "${GREEN}[PASS]${NC} $1"; E2E_PASS=$((E2E_PASS+1)); }
 # Soft fail: records failure, keeps suite running.
 log_fail()    { echo -e "${RED}[FAIL]${NC} $1"; E2E_FAIL=$((E2E_FAIL+1)); }
+# Deliberate skip: use INSTEAD of log_warn when a precondition means this suite
+# (or a case) cannot run — an opt-in gate, a missing toolchain, a service that is
+# down. It records the skip, which is what separates "we chose not to test this
+# and said so" from "this suite verified nothing and never mentioned it". The
+# second is the dangerous one, and suite_summary calls it out loudly.
+log_skip()    { echo -e "${YELLOW}[SKIP]${NC} $1"; E2E_SKIP=$((E2E_SKIP+1)); }
 # Hard fail: aborts suite immediately (use for unrecoverable preconditions).
 # Writes to stderr so it never pollutes captured command-substitution output.
 die()         { echo -e "${RED}[FATAL]${NC} $1" >&2; exit 1; }
@@ -58,10 +68,37 @@ retry_until() {
 # unusable. The point is only that a skip stops being invisible.
 suite_summary() {
     echo "--------------------------------------------------"
+    # Asymmetric on purpose, and it looks like a bug if you don't know why:
+    # pytest PASSES are added because nothing else counts them, but pytest
+    # FAILURES are not, because every caller already folds them in itself
+    # (`pytest_suite ... || log_fail`, or `|| E2E_FAIL=$((E2E_FAIL+1))`). Adding
+    # them here too would report one failed pytest case as two.
+    local pass=$((E2E_PASS + E2E_PYTEST_PASS))
+    local fail=$E2E_FAIL
     local skip_note=""
     [ "${E2E_SKIP:-0}" -gt 0 ] && skip_note=", ${YELLOW}${E2E_SKIP} skipped${NC}"
-    echo -e "Suite result: ${GREEN}${E2E_PASS} passed${NC}, ${RED}${E2E_FAIL} failed${NC}${skip_note}"
-    [ "$E2E_FAIL" -eq 0 ] || exit 1
+    echo -e "Suite result: ${GREEN}${pass} passed${NC}, ${RED}${fail} failed${NC}${skip_note}"
+
+    # A suite that verified nothing is not a pass, and until now it printed the
+    # same "0 failed" as one that verified everything. Two cases, deliberately
+    # distinguished:
+    #   - skips were recorded  => acknowledged. Someone chose not to run this and
+    #     said why; the reason is in the output above.
+    #   - nothing recorded     => the dangerous one. The suite ran, asserted
+    #     nothing, and never said so. That is the shape of a broken precondition
+    #     (wrong probe, bad gate) masquerading as success — and with no CI here,
+    #     this summary is the only signal anyone gets.
+    if [ "$pass" -eq 0 ] && [ "$fail" -eq 0 ] && [ "${E2E_PYTEST_FAIL:-0}" -eq 0 ]; then
+        if [ "${E2E_SKIP:-0}" -gt 0 ]; then
+            log_warn "verified NOTHING — every case was skipped (see reasons above)"
+        else
+            log_warn "verified NOTHING and recorded no skips — did this suite actually run?"
+            log_warn "  A suite that asserts nothing is not a pass. If a precondition"
+            log_warn "  blocked it, report that with log_skip so it stops looking green."
+        fi
+    fi
+
+    [ "$fail" -eq 0 ] || exit 1
 }
 
 # pytest_suite [dir] — run this suite folder's pytest files via the project venv.
@@ -97,9 +134,13 @@ pytest_suite() {
     # that silently inverted, an http/https probe mismatch that skipped 21 cases,
     # and a legacy test that "passed" by asserting a vulnerability still worked.
     # Warn, don't fail: a service that is genuinely down is a legitimate skip.
-    local summary skipped
+    local summary skipped passed failed
     summary="$(grep -E '^=+.*(passed|failed|skipped|error).*=+$' "$out" | tail -1)"
     skipped="$(printf '%s' "$summary" | grep -oE '[0-9]+ skipped' | grep -oE '^[0-9]+')"
+    passed="$(printf '%s' "$summary" | grep -oE '[0-9]+ passed' | grep -oE '^[0-9]+')"
+    failed="$(printf '%s' "$summary" | grep -oE '[0-9]+ (failed|error)' | grep -oE '^[0-9]+')"
+    E2E_PYTEST_PASS=$((E2E_PYTEST_PASS + ${passed:-0}))
+    E2E_PYTEST_FAIL=$((E2E_PYTEST_FAIL + ${failed:-0}))
     if [ -n "$skipped" ]; then
         E2E_SKIP=$((E2E_SKIP + skipped))
         if printf '%s' "$summary" | grep -qE '[0-9]+ (passed|failed)'; then

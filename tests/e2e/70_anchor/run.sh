@@ -38,7 +38,7 @@ ANCHOR="$ROOT/gridtokenx-anchor"
 echo "=== Anchor Suite | run $E2E_RUN_ID ==="
 
 if [ ! -d "$ANCHOR" ] || [ ! -f "$ANCHOR/Anchor.toml" ]; then
-    log_warn "gridtokenx-anchor not checked out — skipping"
+    log_skip "gridtokenx-anchor not checked out — skipping"
     suite_summary; exit 0
 fi
 
@@ -78,7 +78,7 @@ fi
 
 # --- Phase B: live-validator registry test ------------------------------------
 if [ "${E2E_RUN_ANCHOR:-0}" != "1" ]; then
-    log_warn "Anchor validator phase skipped (set E2E_RUN_ANCHOR=1 to run — slow, needs Solana toolchain)"
+    log_skip "Anchor validator phase skipped (set E2E_RUN_ANCHOR=1 to run — slow, needs Solana toolchain)"
     suite_summary; exit 0
 fi
 
@@ -87,7 +87,7 @@ ulimit -n 65536 2>/dev/null || true
 
 for bin in npx node solana solana-keygen; do
     if ! command -v "$bin" >/dev/null; then
-        log_warn "$bin not on PATH — skipping (Solana/Node toolchain required)"
+        log_skip "$bin not on PATH — skipping (Solana/Node toolchain required)"
         suite_summary; exit 0
     fi
 done
@@ -99,13 +99,13 @@ ID_WALLET="$HOME/.config/solana/id.json"
 # The live registry's authority is the dev wallet — without it aggregate_shards
 # rejects with UnauthorizedAuthority, so this suite can't be satisfied.
 if [ ! -f "$DEV_WALLET" ]; then
-    log_warn "dev wallet $DEV_WALLET absent (registry authority) — skipping; run app.sh init first"
+    log_skip "dev wallet $DEV_WALLET absent (registry authority) — skipping; run app.sh init first"
     suite_summary; exit 0
 fi
 
 # Validator must be up (this suite reads/writes on-chain state).
 if ! solana cluster-version --url "$RPC" >/dev/null 2>&1; then
-    log_warn "Solana validator unreachable at $RPC — skipping; run app.sh start first"
+    log_skip "Solana validator unreachable at $RPC — skipping; run app.sh start first"
     suite_summary; exit 0
 fi
 

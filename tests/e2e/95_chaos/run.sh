@@ -24,12 +24,12 @@ source "$HERE/../lib/assert.sh"
 echo "=== Chaos / Resilience Suite | run $E2E_RUN_ID ==="
 
 if [ "${E2E_RUN_CHAOS:-0}" != "1" ]; then
-    log_warn "Chaos suite skipped (set E2E_RUN_CHAOS=1 — invasive: stops/starts real containers)"
+    log_skip "Chaos suite skipped (set E2E_RUN_CHAOS=1 — invasive: stops/starts real containers)"
     suite_summary; exit 0
 fi
 
 if ! command -v docker >/dev/null || ! docker info >/dev/null 2>&1; then
-    log_warn "docker daemon unreachable — skipping chaos suite"
+    log_skip "docker daemon unreachable — skipping chaos suite"
     suite_summary; exit 0
 fi
 
